@@ -1,0 +1,203 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #07110d;
+  color: #f5fff8;
+  font-family: Arial, sans-serif;
+  min-height: 100vh;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 18px 16px;
+
+  background: #091610;
+  border-bottom: 1px solid #1b3428;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 25px;
+  letter-spacing: 3px;
+}
+
+.header p {
+  margin: 5px 0 0;
+  color: #91a99c;
+  font-size: 11px;
+}
+
+.profile {
+  background: #102019;
+  border: 1px solid #294437;
+  color: white;
+
+  padding: 10px 12px;
+  border-radius: 12px;
+
+  font-size: 18px;
+}
+
+.container {
+  max-width: 760px;
+  margin: auto;
+
+  padding: 20px 16px 120px;
+}
+
+.welcome h2 {
+  margin-bottom: 5px;
+  font-size: 30px;
+}
+
+.welcome p {
+  color: #9eb1a7;
+}
+
+.chat-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  margin-top: 20px;
+}
+
+.message {
+  max-width: 88%;
+
+  padding: 14px 16px;
+
+  border-radius: 17px;
+
+  line-height: 1.5;
+}
+
+.ai {
+  background: #12221a;
+  border: 1px solid #254133;
+}
+
+.user {
+  align-self: flex-end;
+  background: #1e7a4d;
+}
+
+.quick-buttons {
+  display: flex;
+  gap: 8px;
+
+  overflow-x: auto;
+
+  margin: 18px 0;
+}
+
+.quick-buttons button {
+  white-space: nowrap;
+
+  padding: 9px 14px;
+
+  border-radius: 18px;
+
+  border: 1px solid #294437;
+
+  background: #102019;
+  color: #dff5e7;
+}
+
+.input-area {
+  position: fixed;
+
+  bottom: 70px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  width: min(728px, calc(100% - 24px));
+
+  display: flex;
+  gap: 8px;
+
+  padding: 8px;
+
+  background: #0b1812;
+
+  border: 1px solid #294437;
+
+  border-radius: 18px;
+}
+
+.input-area textarea {
+  flex: 1;
+
+  resize: none;
+
+  background: transparent;
+  color: white;
+
+  border: none;
+  outline: none;
+
+  padding: 10px;
+
+  font-size: 15px;
+}
+
+.send {
+  width: 45px;
+
+  border: none;
+
+  border-radius: 13px;
+
+  background: #27a864;
+
+  color: white;
+
+  font-size: 20px;
+}
+
+.bottom-nav {
+  position: fixed;
+
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  height: 62px;
+
+  background: #091610;
+
+  border-top: 1px solid #183126;
+
+  display: flex;
+  justify-content: space-around;
+}
+
+.bottom-nav button {
+  background: none;
+  border: none;
+
+  color: #81968a;
+
+  font-size: 18px;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 3px;
+}
+
+.bottom-nav span {
+  font-size: 10px;
+}
+
+.bottom-nav .active {
+  color: #52d88b;
+}
