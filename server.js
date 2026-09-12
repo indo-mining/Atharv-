@@ -139,8 +139,11 @@ model: process.env.AI_MODEL || "gpt-5.6-luna",
     // ========================================
 
     const reply =
-      data.output_text ||
-      "Sorry, Atharv could not generate a response.";
+  data.output?.flatMap(item => item.content || [])
+    ?.filter(item => item.type === "output_text")
+    ?.map(item => item.text)
+    ?.join("") ||
+  "Sorry, Atharv could not generate a response.";
 
 
     // ========================================
