@@ -147,14 +147,15 @@ async function sendMessage() {
               "application/json"
           },
 
-          body: JSON.stringify({
+  body: JSON.stringify({
+  message: message,
 
-            message: message,
+  previousResponseId:
+    previousResponseId,
 
-            previousResponseId:
-              previousResponseId
-
-          })
+  timeZone:
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+})
 
         }
       );
