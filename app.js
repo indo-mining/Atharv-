@@ -1,13 +1,28 @@
-const chatBox = document.getElementById("chatBox");
-const messageInput = document.getElementById("message");
-const sendButton = document.querySelector(".send");
+const chatBox =
+  document.getElementById("chatBox");
 
-// Atharv backend URL
-// Same website par backend ho to "/" rakhein.
-// Agar backend alag server par hai to yahan uska URL डालें.
+const messageInput =
+  document.getElementById("message");
+
+const sendButton =
+  document.querySelector(".send");
+
+
+// ========================================
+// API
+// ========================================
+
 const API_BASE = "";
 
+
+// ========================================
+// STATE
+// ========================================
+
 let isThinking = false;
+
+let previousResponseId = null;
+
 
 // ========================================
 // ADD MESSAGE
@@ -15,52 +30,68 @@ let isThinking = false;
 
 function addMessage(text, type) {
 
-const message = document.createElement("div");
+  const message =
+    document.createElement("div");
 
-message.className = "message " + type;
+  message.className =
+    "message " + type;
 
-// Safe text rendering
-message.textContent = text;
+  message.textContent = text;
 
-chatBox.appendChild(message);
+  chatBox.appendChild(message);
 
-message.scrollIntoView({
-behavior: "smooth",
-block: "end"
-});
+  message.scrollIntoView({
+    behavior: "smooth",
+    block: "end"
+  });
 
-return message;
+  return message;
 }
 
+
 // ========================================
-// TYPING / THINKING MESSAGE
+// THINKING
 // ========================================
 
 function showThinking() {
 
-const message = document.createElement("div");
+  removeThinking();
 
-message.className = "message ai";
-message.id = "thinkingMessage";
+  const message =
+    document.createElement("div");
 
-message.textContent = "Atharv soch raha hai... 🤔";
+  message.className =
+    "message ai thinking";
 
-chatBox.appendChild(message);
+  message.id =
+    "thinkingMessage";
 
-message.scrollIntoView({
-behavior: "smooth",
-block: "end"
-});
+  message.textContent =
+    "Atharv soch raha hai... 🤔";
+
+  chatBox.appendChild(message);
+
+  message.scrollIntoView({
+    behavior: "smooth",
+    block: "end"
+  });
+
 }
+
 
 function removeThinking() {
 
-const thinking = document.getElementById("thinkingMessage");
+  const thinking =
+    document.getElementById(
+      "thinkingMessage"
+    );
 
-if (thinking) {
-thinking.remove();
+  if (thinking) {
+    thinking.remove();
+  }
+
 }
-}
+
 
 // ========================================
 // SEND MESSAGE
@@ -68,83 +99,136 @@ thinking.remove();
 
 async function sendMessage() {
 
-const message = messageInput.value.trim();
-
-if (!message || isThinking) {
-return;
-}
-
-// User message
-addMessage(message, "user");
-
-messageInput.value = "";
-
-isThinking = true;
-
-sendButton.disabled = true;
-sendButton.style.opacity = "0.5";
-
-showThinking();
-
-try {
-
-const response = await fetch(API_BASE + "/api/chat", {
-
-  method: "POST",
-
-  headers: {
-    "Content-Type": "application/json"
-  },
-
-  body: JSON.stringify({
-    message: message
-  })
-
-});
+  const message =
+    messageInput.value.trim();
 
 
-const data = await response.json();
+  if (!message || isThinking) {
+    return;
+  }
 
-removeThinking();
 
-
-if (!response.ok) {
-
-  throw new Error(
-    data.error || "Atharv server error"
+  // User message
+  addMessage(
+    message,
+    "user"
   );
 
+
+  // Clear input
+  messageInput.value = "";
+
+  messageInput.style.height =
+    "auto";
+
+
+  // Thinking state
+  isThinking = true;
+
+  sendButton.disabled = true;
+
+  sendButton.style.opacity =
+    "0.5";
+
+
+  showThinking();
+
+
+  try {
+
+    const response =
+      await fetch(
+        API_BASE + "/api/chat",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json"
+          },
+
+          body: JSON.stringify({
+
+            message: message,
+
+            previousResponseId:
+              previousResponseId
+
+          })
+
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    removeThinking();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        "Atharv server error"
+      );
+
+    }
+
+
+    // Save conversation ID
+    if (data.responseId) {
+
+      previousResponseId =
+        data.responseId;
+
+    }
+
+
+    const reply =
+      data.reply ||
+      "Atharv ko response nahi mila.";
+
+
+    addMessage(
+      reply,
+      "ai"
+    );
+
+
+  } catch (error) {
+
+    removeThinking();
+
+    console.error(
+      "ATHARV ERROR:",
+      error
+    );
+
+
+    addMessage(
+
+      "Sorry 🙏 Atharv se connection mein problem aa gayi. Please dobara try karein.",
+
+      "ai"
+
+    );
+
+  }
+
+
+  isThinking = false;
+
+  sendButton.disabled = false;
+
+  sendButton.style.opacity =
+    "1";
+
+  messageInput.focus();
+
 }
 
-
-const reply =
-  data.reply ||
-  data.message ||
-  "Atharv ko response nahi mila.";
-
-
-addMessage(reply, "ai");
-
-} catch (error) {
-
-removeThinking();
-
-console.error("ATHARV ERROR:", error);
-
-addMessage(
-  "Sorry 🙏 Atharv server se connection nahi ho pa raha. Thodi der baad dobara try karein.",
-  "ai"
-);
-
-}
-
-isThinking = false;
-
-sendButton.disabled = false;
-sendButton.style.opacity = "1";
-
-messageInput.focus();
-}
 
 // ========================================
 // QUICK QUESTIONS
@@ -152,87 +236,139 @@ messageInput.focus();
 
 function quickAsk(text) {
 
-if (isThinking) {
-return;
+  if (isThinking) {
+    return;
+  }
+
+  messageInput.value =
+    text;
+
+  sendMessage();
+
 }
 
-messageInput.value = text;
-
-sendMessage();
-}
 
 // ========================================
 // ENTER TO SEND
 // ========================================
 
-messageInput.addEventListener("keydown", function(event) {
+messageInput.addEventListener(
+  "keydown",
+  function(event) {
 
-if (event.key === "Enter" && !event.shiftKey) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
 
-event.preventDefault();
+      event.preventDefault();
 
-sendMessage();
+      sendMessage();
 
-}
+    }
 
-});
+  }
+);
 
-// ========================================
-// AUTO RESIZE TEXTAREA
-// ========================================
-
-messageInput.addEventListener("input", function() {
-
-this.style.height = "auto";
-
-this.style.height =
-Math.min(this.scrollHeight, 120) + "px";
-
-});
 
 // ========================================
-// PROFILE BUTTON
+// AUTO RESIZE
 // ========================================
 
-const profileButton = document.querySelector(".profile");
+messageInput.addEventListener(
+  "input",
+  function() {
+
+    this.style.height =
+      "auto";
+
+    this.style.height =
+      Math.min(
+        this.scrollHeight,
+        120
+      ) + "px";
+
+  }
+);
+
+
+// ========================================
+// PROFILE
+// ========================================
+
+const profileButton =
+  document.querySelector(
+    ".profile"
+  );
+
 
 if (profileButton) {
 
-profileButton.addEventListener("click", function() {
+  profileButton.addEventListener(
+    "click",
+    function() {
 
-addMessage(
-  "👤 Profile section Atharv ke next update mein activate hoga.",
-  "ai"
-);
+      addMessage(
 
-});
+        "👤 Profile system Atharv ke next stage mein activate hoga.",
+
+        "ai"
+
+      );
+
+    }
+  );
 
 }
 
+
 // ========================================
-// BOTTOM NAV
+// NAVIGATION
 // ========================================
 
 const navButtons =
-document.querySelectorAll(".bottom-nav button");
+  document.querySelectorAll(
+    ".bottom-nav button"
+  );
 
-navButtons.forEach(function(button) {
 
-button.addEventListener("click", function() {
+navButtons.forEach(
+  function(button) {
 
-navButtons.forEach(function(btn) {
-  btn.classList.remove("active");
-});
+    button.addEventListener(
+      "click",
+      function() {
 
-button.classList.add("active");
+        navButtons.forEach(
+          function(btn) {
 
-});
+            btn.classList.remove(
+              "active"
+            );
 
-});
+          }
+        );
+
+
+        button.classList.add(
+          "active"
+        );
+
+      }
+    );
+
+  }
+);
+
 
 // ========================================
-// WELCOME
+// START
 // ========================================
 
-console.log("ATHARV AI loaded successfully 🤖");
-console.log("Waiting for /api/chat backend...");
+console.log(
+  "ATHARV AI loaded successfully 🤖"
+);
+
+console.log(
+  "Conversation mode enabled."
+);
