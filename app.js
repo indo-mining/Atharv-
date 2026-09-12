@@ -22,12 +22,93 @@ const API_BASE = "";
 let isThinking = false;
 
 let previousResponseId = null;
-
+const ATHARV_HISTORY_KEY = "atharv_chat_history";
+const ATHARV_RESPONSE_KEY = "atharv_previous_response_id";
 
 // ========================================
 // ADD MESSAGE
 // ========================================
+function saveChatHistory() {
+  const messages = [];
 
+  document
+    .querySelectorAll("#chatBox .message")
+    .forEach(function(message) {
+      if (message.id === "thinkingMessage") {
+        return;
+      }
+
+      messages.push({
+        text: message.textContent,
+        type: message.classList.contains("user")
+          ? "user"
+          : "ai"
+      });
+    });
+
+  localStorage.setItem(
+    ATHARV_HISTORY_KEY,
+    JSON.stringify(messages)
+  );
+
+  if (previousResponseId) {
+    localStorage.setItem(
+      ATHARV_RESPONSE_KEY,
+      previousResponseId
+    );
+  }
+}
+function loadChatHistory() {
+  try {
+    const saved =
+      localStorage.getItem(
+        ATHARV_HISTORY_KEY
+      );
+
+    const savedResponseId =
+      localStorage.getItem(
+        ATHARV_RESPONSE_KEY
+      );
+
+    if (savedResponseId) {
+      previousResponseId =
+        savedResponseId;
+    }
+saveChatHistory();
+    if (!saved) {
+      return;
+    }
+
+    const messages =
+      JSON.parse(saved);
+
+    if (!Array.isArray(messages)) {
+      return;
+    }
+
+    chatBox.innerHTML = "";
+
+    messages.forEach(function(item) {
+      if (
+        item &&
+        typeof item.text === "string" &&
+        (item.type === "user" ||
+         item.type === "ai")
+      ) {
+        addMessage(
+          item.text,
+          item.type
+        );
+      }
+    });
+
+  } catch (error) {
+    console.error(
+      "HISTORY LOAD ERROR:",
+      error
+    );
+  }
+}
 function addMessage(text, type) {
 
   const message =
@@ -113,7 +194,8 @@ async function sendMessage() {
     message,
     "user"
   );
-
+  
+saveChatHistory();
 
   // Clear input
   messageInput.value = "";
@@ -196,7 +278,7 @@ async function sendMessage() {
       reply,
       "ai"
     );
-
+saveChatHistory();
 
   } catch (error) {
 
@@ -217,7 +299,7 @@ async function sendMessage() {
     );
 
   }
-
+saveChatHistory();
 
   isThinking = false;
 
@@ -373,3 +455,4 @@ console.log(
 console.log(
   "Conversation mode enabled."
 );
+loadChatHistory();
