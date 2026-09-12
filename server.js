@@ -63,7 +63,43 @@ app.get("/health", (req, res) => {
   });
 
 });
+function getUserDateTime(timeZone) {
+  try {
+    const tz =
+      typeof timeZone === "string" && timeZone.trim()
+        ? timeZone
+        : "UTC";
 
+    const now = new Date();
+
+    const date = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).format(now);
+
+    const time = new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
+    }).format(now);
+
+    return {
+      date,
+      time,
+      timeZone: tz
+    };
+  } catch (error) {
+    return {
+      date: new Date().toISOString().slice(0, 10),
+      time: "unknown",
+      timeZone: "UTC"
+    };
+  }
+}
 
 // ========================================
 // ATHARV INSTRUCTIONS
