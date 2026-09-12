@@ -81,9 +81,8 @@ app.post("/api/chat", async (req, res) => {
         },
 
         body: JSON.stringify({
-
-          model: process.env.AI_MODEL || "gpt-5",
-
+model: process.env.AI_MODEL || "gpt-5.6-luna",
+          
           instructions:
             `You are Atharv AI, a helpful Indian AI assistant.
 
@@ -173,7 +172,7 @@ app.post("/api/chat", async (req, res) => {
 // SERVER START
 // ========================================
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
 
