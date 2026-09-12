@@ -70,7 +70,7 @@ app.post("/api/chat", async (req, res) => {
 
         body: JSON.stringify({
 
-          model: process.env.AI_MODEL || "gpt-5.6-luna",
+        model: process.env.AI_MODEL || "gpt-5",
 
           instructions:
             `You are Atharv AI, a helpful Indian AI assistant.
