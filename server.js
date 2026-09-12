@@ -195,11 +195,19 @@ app.post("/api/chat", async (req, res) => {
     // GET USER DATA
     // ------------------------------------
 
-    const userMessage =
-      typeof req.body.message === "string"
-        ? req.body.message.trim()
-        : "";
+    
+const userMessage =
+  typeof req.body.message === "string"
+    ? req.body.message.trim()
+    : "";
 
+const userTimeZone =
+  typeof req.body.timeZone === "string"
+    ? req.body.timeZone
+    : "UTC";
+
+const userDateTime =
+  getUserDateTime(userTimeZone);
     const previousResponseId =
       typeof req.body.previousResponseId === "string" &&
       req.body.previousResponseId.trim()
