@@ -1,13 +1,240 @@
-<section class="welcome">
+<!DOCTYPE html>
+<html lang="en">
 
-  <h2>Namaste 👋</h2>
+<head>
 
-  <p>
-    Ask Atharv anything in your own language.
-  </p>
+  <meta charset="UTF-8">
 
-  <small>
-    🌍 Multilingual AI • 💬 Chat • 🌐 Live Information
-  </small>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
 
-</section>
+  <title>Atharv AI</title>
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  >
+
+</head>
+
+
+<body>
+
+
+  <!-- ========================================
+       HEADER
+  ========================================= -->
+
+  <header class="header">
+
+    <div>
+
+      <h1>ATHARV</h1>
+
+      <p>
+        Your AI. Every Language. Every Question.
+      </p>
+
+    </div>
+
+
+    <button
+      class="profile"
+      type="button"
+    >
+      👤
+    </button>
+
+  </header>
+
+
+
+  <!-- ========================================
+       MAIN
+  ========================================= -->
+
+  <main class="container">
+
+
+    <!-- WELCOME -->
+
+    <section class="welcome">
+
+      <h2>
+        Namaste 👋
+      </h2>
+
+      <p>
+        Ask Atharv anything in your own language.
+      </p>
+
+      <small>
+        🌍 Multilingual AI • 💬 Chat • 🌐 Live Information
+      </small>
+
+    </section>
+
+
+
+    <!-- ========================================
+         CHAT BOX
+    ========================================= -->
+
+    <section
+      id="chatBox"
+      class="chat-box"
+    >
+
+      <div class="message ai">
+
+        Namaste! 🙏<br><br>
+
+        Main Atharv hoon. Aap mujhse kisi bhi
+        language mein sawaal pooch sakte hain.
+
+      </div>
+
+    </section>
+
+
+
+    <!-- ========================================
+         QUICK QUESTIONS
+    ========================================= -->
+
+    <div class="quick-buttons">
+
+      <button
+        type="button"
+        onclick="quickAsk('Explain this in simple language')"
+      >
+        ✨ Explain
+      </button>
+
+
+      <button
+        type="button"
+        onclick="quickAsk('What is happening in the world today?')"
+      >
+        🌍 Latest
+      </button>
+
+
+      <button
+        type="button"
+        onclick="quickAsk('Explain stock market for beginners')"
+      >
+        📈 Market
+      </button>
+
+    </div>
+
+
+
+    <!-- ========================================
+         MESSAGE INPUT
+    ========================================= -->
+
+    <div class="input-area">
+
+      <textarea
+        id="message"
+        placeholder="Ask Atharv anything..."
+        rows="1"
+      ></textarea>
+
+
+      <button
+        type="button"
+        onclick="sendMessage()"
+        class="send"
+      >
+        ➤
+      </button>
+
+    </div>
+
+
+  </main>
+
+
+
+  <!-- ========================================
+       BOTTOM NAVIGATION
+  ========================================= -->
+
+  <nav class="bottom-nav">
+
+
+    <button
+      type="button"
+      class="active"
+    >
+
+      💬
+
+      <span>
+        Chat
+      </span>
+
+    </button>
+
+
+
+    <button
+      type="button"
+    >
+
+      📈
+
+      <span>
+        Market
+      </span>
+
+    </button>
+
+
+
+    <button
+      type="button"
+    >
+
+      🔔
+
+      <span>
+        Alerts
+      </span>
+
+    </button>
+
+
+
+    <button
+      type="button"
+    >
+
+      👤
+
+      <span>
+        Profile
+      </span>
+
+    </button>
+
+
+  </nav>
+
+
+
+  <!-- ========================================
+       ATHARV JAVASCRIPT
+  ========================================= -->
+
+  <script src="app.js"></script>
+
+
+</body>
+
+</html>
