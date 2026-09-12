@@ -232,12 +232,26 @@ const userDateTime =
     // RESPONSE OPTIONS
     // ------------------------------------
 
-    const request = {
+const request = {
+  model: AI_MODEL,
 
-      model: AI_MODEL,
+  instructions:
+    ATHARV_INSTRUCTIONS +
 
-      instructions:
-        ATHARV_INSTRUCTIONS,
+    `
+
+CURRENT USER DATE/TIME:
+
+Date: ${userDateTime.date}
+Time: ${userDateTime.time}
+Timezone: ${userDateTime.timeZone}
+
+IMPORTANT:
+- When the user says today, tomorrow, yesterday, this week, etc., use this user's current date/time.
+- Never guess the date.
+- If web search gives a different date, verify the context before answering.
+- For horoscope, news, market and other date-sensitive answers, clearly use the correct current date.
+`,
 
       input: userMessage,
 
