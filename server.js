@@ -69,7 +69,6 @@ app.post("/api/chat", async (req, res) => {
         },
 
         body: JSON.stringify({
-
         model: process.env.AI_MODEL || "gpt-5",
 
           instructions:
