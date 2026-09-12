@@ -21,94 +21,19 @@ const API_BASE = "";
 
 let isThinking = false;
 
+// Current browser session ka response ID.
+// Isko localStorage me save nahi kar rahe,
+// taaki koi purani/stuck response chain reuse na ho.
 let previousResponseId = null;
-const ATHARV_HISTORY_KEY = "atharv_chat_history";
-const ATHARV_RESPONSE_KEY = "atharv_previous_response_id";
+
+const ATHARV_HISTORY_KEY =
+  "atharv_chat_history";
+
 
 // ========================================
 // ADD MESSAGE
 // ========================================
-function saveChatHistory() {
-  const messages = [];
 
-  document
-    .querySelectorAll("#chatBox .message")
-    .forEach(function(message) {
-      if (message.id === "thinkingMessage") {
-        return;
-      }
-
-      messages.push({
-        text: message.textContent,
-        type: message.classList.contains("user")
-          ? "user"
-          : "ai"
-      });
-    });
-
-  localStorage.setItem(
-    ATHARV_HISTORY_KEY,
-    JSON.stringify(messages)
-  );
-
-  if (previousResponseId) {
-    localStorage.setItem(
-      ATHARV_RESPONSE_KEY,
-      previousResponseId
-    );
-  }
-}
-function loadChatHistory() {
-  try {
-    const saved =
-      localStorage.getItem(
-        ATHARV_HISTORY_KEY
-      );
-
-    const savedResponseId =
-      localStorage.getItem(
-        ATHARV_RESPONSE_KEY
-      );
-
-    if (savedResponseId) {
-      previousResponseId =
-        savedResponseId;
-    }
-saveChatHistory();
-    if (!saved) {
-      return;
-    }
-
-    const messages =
-      JSON.parse(saved);
-
-    if (!Array.isArray(messages)) {
-      return;
-    }
-
-    chatBox.innerHTML = "";
-
-    messages.forEach(function(item) {
-      if (
-        item &&
-        typeof item.text === "string" &&
-        (item.type === "user" ||
-         item.type === "ai")
-      ) {
-        addMessage(
-          item.text,
-          item.type
-        );
-      }
-    });
-
-  } catch (error) {
-    console.error(
-      "HISTORY LOAD ERROR:",
-      error
-    );
-  }
-}
 function addMessage(text, type) {
 
   const message =
@@ -131,6 +56,148 @@ function addMessage(text, type) {
 
 
 // ========================================
+// SAVE CHAT HISTORY
+// ========================================
+
+function saveChatHistory() {
+
+  try {
+
+    const messages = [];
+
+    document
+      .querySelectorAll(
+        "#chatBox .message"
+      )
+      .forEach(function(message) {
+
+        // Thinking message save nahi karna
+        if (
+          message.id ===
+          "thinkingMessage"
+        ) {
+          return;
+        }
+
+        messages.push({
+          text: message.textContent,
+
+          type:
+            message.classList.contains(
+              "user"
+            )
+              ? "user"
+              : "ai"
+        });
+
+      });
+
+
+    localStorage.setItem(
+      ATHARV_HISTORY_KEY,
+      JSON.stringify(messages)
+    );
+
+  } catch (error) {
+
+    console.error(
+      "HISTORY SAVE ERROR:",
+      error
+    );
+
+  }
+
+}
+
+
+// ========================================
+// LOAD CHAT HISTORY
+// ========================================
+
+function loadChatHistory() {
+
+  try {
+
+    const saved =
+      localStorage.getItem(
+        ATHARV_HISTORY_KEY
+      );
+
+
+    // Agar history nahi hai,
+    // normal HTML welcome message rehne do.
+    if (!saved) {
+      return;
+    }
+
+
+    const messages =
+      JSON.parse(saved);
+
+
+    if (
+      !Array.isArray(messages) ||
+      messages.length === 0
+    ) {
+      return;
+    }
+
+
+    chatBox.innerHTML = "";
+
+
+    messages.forEach(
+      function(item) {
+
+        if (
+          item &&
+          typeof item.text ===
+            "string" &&
+          (
+            item.type === "user" ||
+            item.type === "ai"
+          )
+        ) {
+
+          addMessage(
+            item.text,
+            item.type
+          );
+
+        }
+
+      }
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      "HISTORY LOAD ERROR:",
+      error
+    );
+
+  }
+
+}
+
+
+// ========================================
+// CLEAR CHAT
+// ========================================
+
+function clearChatHistory() {
+
+  localStorage.removeItem(
+    ATHARV_HISTORY_KEY
+  );
+
+  previousResponseId = null;
+
+}
+
+
+// ========================================
 // THINKING
 // ========================================
 
@@ -138,19 +205,25 @@ function showThinking() {
 
   removeThinking();
 
+
   const message =
     document.createElement("div");
+
 
   message.className =
     "message ai thinking";
 
+
   message.id =
     "thinkingMessage";
+
 
   message.textContent =
     "Atharv soch raha hai... 🤔";
 
+
   chatBox.appendChild(message);
+
 
   message.scrollIntoView({
     behavior: "smooth",
@@ -166,6 +239,7 @@ function removeThinking() {
     document.getElementById(
       "thinkingMessage"
     );
+
 
   if (thinking) {
     thinking.remove();
@@ -184,18 +258,26 @@ async function sendMessage() {
     messageInput.value.trim();
 
 
-  if (!message || isThinking) {
+  if (
+    !message ||
+    isThinking
+  ) {
     return;
   }
 
 
-  // User message
+  // ======================================
+  // USER MESSAGE
+  // ======================================
+
   addMessage(
     message,
     "user"
   );
-  
-saveChatHistory();
+
+
+  saveChatHistory();
+
 
   // Clear input
   messageInput.value = "";
@@ -204,7 +286,10 @@ saveChatHistory();
     "auto";
 
 
-  // Thinking state
+  // ======================================
+  // THINKING STATE
+  // ======================================
+
   isThinking = true;
 
   sendButton.disabled = true;
@@ -215,6 +300,10 @@ saveChatHistory();
 
   showThinking();
 
+
+  // ======================================
+  // SERVER REQUEST
+  // ======================================
 
   try {
 
@@ -229,16 +318,20 @@ saveChatHistory();
               "application/json"
           },
 
-  body: JSON.stringify({
-  message: message,
+          body:
+            JSON.stringify({
+              message:
+                message,
 
-  previousResponseId:
-    previousResponseId,
+              previousResponseId:
+                previousResponseId,
 
-  timeZone:
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-})
-
+              timeZone:
+                Intl
+                  .DateTimeFormat()
+                  .resolvedOptions()
+                  .timeZone
+            })
         }
       );
 
@@ -247,8 +340,13 @@ saveChatHistory();
       await response.json();
 
 
+    // Thinking remove
     removeThinking();
 
+
+    // ====================================
+    // ERROR RESPONSE
+    // ====================================
 
     if (!response.ok) {
 
@@ -260,14 +358,23 @@ saveChatHistory();
     }
 
 
-    // Save conversation ID
-    if (data.responseId) {
+    // ====================================
+    // SAVE RESPONSE ID
+    // ====================================
+
+    if (
+      data.responseId
+    ) {
 
       previousResponseId =
         data.responseId;
 
     }
 
+
+    // ====================================
+    // AI RESPONSE
+    // ====================================
 
     const reply =
       data.reply ||
@@ -278,11 +385,16 @@ saveChatHistory();
       reply,
       "ai"
     );
-saveChatHistory();
+
+
+    // Save complete conversation
+    saveChatHistory();
+
 
   } catch (error) {
 
     removeThinking();
+
 
     console.error(
       "ATHARV ERROR:",
@@ -298,8 +410,15 @@ saveChatHistory();
 
     );
 
+
+    saveChatHistory();
+
   }
-saveChatHistory();
+
+
+  // ======================================
+  // RESET THINKING
+  // ======================================
 
   isThinking = false;
 
@@ -323,8 +442,10 @@ function quickAsk(text) {
     return;
   }
 
+
   messageInput.value =
     text;
+
 
   sendMessage();
 
@@ -365,6 +486,7 @@ messageInput.addEventListener(
     this.style.height =
       "auto";
 
+
     this.style.height =
       Math.min(
         this.scrollHeight,
@@ -398,6 +520,9 @@ if (profileButton) {
         "ai"
 
       );
+
+
+      saveChatHistory();
 
     }
   );
@@ -455,4 +580,11 @@ console.log(
 console.log(
   "Conversation mode enabled."
 );
+
+console.log(
+  "Persistent chat history enabled."
+);
+
+
+// Load previous messages
 loadChatHistory();
