@@ -201,3 +201,58 @@ body {
 .bottom-nav .active {
   color: #52d88b;
 }
+/* ========================================
+   THINKING
+======================================== */
+
+.thinking {
+  opacity: 0.8;
+  animation: atharvThinking 1.2s infinite;
+}
+
+@keyframes atharvThinking {
+
+  0% {
+    opacity: 0.45;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.45;
+  }
+
+}
+
+
+/* ========================================
+   SEND BUTTON
+======================================== */
+
+.send {
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.send:hover {
+  transform: scale(1.04);
+}
+
+.send:disabled {
+  cursor: not-allowed;
+}
+
+
+/* ========================================
+   QUICK BUTTON
+======================================== */
+
+.quick-buttons button {
+  cursor: pointer;
+}
+
+.quick-buttons button:active {
+  transform: scale(0.97);
+}
