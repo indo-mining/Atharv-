@@ -21,10 +21,11 @@ const openai =
   process.env.OPENAI_API_KEY
     ? new OpenAI({
         apiKey:
-          process.env.OPENAI_API_KEY
+          process.env.OPENAI_API_KEY,
+        timeout: 30000,
+        maxRetries: 0
       })
     : null;
-
 
 // =====================================================
 // MIDDLEWARE
