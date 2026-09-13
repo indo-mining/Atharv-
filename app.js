@@ -7,31 +7,16 @@ const messageInput =
 const sendButton =
   document.querySelector(".send");
 
-
-// ========================================
-// API
-// ========================================
-
 const API_BASE = "";
 
-
-// ========================================
-// STATE
-// ========================================
-
 let isThinking = false;
-
-// Current browser session only.
-// localStorage me save nahi hota.
-let previousResponseId = null;
 
 const ATHARV_HISTORY_KEY =
   "atharv_chat_history";
 
-
-// ========================================
+// =====================================================
 // ADD MESSAGE
-// ========================================
+// =====================================================
 
 function addMessage(text, type) {
   const message =
@@ -52,17 +37,18 @@ function addMessage(text, type) {
   return message;
 }
 
-
-// ========================================
+// =====================================================
 // SAVE HISTORY
-// ========================================
+// =====================================================
 
 function saveChatHistory() {
   try {
     const messages = [];
 
     document
-      .querySelectorAll("#chatBox .message")
+      .querySelectorAll(
+        "#chatBox .message"
+      )
       .forEach(function (message) {
 
         if (
@@ -73,9 +59,13 @@ function saveChatHistory() {
         }
 
         messages.push({
-          text: message.textContent,
+          text:
+            message.textContent,
+
           type:
-            message.classList.contains("user")
+            message.classList.contains(
+              "user"
+            )
               ? "user"
               : "ai"
         });
@@ -87,6 +77,7 @@ function saveChatHistory() {
     );
 
   } catch (error) {
+
     console.error(
       "HISTORY SAVE ERROR:",
       error
@@ -94,12 +85,11 @@ function saveChatHistory() {
   }
 }
 
+// =====================================================
+// GET HISTORY
+// =====================================================
 
-// ========================================
-// LOAD HISTORY
-// ========================================
-
-function loadChatHistory() {
+function getChatHistory() {
   try {
     const saved =
       localStorage.getItem(
@@ -107,11 +97,38 @@ function loadChatHistory() {
       );
 
     if (!saved) {
-      return;
+      return [];
     }
 
     const messages =
       JSON.parse(saved);
+
+    if (!Array.isArray(messages)) {
+      return [];
+    }
+
+    return messages;
+
+  } catch (error) {
+
+    console.error(
+      "HISTORY READ ERROR:",
+      error
+    );
+
+    return [];
+  }
+}
+
+// =====================================================
+// LOAD HISTORY
+// =====================================================
+
+function loadChatHistory() {
+  try {
+
+    const messages =
+      getChatHistory();
 
     if (
       !Array.isArray(messages) ||
@@ -123,14 +140,17 @@ function loadChatHistory() {
     chatBox.innerHTML = "";
 
     messages.forEach(function (item) {
+
       if (
         item &&
-        typeof item.text === "string" &&
+        typeof item.text ===
+          "string" &&
         (
           item.type === "user" ||
           item.type === "ai"
         )
       ) {
+
         addMessage(
           item.text,
           item.type
@@ -139,6 +159,7 @@ function loadChatHistory() {
     });
 
   } catch (error) {
+
     console.error(
       "HISTORY LOAD ERROR:",
       error
@@ -146,32 +167,35 @@ function loadChatHistory() {
   }
 }
 
-
-// ========================================
+// =====================================================
 // CLEAR HISTORY
-// ========================================
+// =====================================================
 
 function clearChatHistory() {
-  localStorage.removeItem(
-    ATHARV_HISTORY_KEY
-  );
 
-  previousResponseId = null;
+  try {
 
-  chatBox.innerHTML = "";
+    localStorage.removeItem(
+      ATHARV_HISTORY_KEY
+    );
 
-  addMessage(
-    "Namaste! 🙏 Main Atharv hoon. Aap mujhse kuch bhi pooch sakte hain.",
-    "ai"
-  );
+    chatBox.innerHTML = "";
+
+  } catch (error) {
+
+    console.error(
+      "CLEAR HISTORY ERROR:",
+      error
+    );
+  }
 }
 
-
-// ========================================
+// =====================================================
 // THINKING
-// ========================================
+// =====================================================
 
 function showThinking() {
+
   removeThinking();
 
   const message =
@@ -194,8 +218,12 @@ function showThinking() {
   });
 }
 
+// =====================================================
+// REMOVE THINKING
+// =====================================================
 
 function removeThinking() {
+
   const thinking =
     document.getElementById(
       "thinkingMessage"
@@ -206,10 +234,9 @@ function removeThinking() {
   }
 }
 
-
-// ========================================
+// =====================================================
 // SEND MESSAGE
-// ========================================
+// =====================================================
 
 async function sendMessage() {
 
@@ -223,10 +250,9 @@ async function sendMessage() {
     return;
   }
 
-
-  // ======================================
+  // -----------------------------------------------
   // USER MESSAGE
-  // ======================================
+  // -----------------------------------------------
 
   addMessage(
     message,
@@ -235,20 +261,14 @@ async function sendMessage() {
 
   saveChatHistory();
 
-
-  // ======================================
-  // CLEAR INPUT
-  // ======================================
-
   messageInput.value = "";
 
   messageInput.style.height =
     "auto";
 
-
-  // ======================================
-  // THINKING
-  // ======================================
+  // -----------------------------------------------
+  // THINKING STATE
+  // -----------------------------------------------
 
   isThinking = true;
 
@@ -259,12 +279,39 @@ async function sendMessage() {
 
   showThinking();
 
+  // -----------------------------------------------
+  // REQUEST TIMEOUT
+  // -----------------------------------------------
 
-  // ======================================
-  // REQUEST
-  // ======================================
+  const controller =
+    new AbortController();
+
+  const timeoutId =
+    setTimeout(function () {
+
+      controller.abort();
+
+    }, 30000);
 
   try {
+
+    // ---------------------------------------------
+    // RECENT HISTORY
+    // ---------------------------------------------
+
+    const fullHistory =
+      getChatHistory();
+
+    // Last 8 messages only.
+    // This keeps context useful without
+    // making every request unnecessarily large.
+
+    const recentHistory =
+      fullHistory.slice(-8);
+
+    // ---------------------------------------------
+    // SEND REQUEST
+    // ---------------------------------------------
 
     const response =
       await fetch(
@@ -282,63 +329,59 @@ async function sendMessage() {
               message:
                 message,
 
-              previousResponseId:
-                previousResponseId,
+              history:
+                recentHistory,
 
               timeZone:
-                Intl
-                  .DateTimeFormat()
+                Intl.DateTimeFormat()
                   .resolvedOptions()
                   .timeZone
-            })
+            }),
+
+          signal:
+            controller.signal
         }
       );
 
+    // ---------------------------------------------
+    // RESPONSE JSON
+    // ---------------------------------------------
 
     let data;
 
     try {
+
       data =
         await response.json();
+
     } catch (jsonError) {
+
       throw new Error(
         "Server ne valid response nahi diya."
       );
     }
 
-
-    // ====================================
-    // HTTP ERROR
-    // ====================================
+    // ---------------------------------------------
+    // SERVER ERROR
+    // ---------------------------------------------
 
     if (!response.ok) {
+
       throw new Error(
         data.error ||
         "Atharv server error"
       );
     }
 
-
-    // ====================================
+    // ---------------------------------------------
     // REMOVE THINKING
-    // ====================================
+    // ---------------------------------------------
 
     removeThinking();
 
-
-    // ====================================
-    // RESPONSE ID
-    // ====================================
-
-    if (data.responseId) {
-      previousResponseId =
-        data.responseId;
-    }
-
-
-    // ====================================
-    // AI RESPONSE
-    // ====================================
+    // ---------------------------------------------
+    // ATHARV RESPONSE
+    // ---------------------------------------------
 
     const reply =
       data.reply ||
@@ -351,7 +394,6 @@ async function sendMessage() {
 
     saveChatHistory();
 
-
   } catch (error) {
 
     removeThinking();
@@ -361,35 +403,51 @@ async function sendMessage() {
       error
     );
 
+    // ---------------------------------------------
+    // TIMEOUT
+    // ---------------------------------------------
 
-    addMessage(
-      "Sorry 🙏 Atharv se connection mein problem aa gayi. Please dobara try karein.",
-      "ai"
-    );
+    if (
+      error.name ===
+      "AbortError"
+    ) {
+
+      addMessage(
+        "⏳ Request ko zyada time lag raha hai. Please dobara try karein.",
+        "ai"
+      );
+
+    } else {
+
+      addMessage(
+        "Sorry 🙏 Atharv se connection mein problem aa gayi. Please dobara try karein.",
+        "ai"
+      );
+    }
 
     saveChatHistory();
 
+  } finally {
+
+    clearTimeout(
+      timeoutId
+    );
+
+    isThinking = false;
+
+    sendButton.disabled =
+      false;
+
+    sendButton.style.opacity =
+      "1";
+
+    messageInput.focus();
   }
-
-
-  // ======================================
-  // RESET
-  // ======================================
-
-  isThinking = false;
-
-  sendButton.disabled = false;
-
-  sendButton.style.opacity =
-    "1";
-
-  messageInput.focus();
 }
 
-
-// ========================================
+// =====================================================
 // QUICK ASK
-// ========================================
+// =====================================================
 
 function quickAsk(text) {
 
@@ -403,10 +461,9 @@ function quickAsk(text) {
   sendMessage();
 }
 
-
-// ========================================
+// =====================================================
 // ENTER TO SEND
-// ========================================
+// =====================================================
 
 messageInput.addEventListener(
   "keydown",
@@ -424,10 +481,9 @@ messageInput.addEventListener(
   }
 );
 
-
-// ========================================
-// AUTO RESIZE
-// ========================================
+// =====================================================
+// AUTO RESIZE TEXTAREA
+// =====================================================
 
 messageInput.addEventListener(
   "input",
@@ -444,10 +500,9 @@ messageInput.addEventListener(
   }
 );
 
-
-// ========================================
-// PROFILE
-// ========================================
+// =====================================================
+// PROFILE BUTTON
+// =====================================================
 
 const profileButton =
   document.querySelector(
@@ -470,10 +525,9 @@ if (profileButton) {
   );
 }
 
-
-// ========================================
-// NAVIGATION
-// ========================================
+// =====================================================
+// BOTTOM NAVIGATION
+// =====================================================
 
 const navButtons =
   document.querySelectorAll(
@@ -489,6 +543,7 @@ navButtons.forEach(
 
         navButtons.forEach(
           function (btn) {
+
             btn.classList.remove(
               "active"
             );
@@ -503,21 +558,36 @@ navButtons.forEach(
   }
 );
 
-
-// ========================================
+// =====================================================
 // START
-// ========================================
+// =====================================================
 
 console.log(
-  "ATHARV FAST AI loaded 🤖"
+  "================================"
 );
 
 console.log(
-  "Fast response mode enabled."
+  "ATHARV AI LOADED 🤖"
 );
 
 console.log(
-  "Chat history enabled."
+  "Fast mode enabled."
+);
+
+console.log(
+  "Local chat history enabled."
+);
+
+console.log(
+  "Short conversation context enabled."
+);
+
+console.log(
+  "Previous Response ID disabled."
+);
+
+console.log(
+  "================================"
 );
 
 loadChatHistory();
