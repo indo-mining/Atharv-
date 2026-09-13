@@ -21,9 +21,8 @@ const API_BASE = "";
 
 let isThinking = false;
 
-// Current browser session ka response ID.
-// Isko localStorage me save nahi kar rahe,
-// taaki koi purani/stuck response chain reuse na ho.
+// Current browser session only.
+// localStorage me save nahi hota.
 let previousResponseId = null;
 
 const ATHARV_HISTORY_KEY =
@@ -35,7 +34,6 @@ const ATHARV_HISTORY_KEY =
 // ========================================
 
 function addMessage(text, type) {
-
   const message =
     document.createElement("div");
 
@@ -56,22 +54,17 @@ function addMessage(text, type) {
 
 
 // ========================================
-// SAVE CHAT HISTORY
+// SAVE HISTORY
 // ========================================
 
 function saveChatHistory() {
-
   try {
-
     const messages = [];
 
     document
-      .querySelectorAll(
-        "#chatBox .message"
-      )
-      .forEach(function(message) {
+      .querySelectorAll("#chatBox .message")
+      .forEach(function (message) {
 
-        // Thinking message save nahi karna
         if (
           message.id ===
           "thinkingMessage"
@@ -81,17 +74,12 @@ function saveChatHistory() {
 
         messages.push({
           text: message.textContent,
-
           type:
-            message.classList.contains(
-              "user"
-            )
+            message.classList.contains("user")
               ? "user"
               : "ai"
         });
-
       });
-
 
     localStorage.setItem(
       ATHARV_HISTORY_KEY,
@@ -99,41 +87,31 @@ function saveChatHistory() {
     );
 
   } catch (error) {
-
     console.error(
       "HISTORY SAVE ERROR:",
       error
     );
-
   }
-
 }
 
 
 // ========================================
-// LOAD CHAT HISTORY
+// LOAD HISTORY
 // ========================================
 
 function loadChatHistory() {
-
   try {
-
     const saved =
       localStorage.getItem(
         ATHARV_HISTORY_KEY
       );
 
-
-    // Agar history nahi hai,
-    // normal HTML welcome message rehne do.
     if (!saved) {
       return;
     }
 
-
     const messages =
       JSON.parse(saved);
-
 
     if (
       !Array.isArray(messages) ||
@@ -142,58 +120,50 @@ function loadChatHistory() {
       return;
     }
 
-
     chatBox.innerHTML = "";
 
-
-    messages.forEach(
-      function(item) {
-
-        if (
-          item &&
-          typeof item.text ===
-            "string" &&
-          (
-            item.type === "user" ||
-            item.type === "ai"
-          )
-        ) {
-
-          addMessage(
-            item.text,
-            item.type
-          );
-
-        }
-
+    messages.forEach(function (item) {
+      if (
+        item &&
+        typeof item.text === "string" &&
+        (
+          item.type === "user" ||
+          item.type === "ai"
+        )
+      ) {
+        addMessage(
+          item.text,
+          item.type
+        );
       }
-    );
-
+    });
 
   } catch (error) {
-
     console.error(
       "HISTORY LOAD ERROR:",
       error
     );
-
   }
-
 }
 
 
 // ========================================
-// CLEAR CHAT
+// CLEAR HISTORY
 // ========================================
 
 function clearChatHistory() {
-
   localStorage.removeItem(
     ATHARV_HISTORY_KEY
   );
 
   previousResponseId = null;
 
+  chatBox.innerHTML = "";
+
+  addMessage(
+    "Namaste! 🙏 Main Atharv hoon. Aap mujhse kuch bhi pooch sakte hain.",
+    "ai"
+  );
 }
 
 
@@ -202,49 +172,38 @@ function clearChatHistory() {
 // ========================================
 
 function showThinking() {
-
   removeThinking();
-
 
   const message =
     document.createElement("div");
 
-
   message.className =
     "message ai thinking";
-
 
   message.id =
     "thinkingMessage";
 
-
   message.textContent =
     "Atharv soch raha hai... 🤔";
 
-
   chatBox.appendChild(message);
-
 
   message.scrollIntoView({
     behavior: "smooth",
     block: "end"
   });
-
 }
 
 
 function removeThinking() {
-
   const thinking =
     document.getElementById(
       "thinkingMessage"
     );
 
-
   if (thinking) {
     thinking.remove();
   }
-
 }
 
 
@@ -256,7 +215,6 @@ async function sendMessage() {
 
   const message =
     messageInput.value.trim();
-
 
   if (
     !message ||
@@ -275,11 +233,13 @@ async function sendMessage() {
     "user"
   );
 
-
   saveChatHistory();
 
 
-  // Clear input
+  // ======================================
+  // CLEAR INPUT
+  // ======================================
+
   messageInput.value = "";
 
   messageInput.style.height =
@@ -287,7 +247,7 @@ async function sendMessage() {
 
 
   // ======================================
-  // THINKING STATE
+  // THINKING
   // ======================================
 
   isThinking = true;
@@ -297,12 +257,11 @@ async function sendMessage() {
   sendButton.style.opacity =
     "0.5";
 
-
   showThinking();
 
 
   // ======================================
-  // SERVER REQUEST
+  // REQUEST
   // ======================================
 
   try {
@@ -336,39 +295,44 @@ async function sendMessage() {
       );
 
 
-    const data =
-      await response.json();
+    let data;
 
-
-    // Thinking remove
-    removeThinking();
-
-
-    // ====================================
-    // ERROR RESPONSE
-    // ====================================
-
-    if (!response.ok) {
-
+    try {
+      data =
+        await response.json();
+    } catch (jsonError) {
       throw new Error(
-        data.error ||
-        "Atharv server error"
+        "Server ne valid response nahi diya."
       );
-
     }
 
 
     // ====================================
-    // SAVE RESPONSE ID
+    // HTTP ERROR
     // ====================================
 
-    if (
-      data.responseId
-    ) {
+    if (!response.ok) {
+      throw new Error(
+        data.error ||
+        "Atharv server error"
+      );
+    }
 
+
+    // ====================================
+    // REMOVE THINKING
+    // ====================================
+
+    removeThinking();
+
+
+    // ====================================
+    // RESPONSE ID
+    // ====================================
+
+    if (data.responseId) {
       previousResponseId =
         data.responseId;
-
     }
 
 
@@ -380,21 +344,17 @@ async function sendMessage() {
       data.reply ||
       "Atharv ko response nahi mila.";
 
-
     addMessage(
       reply,
       "ai"
     );
 
-
-    // Save complete conversation
     saveChatHistory();
 
 
   } catch (error) {
 
     removeThinking();
-
 
     console.error(
       "ATHARV ERROR:",
@@ -403,13 +363,9 @@ async function sendMessage() {
 
 
     addMessage(
-
       "Sorry 🙏 Atharv se connection mein problem aa gayi. Please dobara try karein.",
-
       "ai"
-
     );
-
 
     saveChatHistory();
 
@@ -417,7 +373,7 @@ async function sendMessage() {
 
 
   // ======================================
-  // RESET THINKING
+  // RESET
   // ======================================
 
   isThinking = false;
@@ -428,12 +384,11 @@ async function sendMessage() {
     "1";
 
   messageInput.focus();
-
 }
 
 
 // ========================================
-// QUICK QUESTIONS
+// QUICK ASK
 // ========================================
 
 function quickAsk(text) {
@@ -442,13 +397,10 @@ function quickAsk(text) {
     return;
   }
 
-
   messageInput.value =
     text;
 
-
   sendMessage();
-
 }
 
 
@@ -458,7 +410,7 @@ function quickAsk(text) {
 
 messageInput.addEventListener(
   "keydown",
-  function(event) {
+  function (event) {
 
     if (
       event.key === "Enter" &&
@@ -468,9 +420,7 @@ messageInput.addEventListener(
       event.preventDefault();
 
       sendMessage();
-
     }
-
   }
 );
 
@@ -481,18 +431,16 @@ messageInput.addEventListener(
 
 messageInput.addEventListener(
   "input",
-  function() {
+  function () {
 
     this.style.height =
       "auto";
-
 
     this.style.height =
       Math.min(
         this.scrollHeight,
         120
       ) + "px";
-
   }
 );
 
@@ -506,27 +454,20 @@ const profileButton =
     ".profile"
   );
 
-
 if (profileButton) {
 
   profileButton.addEventListener(
     "click",
-    function() {
+    function () {
 
       addMessage(
-
         "👤 Profile system Atharv ke next stage mein activate hoga.",
-
         "ai"
-
       );
 
-
       saveChatHistory();
-
     }
   );
-
 }
 
 
@@ -539,32 +480,26 @@ const navButtons =
     ".bottom-nav button"
   );
 
-
 navButtons.forEach(
-  function(button) {
+  function (button) {
 
     button.addEventListener(
       "click",
-      function() {
+      function () {
 
         navButtons.forEach(
-          function(btn) {
-
+          function (btn) {
             btn.classList.remove(
               "active"
             );
-
           }
         );
-
 
         button.classList.add(
           "active"
         );
-
       }
     );
-
   }
 );
 
@@ -574,17 +509,15 @@ navButtons.forEach(
 // ========================================
 
 console.log(
-  "ATHARV AI loaded successfully 🤖"
+  "ATHARV FAST AI loaded 🤖"
 );
 
 console.log(
-  "Conversation mode enabled."
+  "Fast response mode enabled."
 );
 
 console.log(
-  "Persistent chat history enabled."
+  "Chat history enabled."
 );
 
-
-// Load previous messages
 loadChatHistory();
