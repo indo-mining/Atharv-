@@ -13,6 +13,7 @@ const PORT =
 const AI_MODEL =
   process.env.AI_MODEL || "gpt-5.6-luna";
 
+
 // =====================================================
 // OPENAI
 // =====================================================
@@ -22,10 +23,15 @@ const openai =
     ? new OpenAI({
         apiKey:
           process.env.OPENAI_API_KEY,
+
+        // Maximum 30 seconds for OpenAI request
         timeout: 30000,
+
+        // Do not silently retry a stuck request
         maxRetries: 0
       })
     : null;
+
 
 // =====================================================
 // MIDDLEWARE
@@ -66,7 +72,7 @@ app.get("/health", (req, res) => {
   res.json({
     ok: true,
     service: "Atharv AI",
-    version: "5.0.0",
+    version: "5.1.0",
     model: AI_MODEL
   });
 });
@@ -249,7 +255,7 @@ function needsWebSearch(message) {
 
 
 // =====================================================
-// CLEAN / BUILD RECENT CONVERSATION
+// BUILD RECENT CONVERSATION
 // =====================================================
 
 function buildConversationContext(history) {
@@ -270,6 +276,7 @@ function buildConversationContext(history) {
             item.type === "ai"
           )
         );
+
       })
       .slice(-8);
 
@@ -292,6 +299,7 @@ function buildConversationContext(history) {
         ": " +
         item.text
       );
+
     })
     .join("\n");
 }
@@ -341,10 +349,10 @@ ATTENTION AND CONTEXT
 =====================================================
 
 - Pay attention to the user's actual intention.
-- Use the recent conversation context provided below.
+- Use the recent conversation context provided to you.
 - Treat recent messages as part of the current conversation.
-- If the user gives their name, remember it within the
-  available conversation context.
+- If the user gives their name, remember it within
+  the available conversation context.
 - If the user asks "Mera naam kya hai?",
   check the recent conversation context.
 - Use the user's name naturally when useful.
@@ -425,9 +433,9 @@ app.post(
 
     try {
 
-      // -----------------------------------------------
+      // =================================================
       // OPENAI KEY CHECK
-      // -----------------------------------------------
+      // =================================================
 
       if (!openai) {
 
@@ -438,15 +446,14 @@ app.post(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // USER MESSAGE
-      // -----------------------------------------------
+      // =================================================
 
       const userMessage =
         typeof req.body.message === "string"
           ? req.body.message.trim()
           : "";
-
 
       if (!userMessage) {
 
@@ -457,9 +464,9 @@ app.post(
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // TIMEZONE
-      // -----------------------------------------------
+      // =================================================
 
       const userTimeZone =
         typeof req.body.timeZone === "string"
@@ -473,9 +480,9 @@ app.post(
         );
 
 
-      // -----------------------------------------------
+      // =================================================
       // RECENT HISTORY
-      // -----------------------------------------------
+      // =================================================
 
       const history =
         Array.isArray(req.body.history)
@@ -489,9 +496,9 @@ app.post(
         );
 
 
-      // -----------------------------------------------
+      // =================================================
       // WEB SEARCH
-      // -----------------------------------------------
+      // =================================================
 
       const useWebSearch =
         needsWebSearch(
@@ -499,9 +506,9 @@ app.post(
         );
 
 
-      // -----------------------------------------------
-      // FINAL INPUT
-      // -----------------------------------------------
+      // =================================================
+      // BUILD INPUT
+      // =================================================
 
       let inputText = "";
 
@@ -529,9 +536,9 @@ END OF RECENT CONVERSATION CONTEXT
 ${userMessage}`;
 
 
-      // -----------------------------------------------
+      // =================================================
       // INSTRUCTIONS
-      // -----------------------------------------------
+      // =================================================
 
       const instructions =
         ATHARV_INSTRUCTIONS +
@@ -555,9 +562,9 @@ DATE RULES:
 `;
 
 
-      // -----------------------------------------------
-      // OPENAI REQUEST
-      // -----------------------------------------------
+      // =================================================
+      // REQUEST
+      // =================================================
 
       const request = {
 
@@ -572,9 +579,9 @@ DATE RULES:
       };
 
 
-      // -----------------------------------------------
+      // =================================================
       // WEB SEARCH ONLY WHEN NEEDED
-      // -----------------------------------------------
+      // =================================================
 
       if (useWebSearch) {
 
@@ -587,9 +594,9 @@ DATE RULES:
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // LOG REQUEST
-      // -----------------------------------------------
+      // =================================================
 
       console.log(
         "================================"
@@ -629,9 +636,18 @@ DATE RULES:
       );
 
 
-      // -----------------------------------------------
-      // OPENAI CALL
-      // -----------------------------------------------
+      // =================================================
+      // OPENAI REQUEST START
+      // =================================================
+
+      console.log(
+        "ATHARV: OPENAI REQUEST START"
+      );
+
+
+      // =================================================
+      // OPENAI
+      // =================================================
 
       const response =
         await openai.responses.create(
@@ -639,9 +655,18 @@ DATE RULES:
         );
 
 
-      // -----------------------------------------------
+      // =================================================
+      // OPENAI RESPONSE RECEIVED
+      // =================================================
+
+      console.log(
+        "ATHARV: OPENAI RESPONSE RECEIVED"
+      );
+
+
+      // =================================================
       // RESPONSE TEXT
-      // -----------------------------------------------
+      // =================================================
 
       let reply =
         response.output_text ||
@@ -659,9 +684,9 @@ DATE RULES:
       }
 
 
-      // -----------------------------------------------
+      // =================================================
       // RESPONSE TIME
-      // -----------------------------------------------
+      // =================================================
 
       const responseTime =
         Date.now() -
@@ -689,9 +714,9 @@ DATE RULES:
       );
 
 
-      // -----------------------------------------------
+      // =================================================
       // SEND RESPONSE
-      // -----------------------------------------------
+      // =================================================
 
       return res.json({
 
@@ -707,9 +732,9 @@ DATE RULES:
 
     } catch (error) {
 
-      // ---------------------------------------------
+      // =================================================
       // ERROR
-      // ---------------------------------------------
+      // =================================================
 
       console.error(
         "================================"
@@ -717,6 +742,21 @@ DATE RULES:
 
       console.error(
         "ATHARV ERROR"
+      );
+
+      console.error(
+        "Error Name:",
+        error?.name
+      );
+
+      console.error(
+        "Error Message:",
+        error?.message
+      );
+
+      console.error(
+        "Error Code:",
+        error?.code
       );
 
       console.error(
@@ -775,6 +815,14 @@ app.listen(
 
     console.log(
       "SMART WEB SEARCH: ENABLED"
+    );
+
+    console.log(
+      "OPENAI TIMEOUT: 30 SECONDS"
+    );
+
+    console.log(
+      "OPENAI RETRIES: DISABLED"
     );
 
     console.log(
