@@ -6,11 +6,11 @@ const path = require("path");
 
 const app = express();
 
-// =========================================
-// CONFIG
-// =========================================
-
 const PORT = process.env.PORT || 10000;
+
+// =====================================================
+// CONFIG
+// =====================================================
 
 const GEMINI_API_KEY =
   process.env.GEMINI_API_KEY || "";
@@ -30,83 +30,116 @@ const GROQ_WEB_MODEL =
   process.env.GROQ_WEB_MODEL ||
   "groq/compound-mini";
 
-// =========================================
+// =====================================================
 // APP
-// =========================================
+// =====================================================
 
 app.use(cors());
-app.use(express.json({ limit: "1mb" }));
 
-// =========================================
-// ATHARV SYSTEM INSTRUCTIONS
-// =========================================
+app.use(
+  express.json({
+    limit: "2mb"
+  })
+);
+
+// =====================================================
+// ATHARV CORE INSTRUCTIONS
+// =====================================================
 
 const ATHARV_INSTRUCTIONS = `
 You are Atharv AI.
 
-Identity:
+IDENTITY
 - Your name is Atharv.
-- You are a helpful, attentive, multilingual AI assistant.
-- Your goal is not only to answer questions, but to help the user complete their task.
+- You are a helpful, attentive, practical and multilingual AI assistant.
+- Your goal is to help the user complete the task, not merely give a generic answer.
 
-LANGUAGE:
-- Automatically understand the user's language.
-- Reply in the same language and writing style as the user.
+LANGUAGE
+- Automatically detect the user's language.
+- Reply in the same language and script/style whenever possible.
 - Support Hindi, Hinglish, English, Bengali, Urdu, Tamil, Telugu,
   Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese,
   Arabic, Chinese, Japanese, Korean, Spanish, French, German,
   Italian, Portuguese, Russian, Turkish, Indonesian, Vietnamese,
   Thai and other languages you understand.
-- If the user mixes languages, naturally understand and respond naturally.
-- Do NOT translate unless the user asks for translation.
+- Mixed-language questions should receive natural mixed-language answers when appropriate.
+- Do not translate unless the user asks for translation.
 
-ACCURACY:
-- Never invent facts.
-- If information is uncertain, clearly say so.
-- For current/live questions, use the available web-search capability.
-- Never pretend that old knowledge is today's information.
+ATTENTION AND CONTEXT
+- Use the supplied recent conversation context.
+- Understand follow-up questions.
+- If the user says "haan", "yes", "continue", "same", "isko", "iske baare mein",
+  "then what", etc., use the previous context.
+- Do not unnecessarily ask the user to repeat information already supplied.
+- Never claim to remember information that is not actually available.
 
-CURRENT INFORMATION:
-- Questions containing latest, today, current, now, news, recent,
-  live, price, weather, result, score, market update, etc. require
-  current information.
+ACCURACY
+- Never invent facts, prices, events, statistics or sources.
+- If live/current information is needed, use available web search.
+- If live data could not be verified, clearly say that it could not be verified.
+- Never present old information as today's information.
+
+CURRENT INFORMATION
+- Latest, today, current, now, recent, breaking, live, news,
+  current price, current market, weather, results and similar requests
+  require current information.
 - Hindi equivalents such as आज, अभी, ताजा, नवीनतम, खबर, समाचार,
-  वर्तमान, शेयर भाव आदि should also be treated as current requests.
+  वर्तमान, शेयर भाव, बाजार आदि also indicate current information.
 
-NEWS:
-- For news, give concise important headlines first.
-- Mention dates when useful.
+NEWS
+- For news, give important developments first.
+- Mention the date/time when useful.
 - Prefer reliable sources.
-- Do not fabricate breaking news.
+- Separate confirmed information from speculation.
+- Never fabricate breaking news.
 
-FINANCE:
-- Explain stocks, markets, mutual funds, ETFs and finance clearly.
-- For current prices or market information, use web search.
+FINANCE AND MARKET
+- You can analyze stocks, indices, sectors, mutual funds, ETFs and derivatives.
+- For current market questions use current web information.
 - Never guarantee profit.
-- Clearly explain risk when discussing investments.
+- Never claim certainty about future prices.
+- Predictions must be probability/scenario based.
+- Clearly identify assumptions and invalidation conditions.
+- If exact option-chain/OI/IV/Greeks data is unavailable, do not invent it.
+- When discussing options, explain risk and avoid presenting a setup as guaranteed.
 
-STYLE:
-- Be clear and useful.
+MARKET ANALYSIS
+When the user asks about a stock/index/market:
+1. Current trend
+2. Important support
+3. Important resistance
+4. Momentum
+5. Volume if available
+6. Sector strength if available
+7. News/sentiment
+8. Global/market context when relevant
+9. Bullish scenario
+10. Bearish scenario
+11. No-trade/uncertain scenario
+12. Probability/confidence
+13. Risk/invalidation
+14. For options, CE/PE conditions rather than guaranteed calls
+
+If exact live numbers are unavailable, explicitly label them as unavailable rather than guessing.
+
+STYLE
+- Simple questions: simple answers.
+- Complex questions: headings and bullets.
 - Avoid unnecessary disclaimers.
-- Do not repeatedly say "I am just an AI".
-- For simple questions, answer simply.
-- For complex questions, structure the answer with headings and bullets.
-- Match the user's language and tone.
-
-MEMORY:
-- Use the conversation information supplied in the current request.
-- Do not claim to remember information that has not actually been provided.
+- Be concise but useful.
+- Do not repeatedly say "I am an AI".
+- Use emojis only when natural.
 `;
 
-// =========================================
+// =====================================================
 // DATE / TIME
-// =========================================
+// =====================================================
 
 function getUserDateTime(timeZone) {
   try {
     const zone =
       typeof timeZone === "string" &&
-      timeZone.length > 0
+      timeZone.trim()
         ? timeZone
         : "UTC";
 
@@ -124,21 +157,20 @@ function getUserDateTime(timeZone) {
   }
 }
 
-// =========================================
-// LIVE / WEB SEARCH DETECTION
-// =========================================
+// =====================================================
+// CURRENT / WEB / MARKET DETECTION
+// =====================================================
 
 function needsWebSearch(message) {
   const text =
     String(message || "").toLowerCase();
 
-  const keywords = [
-    // English
+  const currentWords = [
     "latest",
     "lastest",
     "today",
-    "todays",
     "today's",
+    "todays",
     "current",
     "currently",
     "right now",
@@ -157,23 +189,13 @@ function needsWebSearch(message) {
     "happening in the world",
     "weather",
     "temperature",
-    "stock price",
-    "share price",
-    "market price",
-    "nifty",
-    "sensex",
-    "crypto price",
-    "bitcoin price",
-    "gold price",
-    "silver price",
-    "exchange rate",
-    "usd inr",
     "result",
     "results",
     "score",
     "match today",
+    "tomorrow",
+    "next session",
 
-    // Hindi
     "आज",
     "अभी",
     "आज की",
@@ -195,27 +217,85 @@ function needsWebSearch(message) {
     "अपडेट",
     "मौसम",
     "तापमान",
+    "कल",
+    "कल का",
+    "कल की"
+  ];
+
+  const marketWords = [
+    "stock price",
+    "share price",
+    "market price",
+    "share",
+    "stock",
+    "stocks",
+    "nifty",
+    "bank nifty",
+    "sensex",
+    "fii",
+    "dii",
+    "option",
+    "options",
+    "call option",
+    "put option",
+    "call",
+    "put",
+    "ce",
+    "pe",
+    "open interest",
+    "oi",
+    "pcr",
+    "iv",
+    "implied volatility",
+    "greeks",
+    "support",
+    "resistance",
+    "breakout",
+    "breakdown",
+    "intraday",
+    "swing",
+    "target",
+    "stop loss",
+    "buy",
+    "sell",
+    "bullish",
+    "bearish",
+
     "शेयर भाव",
     "शेयर प्राइस",
     "स्टॉक प्राइस",
+    "शेयर",
+    "स्टॉक",
     "बाजार",
     "बाज़ार",
     "निफ्टी",
+    "बैंक निफ्टी",
     "सेंसेक्स",
-    "सोना",
-    "चांदी",
-    "नतीजा",
-    "रिजल्ट"
+    "ऑप्शन",
+    "कॉल",
+    "पुट",
+    "सपोर्ट",
+    "रेजिस्टेंस",
+    "ब्रेकआउट",
+    "ब्रेकडाउन",
+    "खरीद",
+    "बेच",
+    "लक्ष्य"
   ];
 
-  return keywords.some(function (keyword) {
-    return text.includes(keyword);
-  });
+  return (
+    currentWords.some(function (word) {
+      return text.includes(word);
+    }) ||
+    marketWords.some(function (word) {
+      return text.includes(word);
+    })
+  );
 }
 
-// =========================================
+// =====================================================
 // FETCH WITH TIMEOUT
-// =========================================
+// =====================================================
 
 async function fetchWithTimeout(
   url,
@@ -235,7 +315,8 @@ async function fetchWithTimeout(
       url,
       {
         ...options,
-        signal: controller.signal
+        signal:
+          controller.signal
       }
     );
   } finally {
@@ -243,14 +324,89 @@ async function fetchWithTimeout(
   }
 }
 
-// =========================================
-// GEMINI
-// =========================================
+// =====================================================
+// CLEAN HISTORY
+// =====================================================
+
+function buildHistoryText(history) {
+  if (!Array.isArray(history)) {
+    return "";
+  }
+
+  const recent =
+    history
+      .filter(function (item) {
+        return (
+          item &&
+          typeof item.text === "string" &&
+          (
+            item.type === "user" ||
+            item.type === "ai"
+          )
+        );
+      })
+      .slice(-10);
+
+  if (!recent.length) {
+    return "";
+  }
+
+  return recent
+    .map(function (item) {
+      const role =
+        item.type === "user"
+          ? "USER"
+          : "ATHARV";
+
+      return (
+        role +
+        ": " +
+        item.text
+      );
+    })
+    .join("\n");
+}
+
+// =====================================================
+// BUILD USER PROMPT
+// =====================================================
+
+function buildPrompt(
+  message,
+  history
+) {
+  const historyText =
+    buildHistoryText(history);
+
+  if (!historyText) {
+    return message;
+  }
+
+  return `
+RECENT CONVERSATION:
+
+${historyText}
+
+END RECENT CONVERSATION
+
+CURRENT USER MESSAGE:
+
+${message}
+
+Answer the current message using the relevant conversation context.
+Do not unnecessarily repeat the entire conversation.
+`;
+}
+
+// =====================================================
+// GEMINI NORMAL / WEB
+// =====================================================
 
 async function callGemini(
   message,
   currentTime,
-  useWebSearch
+  useWebSearch,
+  history
 ) {
   if (!GEMINI_API_KEY) {
     throw new Error(
@@ -260,7 +416,9 @@ async function callGemini(
 
   const url =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
-    encodeURIComponent(GEMINI_MODEL) +
+    encodeURIComponent(
+      GEMINI_MODEL
+    ) +
     ":generateContent";
 
   const body = {
@@ -280,7 +438,11 @@ async function callGemini(
         role: "user",
         parts: [
           {
-            text: message
+            text:
+              buildPrompt(
+                message,
+                history
+              )
           }
         ]
       }
@@ -288,11 +450,10 @@ async function callGemini(
 
     generationConfig: {
       temperature: 0.4,
-      maxOutputTokens: 2048
+      maxOutputTokens: 4096
     }
   };
 
-  // Gemini Google Search grounding
   if (useWebSearch) {
     body.tools = [
       {
@@ -306,12 +467,15 @@ async function callGemini(
       url,
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json",
+
           "x-goog-api-key":
             GEMINI_API_KEY
         },
+
         body:
           JSON.stringify(body)
       },
@@ -360,13 +524,226 @@ async function callGemini(
   return reply;
 }
 
-// =========================================
+// =====================================================
+// GEMINI STREAM
+// =====================================================
+
+async function streamGemini(
+  message,
+  currentTime,
+  useWebSearch,
+  history,
+  onChunk
+) {
+  if (!GEMINI_API_KEY) {
+    throw new Error(
+      "Gemini API key is not configured."
+    );
+  }
+
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    encodeURIComponent(
+      GEMINI_MODEL
+    ) +
+    ":streamGenerateContent?alt=sse";
+
+  const body = {
+    systemInstruction: {
+      parts: [
+        {
+          text:
+            ATHARV_INSTRUCTIONS +
+            "\n\nCurrent user date/time: " +
+            currentTime
+        }
+      ]
+    },
+
+    contents: [
+      {
+        role: "user",
+        parts: [
+          {
+            text:
+              buildPrompt(
+                message,
+                history
+              )
+          }
+        ]
+      }
+    ],
+
+    generationConfig: {
+      temperature: 0.4,
+      maxOutputTokens: 4096
+    }
+  };
+
+  if (useWebSearch) {
+    body.tools = [
+      {
+        google_search: {}
+      }
+    ];
+  }
+
+  const response =
+    await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          "x-goog-api-key":
+            GEMINI_API_KEY,
+
+          Accept:
+            "text/event-stream"
+        },
+
+        body:
+          JSON.stringify(body)
+      },
+      45000
+    );
+
+  if (!response.ok) {
+    let data = {};
+
+    try {
+      data =
+        await response.json();
+    } catch (_) {}
+
+    const errorMessage =
+      data &&
+      data.error &&
+      data.error.message
+        ? data.error.message
+        : "Gemini stream failed.";
+
+    throw new Error(
+      "Gemini " +
+        response.status +
+        ": " +
+        errorMessage
+    );
+  }
+
+  if (!response.body) {
+    throw new Error(
+      "Gemini streaming body unavailable."
+    );
+  }
+
+  const reader =
+    response.body.getReader();
+
+  const decoder =
+    new TextDecoder();
+
+  let buffer = "";
+  let fullText = "";
+
+  while (true) {
+    const result =
+      await reader.read();
+
+    if (result.done) {
+      break;
+    }
+
+    buffer += decoder.decode(
+      result.value,
+      {
+        stream: true
+      }
+    );
+
+    const lines =
+      buffer.split("\n");
+
+    buffer =
+      lines.pop() || "";
+
+    for (
+      const line of lines
+    ) {
+      const trimmed =
+        line.trim();
+
+      if (
+        !trimmed ||
+        !trimmed.startsWith("data:")
+      ) {
+        continue;
+      }
+
+      const raw =
+        trimmed
+          .slice(5)
+          .trim();
+
+      if (
+        !raw ||
+        raw === "[DONE]"
+      ) {
+        continue;
+      }
+
+      try {
+        const json =
+          JSON.parse(raw);
+
+        const parts =
+          json &&
+          json.candidates &&
+          json.candidates[0] &&
+          json.candidates[0].content &&
+          json.candidates[0].content.parts
+            ? json.candidates[0].content.parts
+            : [];
+
+        const text =
+          parts
+            .map(function (part) {
+              return part.text || "";
+            })
+            .join("");
+
+        if (text) {
+          fullText += text;
+          onChunk(text);
+        }
+
+      } catch (error) {
+        // Ignore incomplete SSE JSON fragments.
+      }
+    }
+  }
+
+  if (!fullText.trim()) {
+    throw new Error(
+      "Gemini returned an empty stream."
+    );
+  }
+
+  return fullText.trim();
+}
+
+// =====================================================
 // NORMAL GROQ
-// =========================================
+// =====================================================
 
 async function callGroq(
   message,
-  currentTime
+  currentTime,
+  history
 ) {
   if (!GROQ_API_KEY) {
     throw new Error(
@@ -382,15 +759,19 @@ async function callGroq(
       url,
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json",
+
           Authorization:
             "Bearer " +
             GROQ_API_KEY
         },
+
         body: JSON.stringify({
-          model: GROQ_MODEL,
+          model:
+            GROQ_MODEL,
 
           messages: [
             {
@@ -400,14 +781,19 @@ async function callGroq(
                 "\n\nCurrent user date/time: " +
                 currentTime
             },
+
             {
               role: "user",
-              content: message
+              content:
+                buildPrompt(
+                  message,
+                  history
+                )
             }
           ],
 
           temperature: 0.4,
-          max_tokens: 2048
+          max_tokens: 4096
         })
       },
       30000
@@ -450,13 +836,14 @@ async function callGroq(
   return reply;
 }
 
-// =========================================
+// =====================================================
 // GROQ WEB SEARCH
-// =========================================
+// =====================================================
 
 async function callGroqWebSearch(
   message,
-  currentTime
+  currentTime,
+  history
 ) {
   if (!GROQ_API_KEY) {
     throw new Error(
@@ -486,7 +873,8 @@ async function callGroqWebSearch(
         },
 
         body: JSON.stringify({
-          model: GROQ_WEB_MODEL,
+          model:
+            GROQ_WEB_MODEL,
 
           messages: [
             {
@@ -495,27 +883,28 @@ async function callGroqWebSearch(
                 ATHARV_INSTRUCTIONS +
                 "\n\nCurrent user date/time: " +
                 currentTime +
-                "\n\nIMPORTANT: This is a live-information request. Use web search and base the answer on current information."
+                "\n\nThis is a live-information request. Use the built-in web search. Prefer reliable/current sources. Do not invent missing market values."
             },
+
             {
               role: "user",
-              content: message
+              content:
+                buildPrompt(
+                  message,
+                  history
+                )
             }
           ],
-
-          // IMPORTANT:
-          // Do NOT send citation_options here.
-          // Compound Web Search automatically handles citations.
 
           search_settings: {
             country: "IN"
           },
 
           temperature: 0.3,
-          max_tokens: 2048
+          max_tokens: 4096
         })
       },
-      45000
+      60000
     );
 
   const data =
@@ -555,17 +944,514 @@ async function callGroqWebSearch(
   return reply;
 }
 
-// =========================================
+// =====================================================
+// PROGRESSIVE FALLBACK STREAM
+// =====================================================
+
+async function sendArtificialStream(
+  res,
+  text
+) {
+  const chunks =
+    String(text || "")
+      .match(/.{1,45}(\s+|$)/g) || [
+        String(text || "")
+      ];
+
+  for (
+    const chunk of chunks
+  ) {
+    sendSSE(
+      res,
+      {
+        type: "chunk",
+        text: chunk
+      }
+    );
+
+    await new Promise(
+      function (resolve) {
+        setTimeout(
+          resolve,
+          12
+        );
+      }
+    );
+  }
+}
+
+// =====================================================
+// SSE HELPER
+// =====================================================
+
+function sendSSE(
+  res,
+  data
+) {
+  res.write(
+    "data: " +
+      JSON.stringify(data) +
+      "\n\n"
+  );
+}
+
+// =====================================================
+// STREAM CHAT
+// =====================================================
+
+app.post(
+  "/api/chat/stream",
+  async function (req, res) {
+
+    const message =
+      typeof req.body.message === "string"
+        ? req.body.message.trim()
+        : "";
+
+    const timeZone =
+      typeof req.body.timeZone === "string"
+        ? req.body.timeZone
+        : "UTC";
+
+    const history =
+      Array.isArray(req.body.history)
+        ? req.body.history
+        : [];
+
+    if (!message) {
+      return res.status(400).json({
+        error:
+          "Message is required."
+      });
+    }
+
+    res.status(200);
+
+    res.setHeader(
+      "Content-Type",
+      "text/event-stream"
+    );
+
+    res.setHeader(
+      "Cache-Control",
+      "no-cache, no-transform"
+    );
+
+    res.setHeader(
+      "Connection",
+      "keep-alive"
+    );
+
+    if (
+      typeof res.flushHeaders ===
+      "function"
+    ) {
+      res.flushHeaders();
+    }
+
+    const currentTime =
+      getUserDateTime(timeZone);
+
+    const useWebSearch =
+      needsWebSearch(message);
+
+    let completed = false;
+
+    try {
+
+      // =================================================
+      // 1. GEMINI STREAM
+      // =================================================
+
+      if (GEMINI_API_KEY) {
+        try {
+
+          console.log(
+            "ATHARV STREAM: Gemini"
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "status",
+              provider:
+                "gemini"
+            }
+          );
+
+          await streamGemini(
+            message,
+            currentTime,
+            useWebSearch,
+            history,
+            function (text) {
+              sendSSE(
+                res,
+                {
+                  type:
+                    "chunk",
+                  text:
+                    text
+                }
+              );
+            }
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "done",
+              provider:
+                "gemini",
+              webSearch:
+                useWebSearch
+            }
+          );
+
+          completed = true;
+
+        } catch (error) {
+
+          console.error(
+            "GEMINI STREAM ERROR:",
+            error.message
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "provider_error",
+              provider:
+                "gemini"
+            }
+          );
+        }
+      }
+
+      // =================================================
+      // 2. GROQ WEB
+      // =================================================
+
+      if (
+        !completed &&
+        useWebSearch &&
+        GROQ_API_KEY
+      ) {
+        try {
+
+          console.log(
+            "ATHARV STREAM: Groq Web Search"
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "status",
+              provider:
+                "groq-web"
+            }
+          );
+
+          const reply =
+            await callGroqWebSearch(
+              message,
+              currentTime,
+              history
+            );
+
+          await sendArtificialStream(
+            res,
+            reply
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "done",
+              provider:
+                "groq-compound-mini",
+              webSearch:
+                true
+            }
+          );
+
+          completed = true;
+
+        } catch (error) {
+
+          console.error(
+            "GROQ WEB STREAM ERROR:",
+            error.message
+          );
+        }
+      }
+
+      // =================================================
+      // 3. NORMAL GROQ
+      // =================================================
+
+      if (
+        !completed &&
+        GROQ_API_KEY
+      ) {
+        try {
+
+          console.log(
+            "ATHARV STREAM: Normal Groq"
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "status",
+              provider:
+                "groq"
+            }
+          );
+
+          const reply =
+            await callGroq(
+              message,
+              currentTime,
+              history
+            );
+
+          await sendArtificialStream(
+            res,
+            reply
+          );
+
+          sendSSE(
+            res,
+            {
+              type:
+                "done",
+              provider:
+                "groq",
+              webSearch:
+                false
+            }
+          );
+
+          completed = true;
+
+        } catch (error) {
+
+          console.error(
+            "GROQ STREAM ERROR:",
+            error.message
+          );
+        }
+      }
+
+      // =================================================
+      // ALL FAILED
+      // =================================================
+
+      if (!completed) {
+
+        sendSSE(
+          res,
+          {
+            type:
+              "error",
+            error:
+              "Atharv ki AI services abhi unavailable hain. Please thodi der baad try karein."
+          }
+        );
+      }
+
+    } catch (error) {
+
+      console.error(
+        "STREAM FATAL ERROR:",
+        error
+      );
+
+      sendSSE(
+        res,
+        {
+          type:
+            "error",
+          error:
+            "Atharv response generate nahi kar paaya."
+        }
+      );
+
+    } finally {
+
+      sendSSE(
+        res,
+        {
+          type:
+            "close"
+        }
+      );
+
+      res.end();
+    }
+  }
+);
+
+// =====================================================
+// NORMAL CHAT API
+// =====================================================
+
+app.post(
+  "/api/chat",
+  async function (req, res) {
+
+    const message =
+      typeof req.body.message === "string"
+        ? req.body.message.trim()
+        : "";
+
+    const timeZone =
+      typeof req.body.timeZone === "string"
+        ? req.body.timeZone
+        : "UTC";
+
+    const history =
+      Array.isArray(req.body.history)
+        ? req.body.history
+        : [];
+
+    if (!message) {
+      return res.status(400).json({
+        error:
+          "Message is required."
+      });
+    }
+
+    const currentTime =
+      getUserDateTime(timeZone);
+
+    const useWebSearch =
+      needsWebSearch(message);
+
+    // =================================================
+    // GEMINI
+    // =================================================
+
+    if (GEMINI_API_KEY) {
+      try {
+
+        const reply =
+          await callGemini(
+            message,
+            currentTime,
+            useWebSearch,
+            history
+          );
+
+        return res.json({
+          reply,
+          provider:
+            "gemini",
+          webSearch:
+            useWebSearch
+        });
+
+      } catch (error) {
+
+        console.error(
+          "GEMINI ERROR:",
+          error.message
+        );
+      }
+    }
+
+    // =================================================
+    // GROQ WEB
+    // =================================================
+
+    if (
+      useWebSearch &&
+      GROQ_API_KEY
+    ) {
+      try {
+
+        const reply =
+          await callGroqWebSearch(
+            message,
+            currentTime,
+            history
+          );
+
+        return res.json({
+          reply,
+          provider:
+            "groq-compound-mini",
+          webSearch:
+            true
+        });
+
+      } catch (error) {
+
+        console.error(
+          "GROQ WEB ERROR:",
+          error.message
+        );
+      }
+    }
+
+    // =================================================
+    // GROQ NORMAL
+    // =================================================
+
+    if (GROQ_API_KEY) {
+      try {
+
+        const reply =
+          await callGroq(
+            message,
+            currentTime,
+            history
+          );
+
+        return res.json({
+          reply,
+          provider:
+            "groq",
+          webSearch:
+            false
+        });
+
+      } catch (error) {
+
+        console.error(
+          "GROQ ERROR:",
+          error.message
+        );
+      }
+    }
+
+    return res.status(503).json({
+      error:
+        "Atharv ke AI services abhi unavailable hain."
+    });
+  }
+);
+
+// =====================================================
 // HEALTH
-// =========================================
+// =====================================================
 
 app.get(
   "/health",
   function (req, res) {
+
     res.json({
       ok: true,
 
-      service: "Atharv AI",
+      service:
+        "Atharv AI",
 
       providers: {
         gemini:
@@ -587,15 +1473,23 @@ app.get(
       },
 
       features: {
+        streaming:
+          true,
+
         googleSearch:
           Boolean(GEMINI_API_KEY),
 
         groqWebSearch:
           Boolean(GROQ_API_KEY),
 
-        multilingual: true,
+        multilingual:
+          true,
 
-        localHistoryToAI: false
+        marketIntelligence:
+          true,
+
+        conversationContext:
+          true
       },
 
       time:
@@ -604,195 +1498,17 @@ app.get(
   }
 );
 
-// =========================================
-// CHAT API
-// =========================================
-
-app.post(
-  "/api/chat",
-  async function (req, res) {
-    const message =
-      typeof req.body.message === "string"
-        ? req.body.message.trim()
-        : "";
-
-    const timeZone =
-      typeof req.body.timeZone === "string"
-        ? req.body.timeZone
-        : "UTC";
-
-    if (!message) {
-      return res.status(400).json({
-        error:
-          "Message is required."
-      });
-    }
-
-    const currentTime =
-      getUserDateTime(timeZone);
-
-    const useWebSearch =
-      needsWebSearch(message);
-
-    console.log(
-      "================================"
-    );
-
-    console.log(
-      "ATHARV REQUEST"
-    );
-
-    console.log(
-      "Message:",
-      message
-    );
-
-    console.log(
-      "Web search required:",
-      useWebSearch
-    );
-
-    console.log(
-      "Gemini:",
-      Boolean(GEMINI_API_KEY)
-    );
-
-    console.log(
-      "Groq:",
-      Boolean(GROQ_API_KEY)
-    );
-
-    // -----------------------------------------
-    // 1. GEMINI
-    // -----------------------------------------
-
-    if (GEMINI_API_KEY) {
-      try {
-        console.log(
-          "ATHARV: Trying Gemini..."
-        );
-
-        const reply =
-          await callGemini(
-            message,
-            currentTime,
-            useWebSearch
-          );
-
-        console.log(
-          "ATHARV: Gemini SUCCESS"
-        );
-
-        return res.json({
-          reply,
-          provider: "gemini",
-          webSearch:
-            useWebSearch
-        });
-
-      } catch (error) {
-        console.error(
-          "GEMINI ERROR:",
-          error.message
-        );
-      }
-    }
-
-    // -----------------------------------------
-    // 2. GROQ WEB SEARCH
-    // Only for current/live questions
-    // -----------------------------------------
-
-    if (
-      useWebSearch &&
-      GROQ_API_KEY
-    ) {
-      try {
-        console.log(
-          "ATHARV: Trying Groq Web Search..."
-        );
-
-        const reply =
-          await callGroqWebSearch(
-            message,
-            currentTime
-          );
-
-        console.log(
-          "ATHARV: Groq Web Search SUCCESS"
-        );
-
-        return res.json({
-          reply,
-          provider:
-            "groq-compound-mini",
-          webSearch: true
-        });
-
-      } catch (error) {
-        console.error(
-          "GROQ WEB ERROR:",
-          error.message
-        );
-      }
-    }
-
-    // -----------------------------------------
-    // 3. NORMAL GROQ FALLBACK
-    // -----------------------------------------
-
-    if (GROQ_API_KEY) {
-      try {
-        console.log(
-          "ATHARV: Trying normal Groq..."
-        );
-
-        const reply =
-          await callGroq(
-            message,
-            currentTime
-          );
-
-        console.log(
-          "ATHARV: Normal Groq SUCCESS"
-        );
-
-        return res.json({
-          reply,
-          provider: "groq",
-          webSearch: false
-        });
-
-      } catch (error) {
-        console.error(
-          "GROQ ERROR:",
-          error.message
-        );
-      }
-    }
-
-    // -----------------------------------------
-    // ALL PROVIDERS FAILED
-    // -----------------------------------------
-
-    return res.status(503).json({
-      error:
-        "Atharv ke AI services abhi unavailable hain. Please thodi der baad dobara try karein."
-    });
-  }
-);
-
-// =========================================
+// =====================================================
 // STATIC FRONTEND
-// =========================================
+// =====================================================
 
 app.use(
   express.static(__dirname)
 );
 
-// =========================================
+// =====================================================
 // EXPRESS 5 CATCH-ALL
-// =========================================
+// =====================================================
 
 app.use(
   function (req, res) {
@@ -805,13 +1521,14 @@ app.use(
   }
 );
 
-// =========================================
-// START SERVER
-// =========================================
+// =====================================================
+// START
+// =====================================================
 
 app.listen(
   PORT,
   function () {
+
     console.log(
       "================================"
     );
@@ -841,13 +1558,11 @@ app.listen(
     );
 
     console.log(
-      "Google Search:",
-      Boolean(GEMINI_API_KEY)
+      "Streaming: ENABLED"
     );
 
     console.log(
-      "Groq Web Search:",
-      Boolean(GROQ_API_KEY)
+      "Market Intelligence: ENABLED"
     );
 
     console.log(
