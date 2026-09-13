@@ -6,9 +6,6 @@ const path = require("path");
 
 const app = express();
 
-app.use(cors());
-app.use(express.json({ limit: "1mb" }));
-
 // =========================================
 // CONFIG
 // =========================================
@@ -34,71 +31,71 @@ const GROQ_WEB_MODEL =
   "groq/compound-mini";
 
 // =========================================
-// ATHARV INSTRUCTIONS
+// APP
+// =========================================
+
+app.use(cors());
+app.use(express.json({ limit: "1mb" }));
+
+// =========================================
+// ATHARV SYSTEM INSTRUCTIONS
 // =========================================
 
 const ATHARV_INSTRUCTIONS = `
 You are Atharv AI.
 
-You are a helpful, intelligent, attentive and practical AI assistant.
-
-CORE PRINCIPLE:
-Do not only answer the user's question.
-Help the user complete their task.
+Identity:
+- Your name is Atharv.
+- You are a helpful, attentive, multilingual AI assistant.
+- Your goal is not only to answer questions, but to help the user complete their task.
 
 LANGUAGE:
 - Automatically understand the user's language.
-- Reply in the same language and style.
-- Support Hindi, Hinglish, English and other languages.
-- If the user mixes languages, naturally mix languages.
-- Do not translate unless requested.
-- Never unnecessarily change the user's language.
-
-COMMUNICATION:
-- Be natural, friendly and clear.
-- Use the context available in the current request.
-- Do not ask unnecessary questions.
-- If enough information is available, directly answer.
-- If something is genuinely missing, ask only the necessary question.
-- Prefer practical and useful answers.
-- Use step-by-step instructions when helpful.
+- Reply in the same language and writing style as the user.
+- Support Hindi, Hinglish, English, Bengali, Urdu, Tamil, Telugu,
+  Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese,
+  Arabic, Chinese, Japanese, Korean, Spanish, French, German,
+  Italian, Portuguese, Russian, Turkish, Indonesian, Vietnamese,
+  Thai and other languages you understand.
+- If the user mixes languages, naturally understand and respond naturally.
+- Do NOT translate unless the user asks for translation.
 
 ACCURACY:
 - Never invent facts.
-- For current or changing information, use web search.
-- Clearly distinguish verified information from uncertainty.
-- For finance, stocks and investments, never guarantee profit.
+- If information is uncertain, clearly say so.
+- For current/live questions, use the available web-search capability.
+- Never pretend that old knowledge is today's information.
 
 CURRENT INFORMATION:
-For questions involving:
-- today's news
-- latest news
-- breaking news
-- current events
-- current prices
-- stock/share prices
-- weather
-- sports scores
-- recent announcements
-- current political information
-- current company information
-- anything that changes over time
+- Questions containing latest, today, current, now, news, recent,
+  live, price, weather, result, score, market update, etc. require
+  current information.
+- Hindi equivalents such as आज, अभी, ताजा, नवीनतम, खबर, समाचार,
+  वर्तमान, शेयर भाव आदि should also be treated as current requests.
 
-use the available web search capability.
+NEWS:
+- For news, give concise important headlines first.
+- Mention dates when useful.
+- Prefer reliable sources.
+- Do not fabricate breaking news.
 
-WEB SEARCH:
-When web search is available, prefer recent and reliable sources.
-Do not pretend old knowledge is current.
+FINANCE:
+- Explain stocks, markets, mutual funds, ETFs and finance clearly.
+- For current prices or market information, use web search.
+- Never guarantee profit.
+- Clearly explain risk when discussing investments.
 
 STYLE:
-- Simple questions: concise answer.
-- Complex questions: detailed answer.
-- Use headings and bullets when useful.
-- Hindi/Hinglish users should receive natural Hindi/Hinglish.
-- English users should receive English.
-- Do not repeatedly say "Atharv soch raha hai".
+- Be clear and useful.
+- Avoid unnecessary disclaimers.
+- Do not repeatedly say "I am just an AI".
+- For simple questions, answer simply.
+- For complex questions, structure the answer with headings and bullets.
+- Match the user's language and tone.
 
-You are Atharv.
+MEMORY:
+- Use the conversation information supplied in the current request.
+- Do not claim to remember information that has not actually been provided.
 `;
 
 // =========================================
@@ -109,16 +106,16 @@ function getUserDateTime(timeZone) {
   try {
     const zone =
       typeof timeZone === "string" &&
-      timeZone.length < 100
+      timeZone.length > 0
         ? timeZone
-        : "Asia/Kolkata";
+        : "UTC";
 
     return new Intl.DateTimeFormat(
       "en-IN",
       {
-        timeZone: zone,
         dateStyle: "full",
-        timeStyle: "long"
+        timeStyle: "long",
+        timeZone: zone
       }
     ).format(new Date());
 
@@ -128,83 +125,91 @@ function getUserDateTime(timeZone) {
 }
 
 // =========================================
-// CURRENT / LIVE QUESTION DETECTION
+// LIVE / WEB SEARCH DETECTION
 // =========================================
 
-function needsWebSearch(text) {
-  const query =
-    String(text || "").toLowerCase();
+function needsWebSearch(message) {
+  const text =
+    String(message || "").toLowerCase();
 
   const keywords = [
+    // English
+    "latest",
+    "lastest",
     "today",
     "todays",
     "today's",
-    "tonight",
-    "right now",
-    "currently",
     "current",
-    "latest",
-    "lastest",
+    "currently",
+    "right now",
+    "now",
     "recent",
-    "news",
+    "recently",
     "breaking",
-    "this week",
-    "this month",
-    "yesterday",
-    "tomorrow",
+    "news",
+    "headline",
+    "headlines",
     "live",
-    "price",
-    "stock price",
-    "share price",
-    "stock market",
-    "market today",
+    "update",
+    "updates",
+    "what happened",
+    "what is happening",
+    "happening in the world",
     "weather",
     "temperature",
-    "score",
-    "scores",
-    "result",
-    "results",
-    "election",
-    "president",
-    "prime minister",
-    "minister",
-    "bitcoin",
-    "crypto",
-    "crypto price",
-    "gold price",
-    "silver price",
-    "petrol price",
-    "diesel price",
-    "exchange rate",
-    "usd",
-    "inr",
+    "stock price",
+    "share price",
+    "market price",
     "nifty",
     "sensex",
-    "ipo",
+    "crypto price",
+    "bitcoin price",
+    "gold price",
+    "silver price",
+    "exchange rate",
+    "usd inr",
+    "result",
+    "results",
+    "score",
+    "match today",
 
     // Hindi
     "आज",
+    "अभी",
     "आज की",
-    "आज के",
     "आज का",
-    "ताजा खबर",
-    "ताज़ा खबर",
+    "आज के",
+    "ताजा",
+    "ताज़ा",
+    "नवीनतम",
     "लेटेस्ट",
     "न्यूज़",
+    "न्यूज",
+    "खबर",
+    "खबरें",
     "समाचार",
-    "अभी",
     "वर्तमान",
+    "हाल की",
+    "हालिया",
+    "लाइव",
+    "अपडेट",
     "मौसम",
-    "भाव",
-    "शेयर",
+    "तापमान",
     "शेयर भाव",
-    "सोने का भाव",
-    "चांदी का भाव",
-    "बिटकॉइन"
+    "शेयर प्राइस",
+    "स्टॉक प्राइस",
+    "बाजार",
+    "बाज़ार",
+    "निफ्टी",
+    "सेंसेक्स",
+    "सोना",
+    "चांदी",
+    "नतीजा",
+    "रिजल्ट"
   ];
 
-  return keywords.some(function (word) {
-    return query.includes(word);
+  return keywords.some(function (keyword) {
+    return text.includes(keyword);
   });
 }
 
@@ -214,31 +219,27 @@ function needsWebSearch(text) {
 
 async function fetchWithTimeout(
   url,
-  options = {},
-  timeout = 25000
+  options,
+  timeoutMs = 30000
 ) {
   const controller =
     new AbortController();
 
-  const timer =
-    setTimeout(
-      function () {
-        controller.abort();
-      },
-      timeout
-    );
+  const timeout =
+    setTimeout(function () {
+      controller.abort();
+    }, timeoutMs);
 
   try {
     return await fetch(
       url,
       {
         ...options,
-        signal:
-          controller.signal
+        signal: controller.signal
       }
     );
   } finally {
-    clearTimeout(timer);
+    clearTimeout(timeout);
   }
 }
 
@@ -247,32 +248,29 @@ async function fetchWithTimeout(
 // =========================================
 
 async function callGemini(
-  userMessage,
-  timeZone,
+  message,
+  currentTime,
   useWebSearch
 ) {
   if (!GEMINI_API_KEY) {
     throw new Error(
-      "GEMINI_API_KEY is not configured."
+      "Gemini API key is not configured."
     );
   }
 
-  const currentDateTime =
-    getUserDateTime(timeZone);
-
-  const instructions =
-    ATHARV_INSTRUCTIONS +
-    `
-
-User's current date/time:
-${currentDateTime}
-`;
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    encodeURIComponent(GEMINI_MODEL) +
+    ":generateContent";
 
   const body = {
     systemInstruction: {
       parts: [
         {
-          text: instructions
+          text:
+            ATHARV_INSTRUCTIONS +
+            "\n\nCurrent user date/time: " +
+            currentTime
         }
       ]
     },
@@ -282,22 +280,19 @@ ${currentDateTime}
         role: "user",
         parts: [
           {
-            text: userMessage
+            text: message
           }
         ]
       }
     ],
 
     generationConfig: {
-      temperature: 0.7,
-      maxOutputTokens: 1200
+      temperature: 0.4,
+      maxOutputTokens: 2048
     }
   };
 
-  // =====================================
-  // GOOGLE SEARCH
-  // =====================================
-
+  // Gemini Google Search grounding
   if (useWebSearch) {
     body.tools = [
       {
@@ -306,56 +301,55 @@ ${currentDateTime}
     ];
   }
 
-  const url =
-    "https://generativelanguage.googleapis.com/v1beta/models/" +
-    encodeURIComponent(GEMINI_MODEL) +
-    ":generateContent";
-
   const response =
     await fetchWithTimeout(
       url,
       {
         method: "POST",
-
         headers: {
           "Content-Type":
             "application/json",
-
           "x-goog-api-key":
             GEMINI_API_KEY
         },
-
         body:
           JSON.stringify(body)
       },
-
-      25000
+      30000
     );
 
   const data =
     await response.json();
 
   if (!response.ok) {
-    const message =
-      data?.error?.message ||
-      "Gemini API error";
+    const errorMessage =
+      data &&
+      data.error &&
+      data.error.message
+        ? data.error.message
+        : "Unknown Gemini error";
 
     throw new Error(
-      `Gemini ${response.status}: ${message}`
+      "Gemini " +
+        response.status +
+        ": " +
+        errorMessage
     );
   }
 
-  const parts =
-    data?.candidates?.[0]?.content?.parts ||
-    [];
-
   const reply =
-    parts
-      .map(function (part) {
-        return part.text || "";
-      })
-      .join("")
-      .trim();
+    data &&
+    data.candidates &&
+    data.candidates[0] &&
+    data.candidates[0].content &&
+    data.candidates[0].content.parts
+      ? data.candidates[0].content.parts
+          .map(function (part) {
+            return part.text || "";
+          })
+          .join("")
+          .trim()
+      : "";
 
   if (!reply) {
     throw new Error(
@@ -367,87 +361,85 @@ ${currentDateTime}
 }
 
 // =========================================
-// GROQ NORMAL
+// NORMAL GROQ
 // =========================================
 
 async function callGroq(
-  userMessage,
-  timeZone
+  message,
+  currentTime
 ) {
   if (!GROQ_API_KEY) {
     throw new Error(
-      "GROQ_API_KEY is not configured."
+      "Groq API key is not configured."
     );
   }
 
-  const currentDateTime =
-    getUserDateTime(timeZone);
-
-  const systemMessage =
-    ATHARV_INSTRUCTIONS +
-    `
-
-User's current date/time:
-${currentDateTime}
-`;
+  const url =
+    "https://api.groq.com/openai/v1/chat/completions";
 
   const response =
     await fetchWithTimeout(
-      "https://api.groq.com/openai/v1/chat/completions",
+      url,
       {
         method: "POST",
-
         headers: {
           "Content-Type":
             "application/json",
-
           Authorization:
             "Bearer " +
             GROQ_API_KEY
         },
+        body: JSON.stringify({
+          model: GROQ_MODEL,
 
-        body:
-          JSON.stringify({
-            model: GROQ_MODEL,
+          messages: [
+            {
+              role: "system",
+              content:
+                ATHARV_INSTRUCTIONS +
+                "\n\nCurrent user date/time: " +
+                currentTime
+            },
+            {
+              role: "user",
+              content: message
+            }
+          ],
 
-            messages: [
-              {
-                role: "system",
-                content:
-                  systemMessage
-              },
-              {
-                role: "user",
-                content:
-                  userMessage
-              }
-            ],
-
-            temperature: 0.7,
-
-            max_completion_tokens: 1200
-          })
+          temperature: 0.4,
+          max_tokens: 2048
+        })
       },
-
-      25000
+      30000
     );
 
   const data =
     await response.json();
 
   if (!response.ok) {
-    const message =
-      data?.error?.message ||
-      "Groq API error";
+    const errorMessage =
+      data &&
+      data.error &&
+      data.error.message
+        ? data.error.message
+        : "Unknown Groq error";
 
     throw new Error(
-      `Groq ${response.status}: ${message}`
+      "Groq " +
+        response.status +
+        ": " +
+        errorMessage
     );
   }
 
   const reply =
-    data?.choices?.[0]?.message?.content
-      ?.trim();
+    data &&
+    data.choices &&
+    data.choices[0] &&
+    data.choices[0].message &&
+    data.choices[0].message.content
+      ? data.choices[0].message.content.trim()
+      : "";
 
   if (!reply) {
     throw new Error(
@@ -463,38 +455,21 @@ ${currentDateTime}
 // =========================================
 
 async function callGroqWebSearch(
-  userMessage,
-  timeZone
+  message,
+  currentTime
 ) {
   if (!GROQ_API_KEY) {
     throw new Error(
-      "GROQ_API_KEY is not configured."
+      "Groq API key is not configured."
     );
   }
 
-  const currentDateTime =
-    getUserDateTime(timeZone);
-
-  const systemMessage =
-    ATHARV_INSTRUCTIONS +
-    `
-
-IMPORTANT:
-This is a live/current-information request.
-
-Use your built-in web search.
-Search the web before answering.
-Prefer recent and reliable sources.
-If sources disagree, explain the difference.
-Do not fabricate current information.
-
-User's current date/time:
-${currentDateTime}
-`;
+  const url =
+    "https://api.groq.com/openai/v1/chat/completions";
 
   const response =
     await fetchWithTimeout(
-      "https://api.groq.com/openai/v1/chat/completions",
+      url,
       {
         method: "POST",
 
@@ -510,52 +485,70 @@ ${currentDateTime}
             "latest"
         },
 
-        body:
-          JSON.stringify({
-            model:
-              GROQ_WEB_MODEL,
+        body: JSON.stringify({
+          model: GROQ_WEB_MODEL,
 
-            messages: [
-              {
-                role: "system",
-                content:
-                  systemMessage
-              },
-              {
-                role: "user",
-                content:
-                  userMessage
-              }
-            ],
+          messages: [
+            {
+              role: "system",
+              content:
+                ATHARV_INSTRUCTIONS +
+                "\n\nCurrent user date/time: " +
+                currentTime +
+                "\n\nIMPORTANT: This is a live-information request. Use web search and base the answer on current information."
+            },
+            {
+              role: "user",
+              content: message
+            }
+          ],
 
-            citation_options:
-              "enabled"
-          })
+          // IMPORTANT:
+          // Do NOT send citation_options here.
+          // Compound Web Search automatically handles citations.
+
+          search_settings: {
+            country: "IN"
+          },
+
+          temperature: 0.3,
+          max_tokens: 2048
+        })
       },
-
-      30000
+      45000
     );
 
   const data =
     await response.json();
 
   if (!response.ok) {
-    const message =
-      data?.error?.message ||
-      "Groq web search error";
+    const errorMessage =
+      data &&
+      data.error &&
+      data.error.message
+        ? data.error.message
+        : "Unknown Groq Web Search error";
 
     throw new Error(
-      `Groq Web ${response.status}: ${message}`
+      "Groq Web " +
+        response.status +
+        ": " +
+        errorMessage
     );
   }
 
   const reply =
-    data?.choices?.[0]?.message?.content
-      ?.trim();
+    data &&
+    data.choices &&
+    data.choices[0] &&
+    data.choices[0].message &&
+    data.choices[0].message.content
+      ? data.choices[0].message.content.trim()
+      : "";
 
   if (!reply) {
     throw new Error(
-      "Groq web search returned an empty response."
+      "Groq Web Search returned an empty response."
     );
   }
 
@@ -571,6 +564,7 @@ app.get(
   function (req, res) {
     res.json({
       ok: true,
+
       service: "Atharv AI",
 
       providers: {
@@ -599,11 +593,9 @@ app.get(
         groqWebSearch:
           Boolean(GROQ_API_KEY),
 
-        multilingual:
-          true,
+        multilingual: true,
 
-        localHistoryToAI:
-          false
+        localHistoryToAI: false
       },
 
       time:
@@ -619,237 +611,188 @@ app.get(
 app.post(
   "/api/chat",
   async function (req, res) {
-    const started =
-      Date.now();
+    const message =
+      typeof req.body.message === "string"
+        ? req.body.message.trim()
+        : "";
 
-    try {
-      const message =
-        typeof req.body?.message ===
-        "string"
-          ? req.body.message.trim()
-          : "";
+    const timeZone =
+      typeof req.body.timeZone === "string"
+        ? req.body.timeZone
+        : "UTC";
 
-      const timeZone =
-        req.body?.timeZone ||
-        "Asia/Kolkata";
-
-      if (!message) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Message required."
-          });
-      }
-
-      console.log(
-        "================================"
-      );
-
-      console.log(
-        "ATHARV REQUEST"
-      );
-
-      console.log(
-        "Message:",
-        message.slice(0, 200)
-      );
-
-      console.log(
-        "Gemini:",
-        Boolean(GEMINI_API_KEY)
-      );
-
-      console.log(
-        "Groq:",
-        Boolean(GROQ_API_KEY)
-      );
-
-      const useWebSearch =
-        needsWebSearch(message);
-
-      console.log(
-        "Web search required:",
-        useWebSearch
-      );
-
-      // =====================================
-      // GEMINI
-      // =====================================
-
-      if (GEMINI_API_KEY) {
-        try {
-          console.log(
-            "ATHARV: Trying Gemini..."
-          );
-
-          const reply =
-            await callGemini(
-              message,
-              timeZone,
-              useWebSearch
-            );
-
-          console.log(
-            "ATHARV: Gemini SUCCESS"
-          );
-
-          console.log(
-            "Time:",
-            Date.now() -
-              started,
-            "ms"
-          );
-
-          return res.json({
-            reply,
-
-            provider:
-              "gemini",
-
-            webSearch:
-              useWebSearch
-          });
-
-        } catch (geminiError) {
-          console.error(
-            "GEMINI ERROR:",
-            geminiError.message
-          );
-
-          console.log(
-            "ATHARV: Gemini failed."
-          );
-        }
-      }
-
-      // =====================================
-      // LIVE QUESTION → GROQ WEB SEARCH
-      // =====================================
-
-      if (
-        useWebSearch &&
-        GROQ_API_KEY
-      ) {
-        try {
-          console.log(
-            "ATHARV: Trying Groq Web Search..."
-          );
-
-          const reply =
-            await callGroqWebSearch(
-              message,
-              timeZone
-            );
-
-          console.log(
-            "ATHARV: Groq Web Search SUCCESS"
-          );
-
-          console.log(
-            "Time:",
-            Date.now() -
-              started,
-            "ms"
-          );
-
-          return res.json({
-            reply,
-
-            provider:
-              "groq-web",
-
-            webSearch:
-              true
-          });
-
-        } catch (groqWebError) {
-          console.error(
-            "GROQ WEB ERROR:",
-            groqWebError.message
-          );
-        }
-      }
-
-      // =====================================
-      // NORMAL GROQ
-      // =====================================
-
-      if (GROQ_API_KEY) {
-        try {
-          console.log(
-            "ATHARV: Trying normal Groq..."
-          );
-
-          const reply =
-            await callGroq(
-              message,
-              timeZone
-            );
-
-          console.log(
-            "ATHARV: Groq SUCCESS"
-          );
-
-          console.log(
-            "Time:",
-            Date.now() -
-              started,
-            "ms"
-          );
-
-          return res.json({
-            reply,
-
-            provider:
-              "groq",
-
-            webSearch:
-              false
-          });
-
-        } catch (groqError) {
-          console.error(
-            "GROQ ERROR:",
-            groqError.message
-          );
-        }
-      }
-
-      // =====================================
-      // ALL PROVIDERS FAILED
-      // =====================================
-
-      return res.status(503).json({
+    if (!message) {
+      return res.status(400).json({
         error:
-          useWebSearch
-            ? "Live search is temporarily unavailable. Please try again shortly."
-            : "Atharv AI providers are temporarily unavailable. Please try again shortly."
-      });
-
-    } catch (error) {
-      console.error(
-        "ATHARV SERVER ERROR:",
-        error
-      );
-
-      return res.status(500).json({
-        error:
-          "Atharv server error. Please try again."
+          "Message is required."
       });
     }
+
+    const currentTime =
+      getUserDateTime(timeZone);
+
+    const useWebSearch =
+      needsWebSearch(message);
+
+    console.log(
+      "================================"
+    );
+
+    console.log(
+      "ATHARV REQUEST"
+    );
+
+    console.log(
+      "Message:",
+      message
+    );
+
+    console.log(
+      "Web search required:",
+      useWebSearch
+    );
+
+    console.log(
+      "Gemini:",
+      Boolean(GEMINI_API_KEY)
+    );
+
+    console.log(
+      "Groq:",
+      Boolean(GROQ_API_KEY)
+    );
+
+    // -----------------------------------------
+    // 1. GEMINI
+    // -----------------------------------------
+
+    if (GEMINI_API_KEY) {
+      try {
+        console.log(
+          "ATHARV: Trying Gemini..."
+        );
+
+        const reply =
+          await callGemini(
+            message,
+            currentTime,
+            useWebSearch
+          );
+
+        console.log(
+          "ATHARV: Gemini SUCCESS"
+        );
+
+        return res.json({
+          reply,
+          provider: "gemini",
+          webSearch:
+            useWebSearch
+        });
+
+      } catch (error) {
+        console.error(
+          "GEMINI ERROR:",
+          error.message
+        );
+      }
+    }
+
+    // -----------------------------------------
+    // 2. GROQ WEB SEARCH
+    // Only for current/live questions
+    // -----------------------------------------
+
+    if (
+      useWebSearch &&
+      GROQ_API_KEY
+    ) {
+      try {
+        console.log(
+          "ATHARV: Trying Groq Web Search..."
+        );
+
+        const reply =
+          await callGroqWebSearch(
+            message,
+            currentTime
+          );
+
+        console.log(
+          "ATHARV: Groq Web Search SUCCESS"
+        );
+
+        return res.json({
+          reply,
+          provider:
+            "groq-compound-mini",
+          webSearch: true
+        });
+
+      } catch (error) {
+        console.error(
+          "GROQ WEB ERROR:",
+          error.message
+        );
+      }
+    }
+
+    // -----------------------------------------
+    // 3. NORMAL GROQ FALLBACK
+    // -----------------------------------------
+
+    if (GROQ_API_KEY) {
+      try {
+        console.log(
+          "ATHARV: Trying normal Groq..."
+        );
+
+        const reply =
+          await callGroq(
+            message,
+            currentTime
+          );
+
+        console.log(
+          "ATHARV: Normal Groq SUCCESS"
+        );
+
+        return res.json({
+          reply,
+          provider: "groq",
+          webSearch: false
+        });
+
+      } catch (error) {
+        console.error(
+          "GROQ ERROR:",
+          error.message
+        );
+      }
+    }
+
+    // -----------------------------------------
+    // ALL PROVIDERS FAILED
+    // -----------------------------------------
+
+    return res.status(503).json({
+      error:
+        "Atharv ke AI services abhi unavailable hain. Please thodi der baad dobara try karein."
+    });
   }
 );
 
 // =========================================
-// FRONTEND
+// STATIC FRONTEND
 // =========================================
 
 app.use(
-  express.static(
-    path.join(__dirname)
-  )
+  express.static(__dirname)
 );
+
+// =========================================
+// EXPRESS 5 CATCH-ALL
+// =========================================
 
 app.use(
   function (req, res) {
@@ -884,35 +827,27 @@ app.listen(
 
     console.log(
       "Gemini:",
-      GEMINI_API_KEY
-        ? "ENABLED"
-        : "NOT CONFIGURED"
-    );
-
-    console.log(
-      "Groq:",
-      GROQ_API_KEY
-        ? "ENABLED"
-        : "NOT CONFIGURED"
-    );
-
-    console.log(
-      "Gemini model:",
       GEMINI_MODEL
     );
 
     console.log(
-      "Groq model:",
+      "Groq:",
       GROQ_MODEL
     );
 
     console.log(
-      "Groq Web model:",
+      "Groq Web:",
       GROQ_WEB_MODEL
     );
 
     console.log(
-      "Browser history sent to AI: NO"
+      "Google Search:",
+      Boolean(GEMINI_API_KEY)
+    );
+
+    console.log(
+      "Groq Web Search:",
+      Boolean(GROQ_API_KEY)
     );
 
     console.log(
