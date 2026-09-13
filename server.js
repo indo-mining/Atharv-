@@ -130,8 +130,6 @@ STYLE
 - Do not repeatedly say "I am an AI".
 - Use emojis only when natural.
 `;
-const ATHARV_INSTRUCTIONS = `
-...aapke existing Atharv instructions...
 
 STEP-BY-STEP TEACHING MODE:
 
