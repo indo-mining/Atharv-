@@ -29,6 +29,10 @@ const GROQ_MODEL =
   process.env.GROQ_MODEL ||
   "openai/gpt-oss-20b";
 
+const GROQ_WEB_MODEL =
+  process.env.GROQ_WEB_MODEL ||
+  "groq/compound-mini";
+
 // =========================================
 // ATHARV INSTRUCTIONS
 // =========================================
@@ -36,43 +40,62 @@ const GROQ_MODEL =
 const ATHARV_INSTRUCTIONS = `
 You are Atharv AI.
 
-Identity:
-You are a helpful, intelligent and attentive AI assistant.
+You are a helpful, intelligent, attentive and practical AI assistant.
 
-Core principle:
-Do not only answer the user. Help the user complete their task.
+CORE PRINCIPLE:
+Do not only answer the user's question.
+Help the user complete their task.
 
-Language:
+LANGUAGE:
 - Automatically understand the user's language.
 - Reply in the same language and style.
 - Support Hindi, Hinglish, English and other languages.
-- If the user mixes languages, naturally mix languages too.
-- Do not translate unless the user asks for translation.
+- If the user mixes languages, naturally mix languages.
+- Do not translate unless requested.
+- Never unnecessarily change the user's language.
 
-Communication:
+COMMUNICATION:
 - Be natural, friendly and clear.
-- Understand context from the current conversation.
-- Do not ask unnecessary clarification questions.
-- If enough information is available, directly perform the task.
+- Use the context available in the current request.
+- Do not ask unnecessary questions.
+- If enough information is available, directly answer.
 - If something is genuinely missing, ask only the necessary question.
-- Prefer practical answers and step-by-step instructions when useful.
+- Prefer practical and useful answers.
+- Use step-by-step instructions when helpful.
 
-Accuracy:
+ACCURACY:
 - Never invent facts.
-- If information may be current or changing, use web search when available.
-- Clearly say when something cannot be verified.
+- For current or changing information, use web search.
+- Clearly distinguish verified information from uncertainty.
 - For finance, stocks and investments, never guarantee profit.
 
-Current information:
-When the user asks about today's news, latest events, current prices,
-weather, recent announcements, current companies or other changing
-information, use available web search tools.
+CURRENT INFORMATION:
+For questions involving:
+- today's news
+- latest news
+- breaking news
+- current events
+- current prices
+- stock/share prices
+- weather
+- sports scores
+- recent announcements
+- current political information
+- current company information
+- anything that changes over time
 
-Style:
-- Keep simple questions concise.
-- Give more detail when the task requires it.
-- Use headings and bullets when they improve readability.
-- For Hindi/Hinglish users, use natural Hindi/Hinglish.
+use the available web search capability.
+
+WEB SEARCH:
+When web search is available, prefer recent and reliable sources.
+Do not pretend old knowledge is current.
+
+STYLE:
+- Simple questions: concise answer.
+- Complex questions: detailed answer.
+- Use headings and bullets when useful.
+- Hindi/Hinglish users should receive natural Hindi/Hinglish.
+- English users should receive English.
 - Do not repeatedly say "Atharv soch raha hai".
 
 You are Atharv.
@@ -114,11 +137,14 @@ function needsWebSearch(text) {
 
   const keywords = [
     "today",
+    "todays",
+    "today's",
     "tonight",
     "right now",
     "currently",
     "current",
     "latest",
+    "lastest",
     "recent",
     "news",
     "breaking",
@@ -130,16 +156,20 @@ function needsWebSearch(text) {
     "price",
     "stock price",
     "share price",
+    "stock market",
     "market today",
     "weather",
     "temperature",
     "score",
+    "scores",
     "result",
+    "results",
     "election",
     "president",
     "prime minister",
     "minister",
     "bitcoin",
+    "crypto",
     "crypto price",
     "gold price",
     "silver price",
@@ -150,7 +180,27 @@ function needsWebSearch(text) {
     "inr",
     "nifty",
     "sensex",
-    "ipo"
+    "ipo",
+
+    // Hindi
+    "आज",
+    "आज की",
+    "आज के",
+    "आज का",
+    "ताजा खबर",
+    "ताज़ा खबर",
+    "लेटेस्ट",
+    "न्यूज़",
+    "समाचार",
+    "अभी",
+    "वर्तमान",
+    "मौसम",
+    "भाव",
+    "शेयर",
+    "शेयर भाव",
+    "सोने का भाव",
+    "चांदी का भाव",
+    "बिटकॉइन"
   ];
 
   return keywords.some(function (word) {
@@ -244,7 +294,10 @@ ${currentDateTime}
     }
   };
 
-  // Google Search for current information.
+  // =====================================
+  // GOOGLE SEARCH
+  // =====================================
+
   if (useWebSearch) {
     body.tools = [
       {
@@ -267,6 +320,7 @@ ${currentDateTime}
         headers: {
           "Content-Type":
             "application/json",
+
           "x-goog-api-key":
             GEMINI_API_KEY
         },
@@ -274,6 +328,7 @@ ${currentDateTime}
         body:
           JSON.stringify(body)
       },
+
       25000
     );
 
@@ -312,7 +367,7 @@ ${currentDateTime}
 }
 
 // =========================================
-// GROQ FALLBACK
+// GROQ NORMAL
 // =========================================
 
 async function callGroq(
@@ -358,11 +413,13 @@ ${currentDateTime}
             messages: [
               {
                 role: "system",
-                content: systemMessage
+                content:
+                  systemMessage
               },
               {
                 role: "user",
-                content: userMessage
+                content:
+                  userMessage
               }
             ],
 
@@ -371,6 +428,7 @@ ${currentDateTime}
             max_completion_tokens: 1200
           })
       },
+
       25000
     );
 
@@ -401,6 +459,110 @@ ${currentDateTime}
 }
 
 // =========================================
+// GROQ WEB SEARCH
+// =========================================
+
+async function callGroqWebSearch(
+  userMessage,
+  timeZone
+) {
+  if (!GROQ_API_KEY) {
+    throw new Error(
+      "GROQ_API_KEY is not configured."
+    );
+  }
+
+  const currentDateTime =
+    getUserDateTime(timeZone);
+
+  const systemMessage =
+    ATHARV_INSTRUCTIONS +
+    `
+
+IMPORTANT:
+This is a live/current-information request.
+
+Use your built-in web search.
+Search the web before answering.
+Prefer recent and reliable sources.
+If sources disagree, explain the difference.
+Do not fabricate current information.
+
+User's current date/time:
+${currentDateTime}
+`;
+
+  const response =
+    await fetchWithTimeout(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        method: "POST",
+
+        headers: {
+          "Content-Type":
+            "application/json",
+
+          Authorization:
+            "Bearer " +
+            GROQ_API_KEY,
+
+          "Groq-Model-Version":
+            "latest"
+        },
+
+        body:
+          JSON.stringify({
+            model:
+              GROQ_WEB_MODEL,
+
+            messages: [
+              {
+                role: "system",
+                content:
+                  systemMessage
+              },
+              {
+                role: "user",
+                content:
+                  userMessage
+              }
+            ],
+
+            citation_options:
+              "enabled"
+          })
+      },
+
+      30000
+    );
+
+  const data =
+    await response.json();
+
+  if (!response.ok) {
+    const message =
+      data?.error?.message ||
+      "Groq web search error";
+
+    throw new Error(
+      `Groq Web ${response.status}: ${message}`
+    );
+  }
+
+  const reply =
+    data?.choices?.[0]?.message?.content
+      ?.trim();
+
+  if (!reply) {
+    throw new Error(
+      "Groq web search returned an empty response."
+    );
+  }
+
+  return reply;
+}
+
+// =========================================
 // HEALTH
 // =========================================
 
@@ -414,17 +576,35 @@ app.get(
       providers: {
         gemini:
           Boolean(GEMINI_API_KEY),
+
         groq:
           Boolean(GROQ_API_KEY)
       },
 
       models: {
-        gemini: GEMINI_MODEL,
-        groq: GROQ_MODEL
+        gemini:
+          GEMINI_MODEL,
+
+        groq:
+          GROQ_MODEL,
+
+        groqWeb:
+          GROQ_WEB_MODEL
       },
 
-      historyToAI:
-        false,
+      features: {
+        googleSearch:
+          Boolean(GEMINI_API_KEY),
+
+        groqWebSearch:
+          Boolean(GROQ_API_KEY),
+
+        multilingual:
+          true,
+
+        localHistoryToAI:
+          false
+      },
 
       time:
         new Date().toISOString()
@@ -485,21 +665,16 @@ app.post(
         Boolean(GROQ_API_KEY)
       );
 
-      // IMPORTANT:
-      // Browser history is NOT sent to AI.
-      // This saves tokens and keeps old chat
-      // only in the user's browser.
-
       const useWebSearch =
         needsWebSearch(message);
 
       console.log(
-        "Web search:",
+        "Web search required:",
         useWebSearch
       );
 
       // =====================================
-      // 1. GEMINI PRIMARY
+      // GEMINI
       // =====================================
 
       if (GEMINI_API_KEY) {
@@ -528,7 +703,10 @@ app.post(
 
           return res.json({
             reply,
-            provider: "gemini",
+
+            provider:
+              "gemini",
+
             webSearch:
               useWebSearch
           });
@@ -540,30 +718,68 @@ app.post(
           );
 
           console.log(
-            "ATHARV: Switching to Groq..."
+            "ATHARV: Gemini failed."
           );
         }
       }
 
       // =====================================
-      // 2. GROQ FALLBACK
+      // LIVE QUESTION → GROQ WEB SEARCH
+      // =====================================
+
+      if (
+        useWebSearch &&
+        GROQ_API_KEY
+      ) {
+        try {
+          console.log(
+            "ATHARV: Trying Groq Web Search..."
+          );
+
+          const reply =
+            await callGroqWebSearch(
+              message,
+              timeZone
+            );
+
+          console.log(
+            "ATHARV: Groq Web Search SUCCESS"
+          );
+
+          console.log(
+            "Time:",
+            Date.now() -
+              started,
+            "ms"
+          );
+
+          return res.json({
+            reply,
+
+            provider:
+              "groq-web",
+
+            webSearch:
+              true
+          });
+
+        } catch (groqWebError) {
+          console.error(
+            "GROQ WEB ERROR:",
+            groqWebError.message
+          );
+        }
+      }
+
+      // =====================================
+      // NORMAL GROQ
       // =====================================
 
       if (GROQ_API_KEY) {
         try {
           console.log(
-            "ATHARV: Trying Groq..."
+            "ATHARV: Trying normal Groq..."
           );
-
-          // For current/live questions, do not
-          // silently pretend Groq is live-search
-          // capable in this fallback.
-          if (useWebSearch) {
-            return res.status(503).json({
-              error:
-                "Live information service is temporarily unavailable. Please try again shortly."
-            });
-          }
 
           const reply =
             await callGroq(
@@ -584,8 +800,12 @@ app.post(
 
           return res.json({
             reply,
-            provider: "groq",
-            webSearch: false
+
+            provider:
+              "groq",
+
+            webSearch:
+              false
           });
 
         } catch (groqError) {
@@ -597,12 +817,14 @@ app.post(
       }
 
       // =====================================
-      // NO PROVIDER
+      // ALL PROVIDERS FAILED
       // =====================================
 
       return res.status(503).json({
         error:
-          "Atharv AI providers are temporarily unavailable. Please try again shortly."
+          useWebSearch
+            ? "Live search is temporarily unavailable. Please try again shortly."
+            : "Atharv AI providers are temporarily unavailable. Please try again shortly."
       });
 
     } catch (error) {
@@ -625,17 +847,20 @@ app.post(
 
 app.use(
   express.static(
-    path.join(
-      __dirname
-    )
+    path.join(__dirname)
   )
 );
 
-app.use(function (req, res) {
-  res.sendFile(
-    path.join(__dirname, "index.html")
-  );
-});
+app.use(
+  function (req, res) {
+    res.sendFile(
+      path.join(
+        __dirname,
+        "index.html"
+      )
+    );
+  }
+);
 
 // =========================================
 // START SERVER
@@ -679,6 +904,11 @@ app.listen(
     console.log(
       "Groq model:",
       GROQ_MODEL
+    );
+
+    console.log(
+      "Groq Web model:",
+      GROQ_WEB_MODEL
     );
 
     console.log(
