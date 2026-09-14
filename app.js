@@ -99,16 +99,23 @@ console.log(
 // ADD MESSAGE
 // =====================================================
 
-function addMessage(text, type) {
+function addMessage(
+  text,
+  type
+) {
 
   const message =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   message.className =
     "message " + type;
 
+  // textContent is intentional.
+  // It keeps AI output safe from HTML injection.
   message.textContent =
-    text;
+    String(text || "");
 
   chatBox.appendChild(
     message
@@ -138,34 +145,38 @@ function saveChatHistory() {
       .querySelectorAll(
         "#chatBox .message"
       )
-      .forEach(function (message) {
+      .forEach(
+        function (message) {
 
-        if (
-          message.id ===
-          "thinkingMessage"
-        ) {
-          return;
+          if (
+            message.id ===
+            "thinkingMessage"
+          ) {
+            return;
+          }
+
+          messages.push({
+
+            text:
+              message.textContent,
+
+            type:
+              message.classList.contains(
+                "user"
+              )
+                ? "user"
+                : "ai"
+
+          });
+
         }
-
-        messages.push({
-
-          text:
-            message.textContent,
-
-          type:
-            message.classList.contains(
-              "user"
-            )
-              ? "user"
-              : "ai"
-
-        });
-
-      });
+      );
 
     localStorage.setItem(
       ATHARV_HISTORY_KEY,
-      JSON.stringify(messages)
+      JSON.stringify(
+        messages
+      )
     );
 
   } catch (error) {
@@ -200,7 +211,9 @@ function getChatHistory() {
     const messages =
       JSON.parse(saved);
 
-    if (!Array.isArray(messages)) {
+    if (
+      !Array.isArray(messages)
+    ) {
       return [];
     }
 
@@ -238,28 +251,31 @@ function loadChatHistory() {
       return;
     }
 
-    chatBox.innerHTML = "";
+    chatBox.innerHTML =
+      "";
 
-    messages.forEach(function (item) {
+    messages.forEach(
+      function (item) {
 
-      if (
-        item &&
-        typeof item.text ===
-          "string" &&
-        (
-          item.type === "user" ||
-          item.type === "ai"
-        )
-      ) {
+        if (
+          item &&
+          typeof item.text ===
+            "string" &&
+          (
+            item.type === "user" ||
+            item.type === "ai"
+          )
+        ) {
 
-        addMessage(
-          item.text,
-          item.type
-        );
+          addMessage(
+            item.text,
+            item.type
+          );
+
+        }
 
       }
-
-    });
+    );
 
   } catch (error) {
 
@@ -285,7 +301,8 @@ function clearChatHistory() {
       ATHARV_HISTORY_KEY
     );
 
-    chatBox.innerHTML = "";
+    chatBox.innerHTML =
+      "";
 
   } catch (error) {
 
@@ -308,7 +325,9 @@ function showThinking() {
   removeThinking();
 
   const message =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   message.className =
     "message ai thinking";
@@ -350,6 +369,57 @@ function removeThinking() {
 
 
 // =====================================================
+// EXTRACT SERVER ANSWER
+// =====================================================
+
+function getServerAnswer(
+  data
+) {
+
+  if (
+    !data ||
+    typeof data !==
+      "object"
+  ) {
+    return "";
+  }
+
+  // IMPORTANT:
+  // Current server primarily returns "answer".
+  // Other fields are compatibility fallbacks.
+
+  const possibleAnswers = [
+    data.answer,
+    data.response,
+    data.reply,
+    data.message,
+    data.text,
+    data.content
+  ];
+
+  for (
+    const value of
+      possibleAnswers
+  ) {
+
+    if (
+      typeof value ===
+        "string" &&
+      value.trim()
+    ) {
+
+      return value.trim();
+
+    }
+
+  }
+
+  return "";
+
+}
+
+
+// =====================================================
 // SEND MESSAGE
 // =====================================================
 
@@ -366,7 +436,9 @@ async function sendMessage() {
   }
 
 
+  // ---------------------------------------------------
   // USER MESSAGE
+  // ---------------------------------------------------
 
   addMessage(
     message,
@@ -375,43 +447,56 @@ async function sendMessage() {
 
   saveChatHistory();
 
-  messageInput.value = "";
+  messageInput.value =
+    "";
 
   messageInput.style.height =
     "auto";
 
 
+  // ---------------------------------------------------
   // THINKING
+  // ---------------------------------------------------
 
-  isThinking = true;
-
-  sendButton.disabled =
+  isThinking =
     true;
 
-  sendButton.style.opacity =
-    "0.5";
+  if (sendButton) {
+
+    sendButton.disabled =
+      true;
+
+    sendButton.style.opacity =
+      "0.5";
+
+  }
 
   showThinking();
 
 
+  // ---------------------------------------------------
   // TIMEOUT
+  // ---------------------------------------------------
 
   const controller =
     new AbortController();
 
   const timeoutId =
-    setTimeout(function () {
+    setTimeout(
+      function () {
 
-      controller.abort();
+        controller.abort();
 
-    }, 60000);
+      },
+      60000
+    );
 
 
   try {
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // RECENT HISTORY
-    // -----------------------------------------------
+    // -------------------------------------------------
 
     const fullHistory =
       getChatHistory();
@@ -420,9 +505,9 @@ async function sendMessage() {
       fullHistory.slice(-8);
 
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // USER TIMEZONE
-    // -----------------------------------------------
+    // -------------------------------------------------
 
     const timeZone =
       Intl.DateTimeFormat()
@@ -431,13 +516,14 @@ async function sendMessage() {
       "Asia/Kolkata";
 
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // API REQUEST
-    // -----------------------------------------------
+    // -------------------------------------------------
 
     const response =
       await fetch(
-        API_BASE + "/api/chat",
+        API_BASE +
+          "/api/chat",
         {
 
           method:
@@ -477,9 +563,9 @@ async function sendMessage() {
       );
 
 
-    // -----------------------------------------------
-    // RESPONSE
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // READ RESPONSE
+    // -------------------------------------------------
 
     const responseText =
       await response.text();
@@ -490,14 +576,14 @@ async function sendMessage() {
       response.status
     );
 
-
     console.log(
       "ATHARV SERVER RESPONSE:",
       responseText
     );
 
 
-    let data = {};
+    let data =
+      {};
 
 
     try {
@@ -509,7 +595,9 @@ async function sendMessage() {
             )
           : {};
 
-    } catch (jsonError) {
+    } catch (
+      jsonError
+    ) {
 
       console.error(
         "JSON PARSE ERROR:",
@@ -523,11 +611,13 @@ async function sendMessage() {
     }
 
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // SERVER ERROR
-    // -----------------------------------------------
+    // -------------------------------------------------
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
 
       const serverError =
         data.error ||
@@ -541,23 +631,44 @@ async function sendMessage() {
     }
 
 
-    // -----------------------------------------------
+    // -------------------------------------------------
     // REMOVE THINKING
-    // -----------------------------------------------
+    // -------------------------------------------------
 
     removeThinking();
 
 
-    // -----------------------------------------------
-    // ATHARV RESPONSE
-    // -----------------------------------------------
+    // -------------------------------------------------
+    // GET ACTUAL ANSWER
+    // -------------------------------------------------
 
     const reply =
-      data.reply ||
-      data.response ||
-      data.message ||
-      "Atharv ko response nahi mila.";
+      getServerAnswer(
+        data
+      );
 
+
+    // -------------------------------------------------
+    // EMPTY RESPONSE
+    // -------------------------------------------------
+
+    if (!reply) {
+
+      console.error(
+        "EMPTY ATHARV RESPONSE:",
+        data
+      );
+
+      throw new Error(
+        "Atharv server ne empty response diya."
+      );
+
+    }
+
+
+    // -------------------------------------------------
+    // SHOW ATHARV RESPONSE
+    // -------------------------------------------------
 
     addMessage(
       reply,
@@ -565,10 +676,16 @@ async function sendMessage() {
     );
 
 
+    // -------------------------------------------------
+    // SAVE HISTORY
+    // -------------------------------------------------
+
     saveChatHistory();
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     removeThinking();
 
@@ -592,7 +709,10 @@ async function sendMessage() {
 
       addMessage(
         "⚠️ Atharv response nahi la paaya.\n\nReason: " +
-        error.message,
+          (
+            error.message ||
+            "Unknown error"
+          ),
         "ai"
       );
 
@@ -611,11 +731,15 @@ async function sendMessage() {
     isThinking =
       false;
 
-    sendButton.disabled =
-      false;
+    if (sendButton) {
 
-    sendButton.style.opacity =
-      "1";
+      sendButton.disabled =
+        false;
+
+      sendButton.style.opacity =
+        "1";
+
+    }
 
     messageInput.focus();
 
@@ -628,9 +752,13 @@ async function sendMessage() {
 // QUICK ASK
 // =====================================================
 
-function quickAsk(text) {
+function quickAsk(
+  text
+) {
 
-  if (isThinking) {
+  if (
+    isThinking
+  ) {
     return;
   }
 
@@ -651,7 +779,8 @@ messageInput.addEventListener(
   function (event) {
 
     if (
-      event.key === "Enter" &&
+      event.key ===
+        "Enter" &&
       !event.shiftKey
     ) {
 
@@ -705,36 +834,30 @@ const profileButton =
     ".profile"
   );
 
-
 const profileScreen =
   document.getElementById(
     "profileScreen"
   );
-
 
 const chatScreen =
   document.getElementById(
     "chatScreen"
   );
 
-
 const profileBack =
   document.getElementById(
     "profileBack"
   );
-
 
 const memoryList =
   document.getElementById(
     "memoryList"
   );
 
-
 const refreshMemory =
   document.getElementById(
     "refreshMemory"
   );
-
 
 const clearAllMemory =
   document.getElementById(
@@ -909,6 +1032,14 @@ function renderMemories(
   memories.forEach(
     function (memory) {
 
+      if (
+        !memory ||
+        typeof memory !==
+          "object"
+      ) {
+        return;
+      }
+
       const item =
         document.createElement(
           "div"
@@ -939,7 +1070,8 @@ function renderMemories(
         memoryLabels[
           memory.memory_key
         ] ||
-        memory.memory_key;
+        memory.memory_key ||
+        "Memory";
 
 
       const value =
@@ -951,7 +1083,8 @@ function renderMemories(
         "memory-value";
 
       value.textContent =
-        memory.memory_value;
+        memory.memory_value ||
+        "";
 
 
       content.appendChild(
@@ -1029,10 +1162,10 @@ async function loadMemories() {
     const response =
       await fetch(
         API_BASE +
-        "/api/memory?userId=" +
-        encodeURIComponent(
-          ATHARV_USER_ID
-        ),
+          "/api/memory?userId=" +
+          encodeURIComponent(
+            ATHARV_USER_ID
+          ),
         {
 
           method:
@@ -1053,22 +1186,27 @@ async function loadMemories() {
       await response.json();
 
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
 
       throw new Error(
         data.error ||
-        "Memory load failed."
+          "Memory load failed."
       );
 
     }
 
 
     renderMemories(
-      data.memories || []
+      data.memories ||
+        []
     );
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     console.error(
       "MEMORY LOAD ERROR:",
@@ -1078,7 +1216,10 @@ async function loadMemories() {
 
     memoryList.innerHTML =
       '<div class="memory-error">⚠️ Memory load nahi ho paayi.<br><br>' +
-      error.message +
+      (
+        error.message ||
+        "Unknown error"
+      ) +
       "</div>";
 
   }
@@ -1115,7 +1256,7 @@ async function deleteSingleMemory(
     const response =
       await fetch(
         API_BASE +
-        "/api/memory/delete",
+          "/api/memory/delete",
         {
 
           method:
@@ -1150,22 +1291,40 @@ async function deleteSingleMemory(
       await response.json();
 
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
 
       throw new Error(
         data.error ||
-        "Memory delete failed."
+          "Memory delete failed."
       );
 
     }
 
 
-    renderMemories(
-      data.memories || []
-    );
+    // Server may return memories,
+    // otherwise reload them.
+    if (
+      Array.isArray(
+        data.memories
+      )
+    ) {
+
+      renderMemories(
+        data.memories
+      );
+
+    } else {
+
+      await loadMemories();
+
+    }
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     console.error(
       "MEMORY DELETE ERROR:",
@@ -1175,7 +1334,10 @@ async function deleteSingleMemory(
 
     alert(
       "Memory delete nahi ho paayi.\n\n" +
-      error.message
+        (
+          error.message ||
+          "Unknown error"
+        )
     );
 
   }
@@ -1216,7 +1378,7 @@ async function deleteAllMemories() {
     const response =
       await fetch(
         API_BASE +
-        "/api/memory/clear",
+          "/api/memory/clear",
         {
 
           method:
@@ -1248,11 +1410,13 @@ async function deleteAllMemories() {
       await response.json();
 
 
-    if (!response.ok) {
+    if (
+      !response.ok
+    ) {
 
       throw new Error(
         data.error ||
-        "Memory clear failed."
+          "Memory clear failed."
       );
 
     }
@@ -1263,7 +1427,9 @@ async function deleteAllMemories() {
     );
 
 
-  } catch (error) {
+  } catch (
+    error
+  ) {
 
     console.error(
       "MEMORY CLEAR ERROR:",
@@ -1273,7 +1439,10 @@ async function deleteAllMemories() {
 
     alert(
       "All memories delete nahi ho paayi.\n\n" +
-      error.message
+        (
+          error.message ||
+          "Unknown error"
+        )
     );
 
 
@@ -1366,7 +1535,6 @@ navButtons.forEach(
 
 
         // CHAT
-
         if (
           nav === "chat"
         ) {
@@ -1379,7 +1547,6 @@ navButtons.forEach(
 
 
         // PROFILE
-
         if (
           nav === "profile"
         ) {
@@ -1392,7 +1559,6 @@ navButtons.forEach(
 
 
         // MARKET
-
         if (
           nav === "market"
         ) {
@@ -1409,7 +1575,6 @@ navButtons.forEach(
 
 
         // ALERTS
-
         if (
           nav === "alerts"
         ) {
@@ -1465,6 +1630,10 @@ console.log(
 
 console.log(
   "Conversation context enabled."
+);
+
+console.log(
+  "Answer field compatibility enabled."
 );
 
 console.log(
