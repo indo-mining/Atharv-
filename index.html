@@ -43,6 +43,7 @@
     <button
       class="profile"
       type="button"
+      aria-label="Open Profile"
     >
       👤
     </button>
@@ -52,10 +53,13 @@
 
 
   <!-- ========================================
-       MAIN
+       MAIN CHAT
   ========================================= -->
 
-  <main class="container">
+  <main
+    class="container"
+    id="chatScreen"
+  >
 
 
     <!-- WELCOME -->
@@ -78,9 +82,7 @@
 
 
 
-    <!-- ========================================
-         CHAT BOX
-    ========================================= -->
+    <!-- CHAT BOX -->
 
     <section
       id="chatBox"
@@ -100,9 +102,7 @@
 
 
 
-    <!-- ========================================
-         QUICK QUESTIONS
-    ========================================= -->
+    <!-- QUICK QUESTIONS -->
 
     <div class="quick-buttons">
 
@@ -133,9 +133,7 @@
 
 
 
-    <!-- ========================================
-         MESSAGE INPUT
-    ========================================= -->
+    <!-- MESSAGE INPUT -->
 
     <div class="input-area">
 
@@ -162,6 +160,136 @@
 
 
   <!-- ========================================
+       PROFILE / MEMORY SCREEN
+  ========================================= -->
+
+  <section
+    id="profileScreen"
+    class="profile-screen"
+    hidden
+  >
+
+    <div class="profile-header">
+
+      <button
+        type="button"
+        id="profileBack"
+        class="back-button"
+      >
+        ←
+      </button>
+
+      <div>
+
+        <h2>
+          Your Profile
+        </h2>
+
+        <p>
+          Atharv ki memory control karein
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <!-- PROFILE CARD -->
+
+    <div class="profile-card">
+
+      <div class="profile-avatar">
+        👤
+      </div>
+
+      <div>
+
+        <h3>
+          Atharv User
+        </h3>
+
+        <p>
+          Your private Atharv preferences
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <!-- MEMORY SECTION -->
+
+    <div class="memory-section">
+
+      <div class="section-title-row">
+
+        <div>
+
+          <h3>
+            🧠 What Atharv remembers
+          </h3>
+
+          <p>
+            Sirf wahi information jo Atharv ne save ki hai.
+          </p>
+
+        </div>
+
+        <button
+          type="button"
+          id="refreshMemory"
+          class="refresh-memory"
+        >
+          ↻
+        </button>
+
+      </div>
+
+
+      <div
+        id="memoryList"
+        class="memory-list"
+      >
+
+        <div class="memory-loading">
+          Memories load ho rahi hain...
+        </div>
+
+      </div>
+
+
+      <button
+        type="button"
+        id="clearAllMemory"
+        class="clear-memory"
+      >
+        🧹 Forget All Memories
+      </button>
+
+    </div>
+
+
+    <!-- PRIVACY -->
+
+    <div class="privacy-card">
+
+      <strong>
+        🔐 Privacy
+      </strong>
+
+      <p>
+        Aap kisi bhi saved memory ko kabhi bhi delete kar sakte hain.
+        Atharv passwords, OTP, API keys aur similar sensitive information
+        ko memory mein save nahi karta.
+      </p>
+
+    </div>
+
+  </section>
+
+
+
+  <!-- ========================================
        BOTTOM NAVIGATION
   ========================================= -->
 
@@ -171,6 +299,7 @@
     <button
       type="button"
       class="active"
+      data-nav="chat"
     >
 
       💬
@@ -185,6 +314,7 @@
 
     <button
       type="button"
+      data-nav="market"
     >
 
       📈
@@ -199,6 +329,7 @@
 
     <button
       type="button"
+      data-nav="alerts"
     >
 
       🔔
@@ -213,6 +344,7 @@
 
     <button
       type="button"
+      data-nav="profile"
     >
 
       👤
