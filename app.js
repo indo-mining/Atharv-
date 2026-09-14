@@ -1,18 +1,18 @@
 const chatBox =
-document.getElementById("chatBox");
+  document.getElementById("chatBox");
 
 const messageInput =
-document.getElementById("message");
+  document.getElementById("message");
 
 const sendButton =
-document.querySelector(".send");
+  document.querySelector(".send");
 
 const API_BASE = "";
 
 let isThinking = false;
 
 const ATHARV_HISTORY_KEY =
-"atharv_chat_history";
+  "atharv_chat_history";
 
 
 // =====================================================
@@ -20,7 +20,8 @@ const ATHARV_HISTORY_KEY =
 // =====================================================
 
 const ATHARV_USER_ID_KEY =
-"atharv_user_id";
+  "atharv_user_id";
+
 
 function getAtharvUserId() {
 
@@ -83,8 +84,10 @@ function getAtharvUserId() {
 
 }
 
+
 const ATHARV_USER_ID =
-getAtharvUserId();
+  getAtharvUserId();
+
 
 console.log(
   "ATHARV USER ID:",
@@ -117,11 +120,12 @@ function addMessage(text, type) {
   });
 
   return message;
+
 }
 
 
 // =====================================================
-// SAVE HISTORY
+// SAVE CHAT HISTORY
 // =====================================================
 
 function saveChatHistory() {
@@ -177,7 +181,7 @@ function saveChatHistory() {
 
 
 // =====================================================
-// GET HISTORY
+// GET CHAT HISTORY
 // =====================================================
 
 function getChatHistory() {
@@ -217,7 +221,7 @@ function getChatHistory() {
 
 
 // =====================================================
-// LOAD HISTORY
+// LOAD CHAT HISTORY
 // =====================================================
 
 function loadChatHistory() {
@@ -270,7 +274,7 @@ function loadChatHistory() {
 
 
 // =====================================================
-// CLEAR HISTORY
+// CLEAR CHAT HISTORY
 // =====================================================
 
 function clearChatHistory() {
@@ -362,6 +366,8 @@ async function sendMessage() {
   }
 
 
+  // USER MESSAGE
+
   addMessage(
     message,
     "user"
@@ -375,6 +381,8 @@ async function sendMessage() {
     "auto";
 
 
+  // THINKING
+
   isThinking = true;
 
   sendButton.disabled =
@@ -385,6 +393,8 @@ async function sendMessage() {
 
   showThinking();
 
+
+  // TIMEOUT
 
   const controller =
     new AbortController();
@@ -399,12 +409,20 @@ async function sendMessage() {
 
   try {
 
+    // -----------------------------------------------
+    // RECENT HISTORY
+    // -----------------------------------------------
+
     const fullHistory =
       getChatHistory();
 
     const recentHistory =
       fullHistory.slice(-8);
 
+
+    // -----------------------------------------------
+    // USER TIMEZONE
+    // -----------------------------------------------
 
     const timeZone =
       Intl.DateTimeFormat()
@@ -413,12 +431,17 @@ async function sendMessage() {
       "Asia/Kolkata";
 
 
+    // -----------------------------------------------
+    // API REQUEST
+    // -----------------------------------------------
+
     const response =
       await fetch(
         API_BASE + "/api/chat",
         {
 
-          method: "POST",
+          method:
+            "POST",
 
           headers: {
 
@@ -454,13 +477,19 @@ async function sendMessage() {
       );
 
 
+    // -----------------------------------------------
+    // RESPONSE
+    // -----------------------------------------------
+
     const responseText =
       await response.text();
+
 
     console.log(
       "ATHARV SERVER STATUS:",
       response.status
     );
+
 
     console.log(
       "ATHARV SERVER RESPONSE:",
@@ -469,6 +498,7 @@ async function sendMessage() {
 
 
     let data = {};
+
 
     try {
 
@@ -481,12 +511,21 @@ async function sendMessage() {
 
     } catch (jsonError) {
 
+      console.error(
+        "JSON PARSE ERROR:",
+        jsonError
+      );
+
       throw new Error(
         "Server ne valid JSON response nahi diya."
       );
 
     }
 
+
+    // -----------------------------------------------
+    // SERVER ERROR
+    // -----------------------------------------------
 
     if (!response.ok) {
 
@@ -502,8 +541,16 @@ async function sendMessage() {
     }
 
 
+    // -----------------------------------------------
+    // REMOVE THINKING
+    // -----------------------------------------------
+
     removeThinking();
 
+
+    // -----------------------------------------------
+    // ATHARV RESPONSE
+    // -----------------------------------------------
 
     const reply =
       data.reply ||
@@ -511,12 +558,15 @@ async function sendMessage() {
       data.message ||
       "Atharv ko response nahi mila.";
 
+
     addMessage(
       reply,
       "ai"
     );
 
+
     saveChatHistory();
+
 
   } catch (error) {
 
@@ -548,7 +598,9 @@ async function sendMessage() {
 
     }
 
+
     saveChatHistory();
+
 
   } finally {
 
@@ -614,7 +666,7 @@ messageInput.addEventListener(
 
 
 // =====================================================
-// AUTO RESIZE
+// AUTO RESIZE TEXTAREA
 // =====================================================
 
 messageInput.addEventListener(
@@ -633,49 +685,62 @@ messageInput.addEventListener(
   }
 );
 
+
+// =====================================================
+// NAVIGATION ELEMENTS
+// =====================================================
+
 const navButtons =
-document.querySelectorAll(
-  ".bottom-nav button"
-);
+  document.querySelectorAll(
+    ".bottom-nav button"
+  );
+
 
 // =====================================================
 // PROFILE ELEMENTS
 // =====================================================
 
 const profileButton =
-document.querySelector(
-  ".profile"
-);
+  document.querySelector(
+    ".profile"
+  );
+
 
 const profileScreen =
-document.getElementById(
-  "profileScreen"
-);
+  document.getElementById(
+    "profileScreen"
+  );
+
 
 const chatScreen =
-document.getElementById(
-  "chatScreen"
-);
+  document.getElementById(
+    "chatScreen"
+  );
+
 
 const profileBack =
-document.getElementById(
-  "profileBack"
-);
+  document.getElementById(
+    "profileBack"
+  );
+
 
 const memoryList =
-document.getElementById(
-  "memoryList"
-);
+  document.getElementById(
+    "memoryList"
+  );
+
 
 const refreshMemory =
-document.getElementById(
-  "refreshMemory"
-);
+  document.getElementById(
+    "refreshMemory"
+  );
+
 
 const clearAllMemory =
-document.getElementById(
-  "clearAllMemory"
-);
+  document.getElementById(
+    "clearAllMemory"
+  );
+
 
 // =====================================================
 // MEMORY LABELS
@@ -708,7 +773,7 @@ const memoryLabels = {
 
 
 // =====================================================
-// SHOW CHAT
+// SHOW CHAT SCREEN
 // =====================================================
 
 function showChatScreen() {
@@ -735,7 +800,7 @@ function showChatScreen() {
 
 
 // =====================================================
-// SHOW PROFILE
+// SHOW PROFILE SCREEN
 // =====================================================
 
 function showProfileScreen() {
@@ -769,7 +834,7 @@ function showProfileScreen() {
 
 
 // =====================================================
-// NAV ACTIVE
+// UPDATE ACTIVE NAV
 // =====================================================
 
 function updateNavActive(
@@ -954,6 +1019,7 @@ async function loadMemories() {
     return;
   }
 
+
   memoryList.innerHTML =
     '<div class="memory-loading">🧠 Memories load ho rahi hain...</div>';
 
@@ -968,12 +1034,17 @@ async function loadMemories() {
           ATHARV_USER_ID
         ),
         {
-          method: "GET",
+
+          method:
+            "GET",
 
           headers: {
+
             "Accept":
               "application/json"
+
           }
+
         }
       );
 
@@ -996,12 +1067,14 @@ async function loadMemories() {
       data.memories || []
     );
 
+
   } catch (error) {
 
     console.error(
       "MEMORY LOAD ERROR:",
       error
     );
+
 
     memoryList.innerHTML =
       '<div class="memory-error">⚠️ Memory load nahi ho paayi.<br><br>' +
@@ -1091,12 +1164,14 @@ async function deleteSingleMemory(
       data.memories || []
     );
 
+
   } catch (error) {
 
     console.error(
       "MEMORY DELETE ERROR:",
       error
     );
+
 
     alert(
       "Memory delete nahi ho paayi.\n\n" +
@@ -1127,11 +1202,15 @@ async function deleteAllMemories() {
 
   try {
 
-    clearAllMemory.disabled =
-      true;
+    if (clearAllMemory) {
 
-    clearAllMemory.textContent =
-      "Deleting...";
+      clearAllMemory.disabled =
+        true;
+
+      clearAllMemory.textContent =
+        "Deleting...";
+
+    }
 
 
     const response =
@@ -1183,6 +1262,7 @@ async function deleteAllMemories() {
       []
     );
 
+
   } catch (error) {
 
     console.error(
@@ -1190,18 +1270,24 @@ async function deleteAllMemories() {
       error
     );
 
+
     alert(
       "All memories delete nahi ho paayi.\n\n" +
       error.message
     );
 
+
   } finally {
 
-    clearAllMemory.disabled =
-      false;
+    if (clearAllMemory) {
 
-    clearAllMemory.textContent =
-      "🧹 Forget All Memories";
+      clearAllMemory.disabled =
+        false;
+
+      clearAllMemory.textContent =
+        "🧹 Forget All Memories";
+
+    }
 
   }
 
@@ -1251,7 +1337,7 @@ if (refreshMemory) {
 
 
 // =====================================================
-// CLEAR ALL
+// CLEAR ALL MEMORY
 // =====================================================
 
 if (clearAllMemory) {
@@ -1268,12 +1354,6 @@ if (clearAllMemory) {
 // BOTTOM NAVIGATION
 // =====================================================
 
-const navButtons =
-document.querySelectorAll(
-  ".bottom-nav button"
-);
-
-
 navButtons.forEach(
   function (button) {
 
@@ -1285,16 +1365,7 @@ navButtons.forEach(
           button.dataset.nav;
 
 
-        if (
-          nav === "profile"
-        ) {
-
-          showProfileScreen();
-
-          return;
-
-        }
-
+        // CHAT
 
         if (
           nav === "chat"
@@ -1307,12 +1378,20 @@ navButtons.forEach(
         }
 
 
-        // Market / Alerts are
-        // placeholders for future modules.
+        // PROFILE
 
-        updateNavActive(
-          nav
-        );
+        if (
+          nav === "profile"
+        ) {
+
+          showProfileScreen();
+
+          return;
+
+        }
+
+
+        // MARKET
 
         if (
           nav === "market"
@@ -1324,8 +1403,12 @@ navButtons.forEach(
 
           showChatScreen();
 
+          return;
+
         }
 
+
+        // ALERTS
 
         if (
           nav === "alerts"
@@ -1336,6 +1419,8 @@ navButtons.forEach(
           );
 
           showChatScreen();
+
+          return;
 
         }
 
@@ -1375,8 +1460,20 @@ console.log(
 );
 
 console.log(
+  "Chat history enabled."
+);
+
+console.log(
+  "Conversation context enabled."
+);
+
+console.log(
   "================================"
 );
 
+
+// =====================================================
+// LOAD EXISTING CHAT
+// =====================================================
 
 loadChatHistory();
