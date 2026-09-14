@@ -10,6 +10,16 @@
     content="width=device-width, initial-scale=1.0"
   >
 
+  <meta
+    name="theme-color"
+    content="#ffffff"
+  >
+
+  <meta
+    name="description"
+    content="Atharv AI - Your AI. Every Language. Every Question."
+  >
+
   <title>Atharv AI</title>
 
   <link
@@ -53,7 +63,7 @@
 
 
   <!-- ========================================
-       MAIN CHAT
+       CHAT SCREEN
   ========================================= -->
 
   <main
@@ -141,6 +151,7 @@
         id="message"
         placeholder="Ask Atharv anything..."
         rows="1"
+        autocomplete="off"
       ></textarea>
 
 
@@ -148,6 +159,7 @@
         type="button"
         onclick="sendMessage()"
         class="send"
+        aria-label="Send message"
       >
         ➤
       </button>
@@ -169,15 +181,20 @@
     hidden
   >
 
+
+    <!-- PROFILE HEADER -->
+
     <div class="profile-header">
 
       <button
         type="button"
         id="profileBack"
         class="back-button"
+        aria-label="Back to Chat"
       >
         ←
       </button>
+
 
       <div>
 
@@ -194,6 +211,7 @@
     </div>
 
 
+
     <!-- PROFILE CARD -->
 
     <div class="profile-card">
@@ -201,6 +219,7 @@
       <div class="profile-avatar">
         👤
       </div>
+
 
       <div>
 
@@ -217,9 +236,11 @@
     </div>
 
 
+
     <!-- MEMORY SECTION -->
 
     <div class="memory-section">
+
 
       <div class="section-title-row">
 
@@ -235,10 +256,12 @@
 
         </div>
 
+
         <button
           type="button"
           id="refreshMemory"
           class="refresh-memory"
+          aria-label="Refresh memories"
         >
           ↻
         </button>
@@ -246,17 +269,23 @@
       </div>
 
 
+
+      <!-- MEMORY LIST -->
+
       <div
         id="memoryList"
         class="memory-list"
       >
 
         <div class="memory-loading">
-          Memories load ho rahi hain...
+          🧠 Memories load ho rahi hain...
         </div>
 
       </div>
 
+
+
+      <!-- DELETE ALL -->
 
       <button
         type="button"
@@ -266,7 +295,9 @@
         🧹 Forget All Memories
       </button>
 
+
     </div>
+
 
 
     <!-- PRIVACY -->
@@ -285,6 +316,7 @@
 
     </div>
 
+
   </section>
 
 
@@ -293,8 +325,13 @@
        BOTTOM NAVIGATION
   ========================================= -->
 
-  <nav class="bottom-nav">
+  <nav
+    class="bottom-nav"
+    aria-label="Main navigation"
+  >
 
+
+    <!-- CHAT -->
 
     <button
       type="button"
@@ -302,7 +339,9 @@
       data-nav="chat"
     >
 
-      💬
+      <span class="nav-icon">
+        💬
+      </span>
 
       <span>
         Chat
@@ -312,12 +351,16 @@
 
 
 
+    <!-- MARKET -->
+
     <button
       type="button"
       data-nav="market"
     >
 
-      📈
+      <span class="nav-icon">
+        📈
+      </span>
 
       <span>
         Market
@@ -327,12 +370,16 @@
 
 
 
+    <!-- ALERTS -->
+
     <button
       type="button"
       data-nav="alerts"
     >
 
-      🔔
+      <span class="nav-icon">
+        🔔
+      </span>
 
       <span>
         Alerts
@@ -342,12 +389,16 @@
 
 
 
+    <!-- PROFILE -->
+
     <button
       type="button"
       data-nav="profile"
     >
 
-      👤
+      <span class="nav-icon">
+        👤
+      </span>
 
       <span>
         Profile
