@@ -31,22 +31,37 @@ const DATABASE_URL =
 let pool = null;
 
 if (DATABASE_URL) {
+
   pool = new Pool({
-    connectionString: DATABASE_URL,
+
+    connectionString:
+      DATABASE_URL,
+
     ssl: {
       rejectUnauthorized: false
     },
+
     max: 5,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 10000
+
+    idleTimeoutMillis:
+      30000,
+
+    connectionTimeoutMillis:
+      10000
+
   });
 
-  pool.on("error", function (error) {
-    console.error(
-      "SUPABASE DATABASE ERROR:",
-      error.message
-    );
-  });
+  pool.on(
+    "error",
+    function (error) {
+
+      console.error(
+        "SUPABASE DATABASE ERROR:",
+        error.message
+      );
+
+    }
+  );
 }
 
 // =====================================================
@@ -70,11 +85,20 @@ You are Atharv AI.
 
 Your name is Atharv.
 
-You are a helpful, attentive, practical and friendly AI assistant.
+You are a helpful, attentive, practical, friendly and personalized AI assistant.
 
 MAIN GOAL:
 Do not only answer the user's question.
 Understand what the user is trying to achieve and help them complete it.
+
+PERSONALIZATION:
+- Use saved user memories when relevant.
+- Memories represent information the user previously provided.
+- Never invent memories.
+- Never claim to remember something that is not available.
+- Respect requests to forget information.
+- Use preferences naturally without repeatedly mentioning that they are stored.
+- Do not expose internal memory keys or database details unless specifically asked.
 
 LANGUAGE:
 - Detect the user's language automatically.
@@ -82,22 +106,23 @@ LANGUAGE:
 - Support Hindi, Hinglish, English and other languages you understand.
 - Preserve the user's natural style.
 - If the user mixes languages, natural mixed-language replies are allowed.
+- If a saved language preference exists, use it when appropriate.
 - Do not translate unless requested.
-
-MEMORY:
-- Use the supplied user memories when relevant.
-- Treat memories as information previously provided by the user.
-- Do not invent memories.
-- Do not claim to remember something that is not in the supplied memory or conversation.
-- If the user asks what you remember, answer from the supplied memories.
-- Respect requests to forget information.
 
 CONTEXT:
 - Use recent conversation context.
 - Understand follow-up messages such as:
   "haan", "yes", "continue", "same", "isko", "iske baare mein", "phir?"
 - Do not unnecessarily ask the user to repeat information already available.
-- Never pretend to remember information that is not provided.
+
+MEMORY BEHAVIOR:
+- A saved name may be used naturally.
+- Saved language preferences should influence response language.
+- Saved style preferences should influence answer style.
+- Saved learning preferences should influence explanations.
+- Do not reveal unnecessary personal information.
+- Do not mention all memories in every response.
+- Only use memories that are relevant to the current request.
 
 ACCURACY:
 - Do not invent facts.
@@ -146,7 +171,9 @@ Do not claim to be ChatGPT.
 // =====================================================
 
 function getUserDateTime(timeZone) {
+
   try {
+
     const zone =
       typeof timeZone === "string" &&
       timeZone.trim()
@@ -163,8 +190,11 @@ function getUserDateTime(timeZone) {
     ).format(new Date());
 
   } catch (error) {
+
     return new Date().toISOString();
+
   }
+
 }
 
 // =====================================================
@@ -185,6 +215,7 @@ function getUserId(req) {
       .update(suppliedId)
       .digest("hex")
       .slice(0, 64);
+
   }
 
   const forwarded =
@@ -193,13 +224,15 @@ function getUserId(req) {
   const ip =
     typeof forwarded === "string"
       ? forwarded.split(",")[0].trim()
-      : req.socket.remoteAddress || "unknown";
+      : req.socket.remoteAddress ||
+        "unknown";
 
   return crypto
     .createHash("sha256")
     .update(ip)
     .digest("hex")
     .slice(0, 64);
+
 }
 
 // =====================================================
@@ -217,7 +250,9 @@ async function getMemories(userId) {
     const result =
       await pool.query(
         `
-        SELECT memory_key, memory_value
+        SELECT
+          memory_key,
+          memory_value
         FROM public.user_memories
         WHERE user_id = $1
         ORDER BY updated_at DESC
@@ -236,7 +271,9 @@ async function getMemories(userId) {
     );
 
     return [];
+
   }
+
 }
 
 // =====================================================
@@ -258,13 +295,20 @@ async function saveMemory(
     await pool.query(
       `
       INSERT INTO public.user_memories
-        (user_id, memory_key, memory_value)
+        (
+          user_id,
+          memory_key,
+          memory_value
+        )
       VALUES
         ($1, $2, $3)
-      ON CONFLICT (user_id, memory_key)
+      ON CONFLICT
+        (user_id, memory_key)
       DO UPDATE SET
-        memory_value = EXCLUDED.memory_value,
-        updated_at = NOW()
+        memory_value =
+          EXCLUDED.memory_value,
+        updated_at =
+          NOW()
       `,
       [
         userId,
@@ -283,7 +327,9 @@ async function saveMemory(
     );
 
     return false;
+
   }
+
 }
 
 // =====================================================
@@ -323,7 +369,44 @@ async function deleteMemory(
     );
 
     return false;
+
   }
+
+}
+
+// =====================================================
+// DELETE ALL MEMORIES
+// =====================================================
+
+async function deleteAllMemories(userId) {
+
+  if (!pool) {
+    return false;
+  }
+
+  try {
+
+    await pool.query(
+      `
+      DELETE FROM public.user_memories
+      WHERE user_id = $1
+      `,
+      [userId]
+    );
+
+    return true;
+
+  } catch (error) {
+
+    console.error(
+      "DELETE ALL MEMORY ERROR:",
+      error.message
+    );
+
+    return false;
+
+  }
+
 }
 
 // =====================================================
@@ -333,29 +416,40 @@ async function deleteMemory(
 function containsSensitiveData(text) {
 
   const value =
-    String(text || "").toLowerCase();
+    String(text || "");
 
   const patterns = [
 
     /password\s*[:=]/i,
+
     /passcode\s*[:=]/i,
+
     /otp\s*[:=]/i,
+
     /one[- ]time password/i,
+
     /api[_ -]?key\s*[:=]/i,
+
     /secret\s*[:=]/i,
+
+    /token\s*[:=]/i,
+
     /cvv\s*[:=]/i,
+
     /card\s*number\s*[:=]/i,
 
-    // Common long numeric card-like strings
     /\b\d{13,19}\b/
 
   ];
 
   return patterns.some(
     function (pattern) {
+
       return pattern.test(value);
+
     }
   );
+
 }
 
 // =====================================================
@@ -365,48 +459,76 @@ function containsSensitiveData(text) {
 function isForgetRequest(message) {
 
   const text =
-    String(message || "").toLowerCase();
+    String(message || "")
+      .toLowerCase();
 
   return (
+
     text.includes("bhool jao") ||
+
     text.includes("bhul jao") ||
+
     text.includes("forget") ||
+
     text.includes("forget it") ||
+
     text.includes("delete my memory") ||
+
     text.includes("meri memory delete") ||
+
     text.includes("yaad mat rakho") ||
-    text.includes("yaad se hata")
+
+    text.includes("yaad se hata") ||
+
+    text.includes("sab bhool jao") ||
+
+    text.includes("everything forget")
+
   );
+
 }
 
 function isRememberRequest(message) {
 
   const text =
-    String(message || "").toLowerCase();
+    String(message || "")
+      .toLowerCase();
 
   return (
+
     text.includes("yaad rakho") ||
+
     text.includes("yaad rakhna") ||
+
     text.includes("remember this") ||
+
     text.includes("remember that") ||
+
     text.includes("remember me")
+
   );
+
 }
 
 // =====================================================
-// EXTRACT SIMPLE MEMORIES
+// EXTRACT INTELLIGENT MEMORIES
 // =====================================================
 
 function extractMemories(message) {
 
   const text =
-    String(message || "").trim();
+    String(message || "")
+      .trim();
 
   const memories = [];
 
-  // -----------------------------------------------
+  if (!text) {
+    return memories;
+  }
+
+  // ===================================================
   // NAME
-  // -----------------------------------------------
+  // ===================================================
 
   const namePatterns = [
 
@@ -427,17 +549,24 @@ function extractMemories(message) {
     const match =
       text.match(pattern);
 
-    if (match && match[1]) {
+    if (
+      match &&
+      match[1]
+    ) {
 
       let name =
         match[1]
           .trim()
-          .replace(/[.!?,]+$/, "");
+          .replace(
+            /[.!?,]+$/,
+            ""
+          );
 
-      // Avoid capturing long sentences
       name =
         name
-          .split(/\s+(?:aur|and|mujhe|please|i|main)\s+/i)[0]
+          .split(
+            /\s+(?:aur|and|mujhe|please|i|main)\s+/i
+          )[0]
           .trim();
 
       if (
@@ -446,18 +575,181 @@ function extractMemories(message) {
       ) {
 
         memories.push({
-          key: "name",
-          value: name
+
+          key:
+            "name",
+
+          value:
+            name
+
         });
 
         break;
+
       }
+
     }
+
   }
 
-  // -----------------------------------------------
+  // ===================================================
+  // LANGUAGE PREFERENCE
+  // ===================================================
+
+  if (
+    /(mujhe|mujhse|please).*(hindi|english|hinglish).*(mein|me|language|jawab|reply|answer)/i
+      .test(text) ||
+
+    /(reply|answer|respond).*(in hindi|in english|in hinglish)/i
+      .test(text)
+  ) {
+
+    let language =
+      null;
+
+    if (/hinglish/i.test(text)) {
+      language = "Hinglish";
+    }
+    else if (/hindi/i.test(text)) {
+      language = "Hindi";
+    }
+    else if (/english/i.test(text)) {
+      language = "English";
+    }
+
+    if (language) {
+
+      memories.push({
+
+        key:
+          "language_preference",
+
+        value:
+          language
+
+      });
+
+    }
+
+  }
+
+  // ===================================================
+  // SIMPLE LANGUAGE
+  // ===================================================
+
+  if (
+    /(?:simple|easy|aasaan).*(language|mein|me|samjha|samjhana|explain)/i
+      .test(text) ||
+
+    /(?:simple mein|simple me|aasaan bhasha mein)/i
+      .test(text)
+  ) {
+
+    memories.push({
+
+      key:
+        "response_style",
+
+      value:
+        "Use simple and easy-to-understand language."
+
+    });
+
+  }
+
+  // ===================================================
+  // SHORT ANSWERS
+  // ===================================================
+
+  if (
+    /(?:short|chhota|chhote|brief).*(answer|reply|response|jawab)/i
+      .test(text) ||
+
+    /(?:answers|replies|responses).*(short|brief)/i
+      .test(text)
+  ) {
+
+    memories.push({
+
+      key:
+        "answer_length",
+
+      value:
+        "Prefer short and concise answers."
+
+    });
+
+  }
+
+  // ===================================================
+  // DETAILED ANSWERS
+  // ===================================================
+
+  if (
+    /(?:detailed|detail mein|detail me|deeply|thorough).*(answer|reply|explain|samjha)/i
+      .test(text)
+  ) {
+
+    memories.push({
+
+      key:
+        "answer_length",
+
+      value:
+        "Prefer detailed explanations."
+
+    });
+
+  }
+
+  // ===================================================
+  // STEP BY STEP
+  // ===================================================
+
+  if (
+    /(?:step by step|step-by-step|ek ek karke|one by one)/i
+      .test(text)
+  ) {
+
+    memories.push({
+
+      key:
+        "teaching_style",
+
+      value:
+        "Prefer step-by-step instructions."
+
+    });
+
+  }
+
+  // ===================================================
+  // ENGLISH LEARNING
+  // ===================================================
+
+  if (
+    /(?:english|angrezi).*(seekh|learn|practice|speaking|bolna)/i
+      .test(text) ||
+
+    /(?:seekhna|learn).*(english|angrezi)/i
+      .test(text)
+  ) {
+
+    memories.push({
+
+      key:
+        "learning_goal",
+
+      value:
+        "Interested in learning or practicing English."
+
+    });
+
+  }
+
+  // ===================================================
   // EXPLICIT REMEMBER
-  // -----------------------------------------------
+  // ===================================================
 
   if (
     isRememberRequest(text) &&
@@ -480,8 +772,9 @@ function extractMemories(message) {
         )
         .trim();
 
-    // Do not store the full sentence as generic memory
-    // when a specific memory was already extracted.
+    // Only create generic note when
+    // no specific memory was detected.
+
     if (
       memories.length === 0 &&
       cleaned.length >= 3 &&
@@ -489,13 +782,41 @@ function extractMemories(message) {
     ) {
 
       memories.push({
-        key: "user_note",
-        value: cleaned
+
+        key:
+          "user_note",
+
+        value:
+          cleaned
+
       });
+
     }
+
   }
 
-  return memories;
+  // ===================================================
+  // REMOVE DUPLICATE MEMORY KEYS
+  // ===================================================
+
+  const unique =
+    new Map();
+
+  memories.forEach(
+    function (memory) {
+
+      unique.set(
+        memory.key,
+        memory
+      );
+
+    }
+  );
+
+  return Array.from(
+    unique.values()
+  );
+
 }
 
 // =====================================================
@@ -508,21 +829,26 @@ function buildMemoryText(memories) {
     !Array.isArray(memories) ||
     memories.length === 0
   ) {
+
     return "No saved user memories.";
+
   }
 
   return memories
-    .map(function (memory) {
+    .map(
+      function (memory) {
 
-      return (
-        "- " +
-        memory.memory_key +
-        ": " +
-        memory.memory_value
-      );
+        return (
+          "- " +
+          memory.memory_key +
+          ": " +
+          memory.memory_value
+        );
 
-    })
+      }
+    )
     .join("\n");
+
 }
 
 // =====================================================
@@ -536,19 +862,27 @@ function cleanHistory(history) {
   }
 
   return history
-    .filter(function (item) {
+    .filter(
+      function (item) {
 
-      return (
-        item &&
-        typeof item.text === "string" &&
-        (
-          item.type === "user" ||
-          item.type === "ai"
-        )
-      );
+        return (
 
-    })
+          item &&
+
+          typeof item.text ===
+            "string" &&
+
+          (
+            item.type === "user" ||
+            item.type === "ai"
+          )
+
+        );
+
+      }
+    )
     .slice(-6);
+
 }
 
 // =====================================================
@@ -570,16 +904,21 @@ function buildPrompt(
 
     context =
       recent
-        .map(function (item) {
+        .map(
+          function (item) {
 
-          return (
-            item.type === "user"
-              ? "USER: "
-              : "ATHARV: "
-          ) + item.text;
+            return (
 
-        })
+              item.type === "user"
+                ? "USER: "
+                : "ATHARV: "
+
+            ) + item.text;
+
+          }
+        )
         .join("\n");
+
   }
 
   const memoryText =
@@ -603,9 +942,21 @@ ${message}
 Answer the current message naturally.
 
 Use saved memories only when relevant.
-Do not mention the memory system unless the user asks about it.
+
+If a language preference is saved,
+follow it unless the current user message
+clearly uses another language and indicates
+they want that language.
+
+If a response-style preference is saved,
+follow it naturally.
+
+Do not mention the memory system
+unless the user asks about it.
+
 Do not repeat the whole conversation.
 `;
+
 }
 
 // =====================================================
@@ -620,59 +971,76 @@ async function callGroq(
 ) {
 
   if (!GROQ_API_KEY) {
+
     throw new Error(
       "GROQ_API_KEY is not configured."
     );
+
   }
 
   const response =
     await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
       {
-        method: "POST",
+
+        method:
+          "POST",
 
         headers: {
+
           "Content-Type":
             "application/json",
 
           Authorization:
             "Bearer " +
             GROQ_API_KEY
+
         },
 
-        body: JSON.stringify({
+        body:
+          JSON.stringify({
 
-          model:
-            GROQ_MODEL,
+            model:
+              GROQ_MODEL,
 
-          messages: [
+            messages: [
 
-            {
-              role: "system",
+              {
 
-              content:
-                ATHARV_INSTRUCTIONS +
-                "\n\nCurrent date/time: " +
-                currentTime
-            },
+                role:
+                  "system",
 
-            {
-              role: "user",
+                content:
+                  ATHARV_INSTRUCTIONS +
+                  "\n\nCurrent date/time: " +
+                  currentTime
 
-              content:
-                buildPrompt(
-                  message,
-                  history,
-                  memories
-                )
-            }
+              },
 
-          ],
+              {
 
-          temperature: 0.4,
+                role:
+                  "user",
 
-          max_tokens: 2500
-        })
+                content:
+                  buildPrompt(
+                    message,
+                    history,
+                    memories
+                  )
+
+              }
+
+            ],
+
+            temperature:
+              0.4,
+
+            max_tokens:
+              2500
+
+          })
+
       }
     );
 
@@ -694,6 +1062,7 @@ async function callGroq(
       ": " +
       errorMessage
     );
+
   }
 
   const reply =
@@ -706,12 +1075,15 @@ async function callGroq(
       : "";
 
   if (!reply) {
+
     throw new Error(
       "Groq returned an empty response."
     );
+
   }
 
   return reply;
+
 }
 
 // =====================================================
@@ -728,6 +1100,7 @@ function sendSSE(
     JSON.stringify(data) +
     "\n\n"
   );
+
 }
 
 // =====================================================
@@ -741,7 +1114,9 @@ async function sendArtificialStream(
 
   const chunks =
     String(text)
-      .match(/.{1,50}(\s+|$)/g) || [
+      .match(
+        /.{1,50}(\s+|$)/g
+      ) || [
         String(text)
       ];
 
@@ -752,20 +1127,27 @@ async function sendArtificialStream(
     sendSSE(
       res,
       {
-        type: "chunk",
-        text: chunk
+        type:
+          "chunk",
+
+        text:
+          chunk
       }
     );
 
     await new Promise(
       function (resolve) {
+
         setTimeout(
           resolve,
           10
         );
+
       }
     );
+
   }
+
 }
 
 // =====================================================
@@ -773,7 +1155,125 @@ async function sendArtificialStream(
 // =====================================================
 
 function getChatUserId(req) {
+
   return getUserId(req);
+
+}
+
+// =====================================================
+// PROCESS MEMORY
+// =====================================================
+
+async function processMemory(
+  userId,
+  message
+) {
+
+  if (!pool) {
+    return;
+  }
+
+  // -----------------------------------------------
+  // FORGET EVERYTHING
+  // -----------------------------------------------
+
+  if (
+    isForgetRequest(message) &&
+    /sab|everything|all|meri memory/i.test(message)
+  ) {
+
+    await deleteAllMemories(
+      userId
+    );
+
+    return;
+
+  }
+
+  // -----------------------------------------------
+  // FORGET COMMAND
+  // -----------------------------------------------
+
+  if (
+    isForgetRequest(message)
+  ) {
+
+    await deleteMemory(
+      userId,
+      "user_note"
+    );
+
+    if (
+      /naam|name/i.test(message)
+    ) {
+
+      await deleteMemory(
+        userId,
+        "name"
+      );
+
+    }
+
+    if (
+      /language|bhasha|hindi|english|hinglish/i.test(message)
+    ) {
+
+      await deleteMemory(
+        userId,
+        "language_preference"
+      );
+
+    }
+
+    if (
+      /simple|style|answer|reply|response/i.test(message)
+    ) {
+
+      await deleteMemory(
+        userId,
+        "response_style"
+      );
+
+      await deleteMemory(
+        userId,
+        "answer_length"
+      );
+
+      await deleteMemory(
+        userId,
+        "teaching_style"
+      );
+
+    }
+
+  }
+
+  // -----------------------------------------------
+  // SAVE NEW MEMORIES
+  // -----------------------------------------------
+
+  const extracted =
+    extractMemories(message);
+
+  if (
+    extracted.length &&
+    !containsSensitiveData(message)
+  ) {
+
+    for (
+      const memory of extracted
+    ) {
+
+      await saveMemory(
+        userId,
+        memory.key,
+        memory.value
+      );
+
+    }
+
+  }
+
 }
 
 // =====================================================
@@ -802,9 +1302,12 @@ app.post(
     if (!message) {
 
       return res.status(400).json({
+
         error:
           "Message is required."
+
       });
+
     }
 
     try {
@@ -812,71 +1315,15 @@ app.post(
       const userId =
         getChatUserId(req);
 
-      // ---------------------------------------------
-      // FORGET COMMAND
-      // ---------------------------------------------
-
-      if (
-        isForgetRequest(message)
-      ) {
-
-        const memories =
-          await getMemories(userId);
-
-        if (
-          memories.length
-        ) {
-
-          // Delete generic user_note
-          await deleteMemory(
-            userId,
-            "user_note"
-          );
-
-          // If user explicitly asks to forget
-          // name, delete name as well.
-          if (
-            /naam|name/i.test(message)
-          ) {
-
-            await deleteMemory(
-              userId,
-              "name"
-            );
-          }
-        }
-      }
-
-      // ---------------------------------------------
-      // SAVE NEW MEMORIES
-      // ---------------------------------------------
-
-      const extracted =
-        extractMemories(message);
-
-      if (
-        extracted.length &&
-        !containsSensitiveData(message)
-      ) {
-
-        for (
-          const memory of extracted
-        ) {
-
-          await saveMemory(
-            userId,
-            memory.key,
-            memory.value
-          );
-        }
-      }
-
-      // ---------------------------------------------
-      // LOAD MEMORIES
-      // ---------------------------------------------
+      await processMemory(
+        userId,
+        message
+      );
 
       const memories =
-        await getMemories(userId);
+        await getMemories(
+          userId
+        );
 
       const currentTime =
         getUserDateTime(
@@ -920,7 +1367,9 @@ app.post(
           error.message
 
       });
+
     }
+
   }
 );
 
@@ -950,9 +1399,12 @@ app.post(
     if (!message) {
 
       return res.status(400).json({
+
         error:
           "Message is required."
+
       });
+
     }
 
     res.status(200);
@@ -976,7 +1428,9 @@ app.post(
       typeof res.flushHeaders ===
       "function"
     ) {
+
       res.flushHeaders();
+
     }
 
     try {
@@ -984,52 +1438,15 @@ app.post(
       const userId =
         getChatUserId(req);
 
-      // ---------------------------------------------
-      // MEMORY SAVE / DELETE
-      // ---------------------------------------------
-
-      if (
-        isForgetRequest(message)
-      ) {
-
-        await deleteMemory(
-          userId,
-          "user_note"
-        );
-
-        if (
-          /naam|name/i.test(message)
-        ) {
-
-          await deleteMemory(
-            userId,
-            "name"
-          );
-        }
-      }
-
-      const extracted =
-        extractMemories(message);
-
-      if (
-        extracted.length &&
-        !containsSensitiveData(message)
-      ) {
-
-        for (
-          const memory of extracted
-        ) {
-
-          await saveMemory(
-            userId,
-            memory.key,
-            memory.value
-          );
-        }
-      }
+      await processMemory(
+        userId,
+        message
+      );
 
       const memories =
-        await getMemories(userId);
+        await getMemories(
+          userId
+        );
 
       const currentTime =
         getUserDateTime(
@@ -1039,9 +1456,16 @@ app.post(
       sendSSE(
         res,
         {
-          type: "status",
-          provider: "groq",
-          memory: true
+
+          type:
+            "status",
+
+          provider:
+            "groq",
+
+          memory:
+            true
+
         }
       );
 
@@ -1061,10 +1485,19 @@ app.post(
       sendSSE(
         res,
         {
-          type: "done",
-          provider: "groq",
-          memory: true,
-          webSearch: false
+
+          type:
+            "done",
+
+          provider:
+            "groq",
+
+          memory:
+            true,
+
+          webSearch:
+            false
+
         }
       );
 
@@ -1078,9 +1511,13 @@ app.post(
       sendSSE(
         res,
         {
-          type: "error",
+
+          type:
+            "error",
+
           error:
             error.message
+
         }
       );
 
@@ -1089,12 +1526,15 @@ app.post(
       sendSSE(
         res,
         {
-          type: "close"
+          type:
+            "close"
         }
       );
 
       res.end();
+
     }
+
   }
 );
 
@@ -1112,21 +1552,33 @@ app.get(
         getUserId(req);
 
       const memories =
-        await getMemories(userId);
+        await getMemories(
+          userId
+        );
 
       return res.json({
-        ok: true,
+
+        ok:
+          true,
+
         memories
+
       });
 
     } catch (error) {
 
       return res.status(500).json({
-        ok: false,
+
+        ok:
+          false,
+
         error:
           error.message
+
       });
+
     }
+
   }
 );
 
@@ -1149,17 +1601,22 @@ app.get(
           "SELECT 1"
         );
 
-        database = true;
+        database =
+          true;
 
       } catch (error) {
 
-        database = false;
+        database =
+          false;
+
       }
+
     }
 
     res.json({
 
-      ok: true,
+      ok:
+        true,
 
       service:
         "Atharv AI",
@@ -1182,6 +1639,9 @@ app.get(
           true,
 
         permanentMemory:
+          database,
+
+        intelligentMemory:
           database,
 
         memorySave:
@@ -1209,7 +1669,9 @@ app.get(
 
       time:
         new Date().toISOString()
+
     });
+
   }
 );
 
@@ -1218,7 +1680,9 @@ app.get(
 // =====================================================
 
 app.use(
-  express.static(__dirname)
+  express.static(
+    __dirname
+  )
 );
 
 // =====================================================
@@ -1234,6 +1698,7 @@ app.use(
         "index.html"
       )
     );
+
   }
 );
 
@@ -1270,6 +1735,10 @@ app.listen(
     );
 
     console.log(
+      "Intelligent Memory: ENABLED"
+    );
+
+    console.log(
       "Streaming: ENABLED"
     );
 
@@ -1288,5 +1757,6 @@ app.listen(
     console.log(
       "================================"
     );
+
   }
 );
