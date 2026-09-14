@@ -1,9 +1,20 @@
 /* =========================================================
-   ATHARV AI - FINAL APP.JS
-   Frontend Controller
+   ATHARV AI - FINAL FRONTEND CONTROLLER
+   Version 8.0
+   Multilingual • Memory • Voice • Files • Market • Alerts
    ========================================================= */
 
 "use strict";
+
+/* =========================================================
+   BASIC CONFIG
+   ========================================================= */
+
+const API_BASE = "";
+
+const ATHARV_HISTORY_KEY = "atharv_chat_history";
+const ATHARV_USER_ID_KEY = "atharv_user_id";
+const ATHARV_LANGUAGE_KEY = "atharv_language";
 
 /* =========================================================
    ELEMENTS
@@ -13,18 +24,34 @@ const chatBox = document.getElementById("chatBox");
 const messageInput = document.getElementById("message");
 const sendButton = document.querySelector(".send");
 
-const API_BASE = "";
+const languageSelect =
+  document.getElementById("atharvLanguage");
+
+const fileInput =
+  document.getElementById("fileInput");
+
+const attachmentButton =
+  document.getElementById("attachmentButton");
+
+const attachmentPreview =
+  document.getElementById("attachmentPreview");
+
+/* =========================================================
+   STATE
+   ========================================================= */
 
 let isThinking = false;
 let currentController = null;
 
-/* =========================================================
-   STORAGE
-   ========================================================= */
+let selectedAttachment = null;
 
-const ATHARV_HISTORY_KEY = "atharv_chat_history";
-const ATHARV_USER_ID_KEY = "atharv_user_id";
-const ATHARV_LANGUAGE_KEY = "atharv_language";
+let speechRecognition = null;
+let isListening = false;
+
+let isSpeaking = false;
+let currentSpeechUtterance = null;
+
+let selectedVoiceLanguage = "en-IN";
 
 /* =========================================================
    USER ID
@@ -32,13 +59,17 @@ const ATHARV_LANGUAGE_KEY = "atharv_language";
 
 function getAtharvUserId() {
   try {
-    let id = localStorage.getItem(ATHARV_USER_ID_KEY);
+    let id =
+      localStorage.getItem(
+        ATHARV_USER_ID_KEY
+      );
 
     if (id) return id;
 
     if (
       window.crypto &&
-      typeof window.crypto.randomUUID === "function"
+      typeof window.crypto.randomUUID ===
+        "function"
     ) {
       id = window.crypto.randomUUID();
     } else {
@@ -46,74 +77,48 @@ function getAtharvUserId() {
         "atharv_" +
         Date.now() +
         "_" +
-        Math.random().toString(36).slice(2, 12);
+        Math.random()
+          .toString(36)
+          .slice(2, 12);
     }
 
-    localStorage.setItem(ATHARV_USER_ID_KEY, id);
+    localStorage.setItem(
+      ATHARV_USER_ID_KEY,
+      id
+    );
 
     return id;
   } catch (error) {
-    console.error("USER ID ERROR:", error);
+    console.error(
+      "USER ID ERROR:",
+      error
+    );
 
     return (
       "atharv_" +
       Date.now() +
       "_" +
-      Math.random().toString(36).slice(2, 12)
+      Math.random()
+        .toString(36)
+        .slice(2, 12)
     );
   }
 }
 
-const ATHARV_USER_ID = getAtharvUserId();
+const ATHARV_USER_ID =
+  getAtharvUserId();
 
-console.log("ATHARV USER ID:", ATHARV_USER_ID);
-
-/* =========================================================
-   VOICE
-   ========================================================= */
-
-let speechRecognition = null;
-let isListening = false;
-let isSpeaking = false;
-let currentSpeechUtterance = null;
-let selectedVoiceLanguage = "en-IN";
+console.log(
+  "ATHARV USER ID:",
+  ATHARV_USER_ID
+);
 
 /* =========================================================
    LANGUAGE
    ========================================================= */
 
-const languageSelect =
-  document.getElementById("atharvLanguage");
-
-let selectedLanguage =
-  localStorage.getItem(ATHARV_LANGUAGE_KEY) || "auto";
-
-if (languageSelect) {
-  languageSelect.value = selectedLanguage;
-
-  languageSelect.addEventListener("change", function () {
-    selectedLanguage = this.value || "auto";
-
-    localStorage.setItem(
-      ATHARV_LANGUAGE_KEY,
-      selectedLanguage
-    );
-
-    updateVoiceLanguageFromSelection();
-
-    console.log(
-      "ATHARV LANGUAGE:",
-      selectedLanguage
-    );
-  });
-}
-
-/* =========================================================
-   LANGUAGE MAP
-   ========================================================= */
-
 const LANGUAGE_MAP = {
-  auto: "auto",
+  auto: "Auto Detect",
   hi: "Hindi",
   en: "English",
   hinglish: "Hinglish",
@@ -137,33 +142,157 @@ const LANGUAGE_MAP = {
   zh: "Chinese"
 };
 
+let selectedLanguage =
+  localStorage.getItem(
+    ATHARV_LANGUAGE_KEY
+  ) || "auto";
+
+if (languageSelect) {
+  const exists = Array.from(
+    languageSelect.options || []
+  ).some(
+    option =>
+      option.value ===
+      selectedLanguage
+  );
+
+  if (exists) {
+    languageSelect.value =
+      selectedLanguage;
+  }
+
+  languageSelect.addEventListener(
+    "change",
+    function () {
+      selectedLanguage =
+        this.value || "auto";
+
+      localStorage.setItem(
+        ATHARV_LANGUAGE_KEY,
+        selectedLanguage
+      );
+
+      updateVoiceLanguageFromSelection();
+
+      console.log(
+        "ATHARV LANGUAGE:",
+        selectedLanguage
+      );
+    }
+  );
+}
+
+/* =========================================================
+   LANGUAGE → VOICE
+   ========================================================= */
+
+function languageToVoiceCode(
+  language
+) {
+  const map = {
+    hi: "hi-IN",
+    en: "en-IN",
+    hinglish: "hi-IN",
+    bn: "bn-IN",
+    mr: "mr-IN",
+    gu: "gu-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    kn: "kn-IN",
+    ml: "ml-IN",
+    pa: "pa-IN",
+    ur: "ur-PK",
+    ar: "ar-SA",
+    es: "es-ES",
+    fr: "fr-FR",
+    de: "de-DE",
+    pt: "pt-BR",
+    ru: "ru-RU",
+    ja: "ja-JP",
+    ko: "ko-KR",
+    zh: "zh-CN"
+  };
+
+  return (
+    map[language] ||
+    "en-IN"
+  );
+}
+
+function updateVoiceLanguageFromSelection() {
+  if (
+    selectedLanguage &&
+    selectedLanguage !== "auto"
+  ) {
+    selectedVoiceLanguage =
+      languageToVoiceCode(
+        selectedLanguage
+      );
+  }
+}
+
 /* =========================================================
    VOICE LANGUAGE DETECTION
    ========================================================= */
 
 function detectVoiceLanguage(text) {
-  const value = String(text || "").trim();
+  const value =
+    String(text || "").trim();
 
-  if (!value) return "en-IN";
+  if (!value) {
+    return "en-IN";
+  }
 
-  if (/[\u0900-\u097F]/.test(value)) return "hi-IN";
-  if (/[\u0980-\u09FF]/.test(value)) return "bn-IN";
-  if (/[\u0A00-\u0A7F]/.test(value)) return "pa-IN";
-  if (/[\u0A80-\u0AFF]/.test(value)) return "gu-IN";
-  if (/[\u0B80-\u0BFF]/.test(value)) return "ta-IN";
-  if (/[\u0C00-\u0C7F]/.test(value)) return "te-IN";
-  if (/[\u0C80-\u0CFF]/.test(value)) return "kn-IN";
-  if (/[\u0D00-\u0D7F]/.test(value)) return "ml-IN";
-  if (/[\u0600-\u06FF]/.test(value)) return "ar-SA";
-  if (/[\u0590-\u05FF]/.test(value)) return "he-IL";
-  if (/[\u0400-\u04FF]/.test(value)) return "ru-RU";
-  if (/[\u0370-\u03FF]/.test(value)) return "el-GR";
-  if (/[\u0E00-\u0E7F]/.test(value)) return "th-TH";
-  if (/[\u3040-\u30FF]/.test(value)) return "ja-JP";
-  if (/[\uAC00-\uD7AF]/.test(value)) return "ko-KR";
-  if (/[\u4E00-\u9FFF]/.test(value)) return "zh-CN";
+  if (/[\u0900-\u097F]/.test(value))
+    return "hi-IN";
 
-  const lower = value.toLowerCase();
+  if (/[\u0980-\u09FF]/.test(value))
+    return "bn-IN";
+
+  if (/[\u0A00-\u0A7F]/.test(value))
+    return "pa-IN";
+
+  if (/[\u0A80-\u0AFF]/.test(value))
+    return "gu-IN";
+
+  if (/[\u0B80-\u0BFF]/.test(value))
+    return "ta-IN";
+
+  if (/[\u0C00-\u0C7F]/.test(value))
+    return "te-IN";
+
+  if (/[\u0C80-\u0CFF]/.test(value))
+    return "kn-IN";
+
+  if (/[\u0D00-\u0D7F]/.test(value))
+    return "ml-IN";
+
+  if (/[\u0600-\u06FF]/.test(value))
+    return "ar-SA";
+
+  if (/[\u0590-\u05FF]/.test(value))
+    return "he-IL";
+
+  if (/[\u0400-\u04FF]/.test(value))
+    return "ru-RU";
+
+  if (/[\u0370-\u03FF]/.test(value))
+    return "el-GR";
+
+  if (/[\u0E00-\u0E7F]/.test(value))
+    return "th-TH";
+
+  if (/[\u3040-\u30FF]/.test(value))
+    return "ja-JP";
+
+  if (/[\uAC00-\uD7AF]/.test(value))
+    return "ko-KR";
+
+  if (/[\u4E00-\u9FFF]/.test(value))
+    return "zh-CN";
+
+  const lower =
+    value.toLowerCase();
 
   const hindiWords = [
     "mera",
@@ -202,59 +331,26 @@ function detectVoiceLanguage(text) {
 
   let matches = 0;
 
-  hindiWords.forEach(function (word) {
-    if (
-      new RegExp("\\b" + word + "\\b", "i").test(lower)
-    ) {
-      matches++;
+  hindiWords.forEach(
+    word => {
+      if (
+        new RegExp(
+          "\\b" +
+            word +
+            "\\b",
+          "i"
+        ).test(lower)
+      ) {
+        matches++;
+      }
     }
-  });
+  );
 
-  if (matches >= 2) return "hi-IN";
+  if (matches >= 2) {
+    return "hi-IN";
+  }
 
   return "en-IN";
-}
-
-/* =========================================================
-   LANGUAGE -> VOICE
-   ========================================================= */
-
-function languageToVoiceCode(language) {
-  const map = {
-    hi: "hi-IN",
-    en: "en-IN",
-    hinglish: "hi-IN",
-    bn: "bn-IN",
-    mr: "mr-IN",
-    gu: "gu-IN",
-    ta: "ta-IN",
-    te: "te-IN",
-    kn: "kn-IN",
-    ml: "ml-IN",
-    pa: "pa-IN",
-    ur: "ur-PK",
-    ar: "ar-SA",
-    es: "es-ES",
-    fr: "fr-FR",
-    de: "de-DE",
-    pt: "pt-BR",
-    ru: "ru-RU",
-    ja: "ja-JP",
-    ko: "ko-KR",
-    zh: "zh-CN"
-  };
-
-  return map[language] || "en-IN";
-}
-
-function updateVoiceLanguageFromSelection() {
-  if (
-    selectedLanguage &&
-    selectedLanguage !== "auto"
-  ) {
-    selectedVoiceLanguage =
-      languageToVoiceCode(selectedLanguage);
-  }
 }
 
 /* =========================================================
@@ -276,48 +372,58 @@ function isVoiceInputSupported() {
 function isVoiceOutputSupported() {
   return (
     "speechSynthesis" in window &&
-    "SpeechSynthesisUtterance" in window
+    "SpeechSynthesisUtterance" in
+      window
   );
 }
 
 /* =========================================================
-   VOICE CONTROLS
+   VOICE UI
    ========================================================= */
 
 function getVoiceControls() {
   return {
-    area: document.getElementById("atharvVoiceArea"),
+    area:
+      document.getElementById(
+        "atharvVoiceArea"
+      ),
 
-    micButton: document.getElementById(
-      "atharvMicButton"
-    ),
+    micButton:
+      document.getElementById(
+        "atharvMicButton"
+      ),
 
-    stopButton: document.getElementById(
-      "atharvStopVoiceButton"
-    ),
+    stopButton:
+      document.getElementById(
+        "atharvStopVoiceButton"
+      ),
 
-    status: document.getElementById(
-      "atharvVoiceStatus"
-    )
+    status:
+      document.getElementById(
+        "atharvVoiceStatus"
+      )
   };
 }
 
 function updateVoiceStatus(text) {
-  const controls = getVoiceControls();
+  const controls =
+    getVoiceControls();
 
   if (controls.status) {
-    controls.status.textContent = text;
+    controls.status.textContent =
+      text;
   }
 }
 
 /* =========================================================
-   VOICE BUTTON CREATION
+   CREATE VOICE CONTROL
    ========================================================= */
 
 function createVoiceControls() {
   if (!messageInput) return;
 
-  const controls = getVoiceControls();
+  const controls =
+    getVoiceControls();
 
   if (controls.micButton) {
     bindVoiceButtons(
@@ -335,13 +441,19 @@ function createVoiceControls() {
   }
 
   const micButton =
-    document.createElement("button");
+    document.createElement(
+      "button"
+    );
 
   micButton.type = "button";
-  micButton.id = "atharvMicButton";
-  micButton.className = "voice-input-button";
-  micButton.textContent = "🎙️";
-  micButton.title = "Bolkar poochhein";
+  micButton.id =
+    "atharvMicButton";
+  micButton.className =
+    "voice-input-button";
+  micButton.textContent =
+    "🎙️";
+  micButton.title =
+    "Bolkar poochhein";
 
   if (
     sendButton &&
@@ -351,7 +463,9 @@ function createVoiceControls() {
       micButton,
       sendButton
     );
-  } else if (messageInput.parentElement) {
+  } else if (
+    messageInput.parentElement
+  ) {
     messageInput.parentElement.appendChild(
       micButton
     );
@@ -364,15 +478,23 @@ function createVoiceControls() {
 
   if (!status) {
     status =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
-    status.id = "atharvVoiceStatus";
-    status.className = "voice-status";
-    status.textContent = "Voice ready";
+    status.id =
+      "atharvVoiceStatus";
+
+    status.className =
+      "voice-status";
+
+    status.textContent =
+      "Voice ready";
 
     if (
       messageInput.parentElement &&
-      messageInput.parentElement.parentElement
+      messageInput.parentElement
+        .parentElement
     ) {
       messageInput.parentElement.parentElement.appendChild(
         status
@@ -393,7 +515,7 @@ function createVoiceControls() {
 }
 
 /* =========================================================
-   BIND VOICE BUTTONS
+   VOICE BUTTONS
    ========================================================= */
 
 function bindVoiceButtons(
@@ -401,10 +523,12 @@ function bindVoiceButtons(
   stopButton,
   status
 ) {
-  if (!micButton || !status) return;
+  if (!micButton || !status)
+    return;
 
   if (
-    micButton.dataset.atharvBound ===
+    micButton.dataset
+      .atharvBound ===
     "true"
   ) {
     return;
@@ -462,11 +586,13 @@ function setupSpeechRecognition(
   const RecognitionClass =
     getSpeechRecognitionClass();
 
-  if (!micButton || !status) return;
+  if (!micButton || !status)
+    return;
 
   if (!RecognitionClass) {
     micButton.disabled = true;
-    micButton.style.opacity = "0.4";
+    micButton.style.opacity =
+      "0.4";
 
     status.textContent =
       "Is browser mein voice input available nahi hai.";
@@ -474,14 +600,21 @@ function setupSpeechRecognition(
     return;
   }
 
-  if (speechRecognition) return;
+  if (speechRecognition)
+    return;
 
   speechRecognition =
     new RecognitionClass();
 
-  speechRecognition.continuous = false;
-  speechRecognition.interimResults = true;
-  speechRecognition.maxAlternatives = 1;
+  speechRecognition.continuous =
+    false;
+
+  speechRecognition.interimResults =
+    true;
+
+  speechRecognition.maxAlternatives =
+    1;
+
   speechRecognition.lang =
     selectedVoiceLanguage;
 
@@ -489,8 +622,12 @@ function setupSpeechRecognition(
     function () {
       isListening = true;
 
-      micButton.textContent = "🛑";
-      micButton.title = "Listening...";
+      micButton.textContent =
+        "🛑";
+
+      micButton.title =
+        "Listening...";
+
       micButton.classList.add(
         "listening"
       );
@@ -505,41 +642,41 @@ function setupSpeechRecognition(
       let interimText = "";
 
       for (
-        let i = event.resultIndex;
-        i < event.results.length;
+        let i =
+          event.resultIndex;
+        i <
+        event.results.length;
         i++
       ) {
         const transcript =
-          event.results[i][0].transcript;
+          event.results[i][0]
+            .transcript;
 
         if (
-          event.results[i].isFinal
+          event.results[i]
+            .isFinal
         ) {
-          finalText += transcript;
+          finalText +=
+            transcript;
         } else {
-          interimText += transcript;
+          interimText +=
+            transcript;
         }
       }
 
       if (interimText) {
         messageInput.value =
           interimText;
-
-        messageInput.dispatchEvent(
-          new Event("input")
-        );
       }
 
-      if (finalText.trim()) {
+      if (
+        finalText.trim()
+      ) {
         const cleaned =
           finalText.trim();
 
         messageInput.value =
           cleaned;
-
-        messageInput.dispatchEvent(
-          new Event("input")
-        );
 
         if (
           selectedLanguage ===
@@ -554,14 +691,17 @@ function setupSpeechRecognition(
         speechRecognition.lang =
           selectedVoiceLanguage;
 
-        setTimeout(function () {
-          if (
-            messageInput.value.trim() &&
-            !isThinking
-          ) {
-            sendMessage();
-          }
-        }, 250);
+        setTimeout(
+          function () {
+            if (
+              messageInput.value.trim() &&
+              !isThinking
+            ) {
+              sendMessage();
+            }
+          },
+          200
+        );
       }
     };
 
@@ -574,7 +714,9 @@ function setupSpeechRecognition(
 
       isListening = false;
 
-      micButton.textContent = "🎙️";
+      micButton.textContent =
+        "🎙️";
+
       micButton.classList.remove(
         "listening"
       );
@@ -586,7 +728,8 @@ function setupSpeechRecognition(
         status.textContent =
           "🎙️ Microphone permission allow karein.";
       } else if (
-        event.error === "no-speech"
+        event.error ===
+        "no-speech"
       ) {
         status.textContent =
           "Kuch sunai nahi diya.";
@@ -600,7 +743,9 @@ function setupSpeechRecognition(
     function () {
       isListening = false;
 
-      micButton.textContent = "🎙️";
+      micButton.textContent =
+        "🎙️";
+
       micButton.title =
         "Bolkar poochhein";
 
@@ -620,7 +765,7 @@ function setupSpeechRecognition(
 }
 
 /* =========================================================
-   TOGGLE VOICE
+   TOGGLE VOICE INPUT
    ========================================================= */
 
 function toggleVoiceInput(
@@ -659,7 +804,8 @@ function toggleVoiceInput(
   }
 
   if (
-    selectedLanguage !== "auto"
+    selectedLanguage !==
+    "auto"
   ) {
     selectedVoiceLanguage =
       languageToVoiceCode(
@@ -689,22 +835,21 @@ function toggleVoiceInput(
 }
 
 /* =========================================================
-   SPEECH VOICE
+   SPEECH OUTPUT
    ========================================================= */
 
 function findBestSpeechVoice(
   language
 ) {
-  if (!isVoiceOutputSupported()) {
+  if (!isVoiceOutputSupported())
     return null;
-  }
 
   const voices =
     window.speechSynthesis.getVoices();
 
   if (
     !voices ||
-    voices.length === 0
+    !voices.length
   ) {
     return null;
   }
@@ -718,53 +863,45 @@ function findBestSpeechVoice(
     target.split("-")[0];
 
   let voice =
-    voices.find(function (item) {
-      return (
+    voices.find(
+      item =>
         item.lang &&
         item.lang.toLowerCase() ===
           target
-      );
-    });
+    );
 
   if (voice) return voice;
 
   voice =
-    voices.find(function (item) {
-      return (
+    voices.find(
+      item =>
         item.lang &&
         item.lang
           .toLowerCase()
           .startsWith(
             base + "-"
           )
-      );
-    });
+    );
 
   if (voice) return voice;
 
   return (
-    voices.find(function (item) {
-      return (
+    voices.find(
+      item =>
         item.lang &&
         item.lang
           .toLowerCase()
           .startsWith(base)
-      );
-    }) || null
+    ) || null
   );
 }
-
-/* =========================================================
-   SPEAK
-   ========================================================= */
 
 function speakText(
   text,
   button = null
 ) {
-  if (!isVoiceOutputSupported()) {
+  if (!isVoiceOutputSupported())
     return;
-  }
 
   const cleanText =
     String(text || "").trim();
@@ -773,21 +910,11 @@ function speakText(
 
   stopVoiceOutput();
 
-  document
-    .querySelectorAll(
-      ".atharv-message-voice"
-    )
-    .forEach(function (item) {
-      item.textContent = "🔊";
-      item.classList.remove(
-        "speaking"
-      );
-    });
-
   let language;
 
   if (
-    selectedLanguage !== "auto"
+    selectedLanguage !==
+    "auto"
   ) {
     language =
       languageToVoiceCode(
@@ -808,16 +935,21 @@ function speakText(
       cleanText
     );
 
-  utterance.lang = language;
+  utterance.lang =
+    language;
+
   utterance.rate = 0.95;
   utterance.pitch = 1;
   utterance.volume = 1;
 
   const voice =
-    findBestSpeechVoice(language);
+    findBestSpeechVoice(
+      language
+    );
 
   if (voice) {
-    utterance.voice = voice;
+    utterance.voice =
+      voice;
   }
 
   utterance.onstart =
@@ -879,10 +1011,6 @@ function speakText(
   );
 }
 
-/* =========================================================
-   STOP SPEECH
-   ========================================================= */
-
 function stopVoiceOutput() {
   if (isVoiceOutputSupported()) {
     try {
@@ -896,14 +1024,17 @@ function stopVoiceOutput() {
   }
 
   isSpeaking = false;
-  currentSpeechUtterance = null;
+  currentSpeechUtterance =
+    null;
 
   document
     .querySelectorAll(
       ".atharv-message-voice"
     )
-    .forEach(function (button) {
-      button.textContent = "🔊";
+    .forEach(button => {
+      button.textContent =
+        "🔊";
+
       button.classList.remove(
         "speaking"
       );
@@ -911,7 +1042,7 @@ function stopVoiceOutput() {
 }
 
 /* =========================================================
-   AI MESSAGE VOICE BUTTON
+   MESSAGE VOICE BUTTON
    ========================================================= */
 
 function addVoiceButtonToMessage(
@@ -930,7 +1061,9 @@ function addVoiceButtonToMessage(
       "button"
     );
 
-  voiceButton.type = "button";
+  voiceButton.type =
+    "button";
+
   voiceButton.className =
     "atharv-message-voice";
 
@@ -960,12 +1093,13 @@ function addVoiceButtonToMessage(
 }
 
 /* =========================================================
-   MESSAGE
+   MESSAGE RENDER
    ========================================================= */
 
 function addMessage(
   text,
-  type
+  type,
+  options = {}
 ) {
   if (!chatBox) return null;
 
@@ -990,7 +1124,10 @@ function addMessage(
     message
   );
 
-  if (type === "ai") {
+  if (
+    type === "ai" &&
+    options.voice !== false
+  ) {
     addVoiceButtonToMessage(
       message,
       cleanText
@@ -1003,6 +1140,83 @@ function addMessage(
   });
 
   return message;
+}
+
+/* =========================================================
+   SOURCES
+   ========================================================= */
+
+function renderSources(
+  sources
+) {
+  if (
+    !Array.isArray(sources) ||
+    !sources.length ||
+    !chatBox
+  ) {
+    return;
+  }
+
+  const wrapper =
+    document.createElement(
+      "div"
+    );
+
+  wrapper.className =
+    "atharv-sources";
+
+  const title =
+    document.createElement(
+      "div"
+    );
+
+  title.textContent =
+    "🌐 Sources";
+
+  title.className =
+    "atharv-sources-title";
+
+  wrapper.appendChild(
+    title
+  );
+
+  sources
+    .slice(0, 6)
+    .forEach(source => {
+      if (!source) return;
+
+      const link =
+        document.createElement(
+          "a"
+        );
+
+      link.target = "_blank";
+      link.rel =
+        "noopener noreferrer";
+
+      link.href =
+        source.url ||
+        "#";
+
+      link.textContent =
+        source.title ||
+        source.name ||
+        source.url ||
+        "Source";
+
+      wrapper.appendChild(
+        link
+      );
+    });
+
+  chatBox.appendChild(
+    wrapper
+  );
+
+  wrapper.scrollIntoView({
+    behavior: "smooth",
+    block: "end"
+  });
 }
 
 /* =========================================================
@@ -1019,7 +1233,7 @@ function saveChatHistory() {
       .querySelectorAll(
         ".message"
       )
-      .forEach(function (message) {
+      .forEach(message => {
         if (
           message.id ===
           "thinkingMessage"
@@ -1034,7 +1248,7 @@ function saveChatHistory() {
           "";
 
         messages.push({
-          text: text,
+          text,
           type:
             message.classList.contains(
               "user"
@@ -1089,11 +1303,12 @@ function loadChatHistory() {
   const messages =
     getChatHistory();
 
-  if (!messages.length) return;
+  if (!messages.length)
+    return;
 
   chatBox.innerHTML = "";
 
-  messages.forEach(function (item) {
+  messages.forEach(item => {
     if (
       item &&
       typeof item.text ===
@@ -1143,8 +1358,8 @@ function showThinking() {
   message.id =
     "thinkingMessage";
 
-  message.textContent =
-    "Atharv soch raha hai... 🤔";
+  message.innerHTML =
+    "Atharv <span class=\"atharv-dots\">● ● ●</span>";
 
   chatBox.appendChild(
     message
@@ -1166,7 +1381,7 @@ function removeThinking() {
 }
 
 /* =========================================================
-   SERVER RESPONSE
+   SERVER ANSWER
    ========================================================= */
 
 function getServerAnswer(data) {
@@ -1181,16 +1396,14 @@ function getServerAnswer(data) {
     data.answer,
     data.response,
     data.reply,
-    data.message,
     data.text,
     data.content
   ];
 
-  for (
-    const value of possible
-  ) {
+  for (const value of possible) {
     if (
-      typeof value === "string" &&
+      typeof value ===
+        "string" &&
       value.trim()
     ) {
       return value.trim();
@@ -1201,45 +1414,34 @@ function getServerAnswer(data) {
 }
 
 /* =========================================================
-   ATTACHMENT
+   ATTACHMENTS
    ========================================================= */
 
-let selectedAttachment = null;
-
-const fileInput =
-  document.getElementById(
-    "fileInput"
-  );
-
-const attachmentPreview =
-  document.getElementById(
-    "attachmentPreview"
-  );
-
-const attachmentButton =
-  document.getElementById(
-    "attachmentButton"
-  );
-
 function clearAttachment() {
-  selectedAttachment = null;
+  selectedAttachment =
+    null;
 
   if (fileInput) {
     fileInput.value = "";
   }
 
   if (attachmentPreview) {
-    attachmentPreview.innerHTML = "";
-    attachmentPreview.hidden = true;
+    attachmentPreview.innerHTML =
+      "";
+
+    attachmentPreview.hidden =
+      true;
   }
 }
 
 function renderAttachmentPreview(
   file
 ) {
-  if (!attachmentPreview) return;
+  if (!attachmentPreview)
+    return;
 
-  attachmentPreview.innerHTML = "";
+  attachmentPreview.innerHTML =
+    "";
 
   const wrapper =
     document.createElement(
@@ -1254,13 +1456,19 @@ function renderAttachmentPreview(
       "span"
     );
 
+  const sizeKB =
+    Math.max(
+      1,
+      Math.round(
+        file.size / 1024
+      )
+    );
+
   name.textContent =
     "📎 " +
     file.name +
     " (" +
-    Math.round(
-      file.size / 1024
-    ) +
+    sizeKB +
     " KB)";
 
   const remove =
@@ -1268,8 +1476,11 @@ function renderAttachmentPreview(
       "button"
     );
 
-  remove.type = "button";
-  remove.textContent = "✕";
+  remove.type =
+    "button";
+
+  remove.textContent =
+    "✕";
 
   remove.addEventListener(
     "click",
@@ -1287,7 +1498,10 @@ function renderAttachmentPreview(
     false;
 }
 
-if (attachmentButton && fileInput) {
+if (
+  attachmentButton &&
+  fileInput
+) {
   attachmentButton.addEventListener(
     "click",
     function () {
@@ -1329,10 +1543,12 @@ if (fileInput) {
 }
 
 /* =========================================================
-   FILE TEXT READER
+   TEXT FILE READER
    ========================================================= */
 
-async function readTextFile(file) {
+async function readTextFile(
+  file
+) {
   const type =
     file.type || "";
 
@@ -1346,7 +1562,9 @@ async function readTextFile(file) {
     name.endsWith(".txt") ||
     name.endsWith(".csv") ||
     name.endsWith(".md") ||
-    name.endsWith(".json");
+    name.endsWith(".json") ||
+    name.endsWith(".xml") ||
+    name.endsWith(".log");
 
   if (!isText) {
     return null;
@@ -1365,11 +1583,57 @@ async function readTextFile(file) {
 }
 
 /* =========================================================
+   ATTACHMENT DESCRIPTION
+   ========================================================= */
+
+function getAttachmentDescription(
+  file
+) {
+  if (!file) return "";
+
+  const type =
+    file.type || "";
+
+  const name =
+    file.name.toLowerCase();
+
+  if (
+    type.startsWith(
+      "image/"
+    )
+  ) {
+    return (
+      "User attached an image named " +
+      file.name +
+      ". Image analysis is requested."
+    );
+  }
+
+  if (
+    type ===
+      "application/pdf" ||
+    name.endsWith(".pdf")
+  ) {
+    return (
+      "User attached a PDF named " +
+      file.name +
+      ". PDF analysis is requested."
+    );
+  }
+
+  return (
+    "User attached file: " +
+    file.name
+  );
+}
+
+/* =========================================================
    SEND MESSAGE
    ========================================================= */
 
 async function sendMessage() {
-  if (!messageInput) return;
+  if (!messageInput)
+    return;
 
   const message =
     messageInput.value.trim();
@@ -1383,10 +1647,11 @@ async function sendMessage() {
 
   stopVoiceOutput();
 
-  let attachment =
+  const attachment =
     selectedAttachment;
 
-  let attachmentText = null;
+  let attachmentText =
+    null;
 
   if (attachment) {
     attachmentText =
@@ -1409,7 +1674,9 @@ async function sendMessage() {
   isThinking = true;
 
   if (sendButton) {
-    sendButton.disabled = true;
+    sendButton.disabled =
+      true;
+
     sendButton.style.opacity =
       "0.5";
   }
@@ -1420,18 +1687,25 @@ async function sendMessage() {
     new AbortController();
 
   const timeoutId =
-    setTimeout(function () {
-      if (currentController) {
-        currentController.abort();
-      }
-    }, 90000);
+    setTimeout(
+      function () {
+        if (
+          currentController
+        ) {
+          currentController.abort();
+        }
+      },
+      90000
+    );
 
   try {
     const fullHistory =
       getChatHistory();
 
     const recentHistory =
-      fullHistory.slice(-10);
+      fullHistory.slice(
+        -12
+      );
 
     const timeZone =
       Intl.DateTimeFormat()
@@ -1440,10 +1714,15 @@ async function sendMessage() {
       "Asia/Kolkata";
 
     const body = {
-      message: message,
-      history: recentHistory,
-      timeZone: timeZone,
-      userId: ATHARV_USER_ID,
+      message,
+
+      history:
+        recentHistory,
+
+      timeZone,
+
+      userId:
+        ATHARV_USER_ID,
 
       language:
         selectedLanguage,
@@ -1451,23 +1730,26 @@ async function sendMessage() {
       languageName:
         LANGUAGE_MAP[
           selectedLanguage
-        ] || "Auto Detect"
+        ] ||
+        "Auto Detect"
     };
-
-    /*
-      Text files can safely be sent as text.
-      Images/PDFs are identified for the backend,
-      but are not converted to base64 here because
-      the current /api/chat endpoint may not accept
-      binary payloads.
-    */
 
     if (attachment) {
       body.attachment = {
-        name: attachment.name,
-        type: attachment.type,
-        size: attachment.size
+        name:
+          attachment.name,
+
+        type:
+          attachment.type,
+
+        size:
+          attachment.size
       };
+
+      body.attachmentDescription =
+        getAttachmentDescription(
+          attachment
+        );
 
       if (attachmentText) {
         body.attachmentText =
@@ -1483,7 +1765,8 @@ async function sendMessage() {
         API_BASE +
           "/api/chat",
         {
-          method: "POST",
+          method:
+            "POST",
 
           headers: {
             "Content-Type":
@@ -1494,7 +1777,9 @@ async function sendMessage() {
           },
 
           body:
-            JSON.stringify(body),
+            JSON.stringify(
+              body
+            ),
 
           signal:
             currentController.signal
@@ -1503,11 +1788,6 @@ async function sendMessage() {
 
     const responseText =
       await response.text();
-
-    console.log(
-      "ATHARV STATUS:",
-      response.status
-    );
 
     let data = {};
 
@@ -1519,11 +1799,6 @@ async function sendMessage() {
             )
           : {};
     } catch (error) {
-      console.error(
-        "JSON PARSE ERROR:",
-        error
-      );
-
       throw new Error(
         "Server ne valid JSON response nahi diya."
       );
@@ -1555,12 +1830,17 @@ async function sendMessage() {
       "ai"
     );
 
-    saveChatHistory();
+    if (
+      Array.isArray(
+        data.sources
+      )
+    ) {
+      renderSources(
+        data.sources
+      );
+    }
 
-    /*
-      Attachment is cleared only after
-      successful request.
-    */
+    saveChatHistory();
 
     clearAttachment();
 
@@ -1572,31 +1852,39 @@ async function sendMessage() {
       error
     );
 
+    let errorMessage =
+      "⚠️ Atharv response nahi la paaya.";
+
     if (
       error.name ===
       "AbortError"
     ) {
-      addMessage(
-        "⏳ Response lane mein zyada time lag raha hai. Please dobara try karein.",
-        "ai"
-      );
+      errorMessage +=
+        "\n\n⏳ Response mein zyada time lag raha hai. Please dobara try karein.";
     } else {
-      addMessage(
-        "⚠️ Atharv response nahi la paaya.\n\nReason: " +
-          (
-            error.message ||
-            "Unknown error"
-          ),
-        "ai"
-      );
+      errorMessage +=
+        "\n\nReason: " +
+        (
+          error.message ||
+          "Unknown error"
+        );
     }
+
+    addMessage(
+      errorMessage,
+      "ai"
+    );
 
     saveChatHistory();
 
   } finally {
-    clearTimeout(timeoutId);
+    clearTimeout(
+      timeoutId
+    );
 
-    currentController = null;
+    currentController =
+      null;
+
     isThinking = false;
 
     if (sendButton) {
@@ -1625,6 +1913,8 @@ function quickAsk(text) {
     return;
   }
 
+  showChatScreen();
+
   messageInput.value =
     text;
 
@@ -1644,7 +1934,8 @@ if (messageInput) {
     "keydown",
     function (event) {
       if (
-        event.key === "Enter" &&
+        event.key ===
+          "Enter" &&
         !event.shiftKey
       ) {
         event.preventDefault();
@@ -1688,6 +1979,16 @@ const chatScreen =
     "chatScreen"
   );
 
+const marketScreen =
+  document.getElementById(
+    "marketScreen"
+  );
+
+const alertsScreen =
+  document.getElementById(
+    "alertsScreen"
+  );
+
 const profileBack =
   document.getElementById(
     "profileBack"
@@ -1709,40 +2010,65 @@ const clearAllMemory =
   );
 
 const memoryLabels = {
-  name: "Name",
+  name:
+    "Name",
+
   language_preference:
     "Language Preference",
+
   response_style:
     "Response Style",
+
   answer_length:
     "Answer Length",
+
   teaching_style:
     "Teaching Style",
+
   learning_goal:
     "Learning Goal",
+
   user_note:
     "Personal Note"
 };
 
+function hideAllScreens() {
+  if (chatScreen)
+    chatScreen.hidden =
+      true;
+
+  if (profileScreen)
+    profileScreen.hidden =
+      true;
+
+  if (marketScreen)
+    marketScreen.hidden =
+      true;
+
+  if (alertsScreen)
+    alertsScreen.hidden =
+      true;
+}
+
 function showChatScreen() {
+  hideAllScreens();
+
   if (chatScreen) {
-    chatScreen.hidden = false;
+    chatScreen.hidden =
+      false;
   }
 
-  if (profileScreen) {
-    profileScreen.hidden = true;
-  }
-
-  updateNavActive("chat");
+  updateNavActive(
+    "chat"
+  );
 }
 
 function showProfileScreen() {
-  if (chatScreen) {
-    chatScreen.hidden = true;
-  }
+  hideAllScreens();
 
   if (profileScreen) {
-    profileScreen.hidden = false;
+    profileScreen.hidden =
+      false;
   }
 
   updateNavActive(
@@ -1759,7 +2085,7 @@ function updateNavActive(
     .querySelectorAll(
       ".bottom-nav button"
     )
-    .forEach(function (button) {
+    .forEach(button => {
       button.classList.remove(
         "active"
       );
@@ -1782,12 +2108,16 @@ function updateNavActive(
 function renderMemories(
   memories
 ) {
-  if (!memoryList) return;
+  if (!memoryList)
+    return;
 
-  memoryList.innerHTML = "";
+  memoryList.innerHTML =
+    "";
 
   if (
-    !Array.isArray(memories) ||
+    !Array.isArray(
+      memories
+    ) ||
     memories.length === 0
   ) {
     const empty =
@@ -1809,7 +2139,7 @@ function renderMemories(
   }
 
   memories.forEach(
-    function (memory) {
+    memory => {
       if (
         !memory ||
         typeof memory !==
@@ -1912,7 +2242,8 @@ function renderMemories(
    ========================================================= */
 
 async function loadMemories() {
-  if (!memoryList) return;
+  if (!memoryList)
+    return;
 
   memoryList.innerHTML =
     '<div class="memory-loading">🧠 Memories load ho rahi hain...</div>';
@@ -1926,7 +2257,8 @@ async function loadMemories() {
             ATHARV_USER_ID
           ),
         {
-          method: "GET",
+          method:
+            "GET",
 
           headers: {
             Accept:
@@ -1946,7 +2278,8 @@ async function loadMemories() {
     }
 
     renderMemories(
-      data.memories || []
+      data.memories ||
+        []
     );
   } catch (error) {
     console.error(
@@ -1989,7 +2322,8 @@ async function deleteSingleMemory(
         API_BASE +
           "/api/memory/delete",
         {
-          method: "POST",
+          method:
+            "POST",
 
           headers: {
             "Content-Type":
@@ -1999,11 +2333,13 @@ async function deleteSingleMemory(
               "application/json"
           },
 
-          body: JSON.stringify({
-            userId:
-              ATHARV_USER_ID,
-            key: key
-          })
+          body:
+            JSON.stringify({
+              userId:
+                ATHARV_USER_ID,
+
+              key
+            })
         }
       );
 
@@ -2018,7 +2354,8 @@ async function deleteSingleMemory(
     }
 
     renderMemories(
-      data.memories || []
+      data.memories ||
+        []
     );
   } catch (error) {
     console.error(
@@ -2063,7 +2400,8 @@ async function deleteAllMemories() {
         API_BASE +
           "/api/memory/clear",
         {
-          method: "POST",
+          method:
+            "POST",
 
           headers: {
             "Content-Type":
@@ -2073,10 +2411,11 @@ async function deleteAllMemories() {
               "application/json"
           },
 
-          body: JSON.stringify({
-            userId:
-              ATHARV_USER_ID
-          })
+          body:
+            JSON.stringify({
+              userId:
+                ATHARV_USER_ID
+            })
         }
       );
 
@@ -2148,56 +2487,60 @@ if (clearAllMemory) {
 }
 
 /* =========================================================
-   MARKET / ALERTS
+   MARKET
    ========================================================= */
 
 function showMarketScreen() {
-  const screen =
-    document.getElementById(
-      "marketScreen"
+  if (!marketScreen) {
+    quickAsk(
+      "Give me the latest Indian stock market update including NIFTY, SENSEX, major gainers, losers and important market news."
     );
 
-  if (screen) {
-    if (chatScreen) {
-      chatScreen.hidden = true;
-    }
-
-    if (profileScreen) {
-      profileScreen.hidden = true;
-    }
-
-    screen.hidden = false;
-    updateNavActive("market");
     return;
   }
 
-  quickAsk(
-    "Give me the latest stock market update for India, including NIFTY, SENSEX and important market news."
+  hideAllScreens();
+
+  marketScreen.hidden =
+    false;
+
+  updateNavActive(
+    "market"
   );
 }
 
+function askMarketUpdate() {
+  quickAsk(
+    "Give me the latest Indian stock market update. Include NIFTY, SENSEX, major market-moving news, sectors and important stocks. Use current live information and clearly mention the date/time of the data."
+  );
+}
+
+/* =========================================================
+   ALERTS
+   ========================================================= */
+
 function showAlertsScreen() {
-  const screen =
-    document.getElementById(
-      "alertsScreen"
+  if (!alertsScreen) {
+    quickAsk(
+      "What are the most important breaking news and alerts in India and the world right now?"
     );
 
-  if (screen) {
-    if (chatScreen) {
-      chatScreen.hidden = true;
-    }
-
-    if (profileScreen) {
-      profileScreen.hidden = true;
-    }
-
-    screen.hidden = false;
-    updateNavActive("alerts");
     return;
   }
 
+  hideAllScreens();
+
+  alertsScreen.hidden =
+    false;
+
+  updateNavActive(
+    "alerts"
+  );
+}
+
+function askLatestAlerts() {
   quickAsk(
-    "What important alerts or major breaking news should I know about right now?"
+    "What are the most important breaking news, alerts and major developments in India and the world right now? Use current live information."
   );
 }
 
@@ -2209,7 +2552,18 @@ document
   .querySelectorAll(
     ".bottom-nav button"
   )
-  .forEach(function (button) {
+  .forEach(button => {
+    if (
+      button.dataset
+        .atharvBound ===
+      "true"
+    ) {
+      return;
+    }
+
+    button.dataset.atharvBound =
+      "true";
+
     button.addEventListener(
       "click",
       function () {
@@ -2221,17 +2575,26 @@ document
           return;
         }
 
-        if (nav === "profile") {
+        if (
+          nav ===
+          "profile"
+        ) {
           showProfileScreen();
           return;
         }
 
-        if (nav === "market") {
+        if (
+          nav ===
+          "market"
+        ) {
           showMarketScreen();
           return;
         }
 
-        if (nav === "alerts") {
+        if (
+          nav ===
+          "alerts"
+        ) {
           showAlertsScreen();
           return;
         }
@@ -2247,15 +2610,80 @@ document
   .querySelectorAll(
     "[data-quick]"
   )
-  .forEach(function (button) {
+  .forEach(button => {
+    if (
+      button.dataset
+        .atharvQuickBound ===
+      "true"
+    ) {
+      return;
+    }
+
+    button.dataset
+      .atharvQuickBound =
+      "true";
+
     button.addEventListener(
       "click",
       function () {
         const text =
-          button.dataset.quick;
+          button.dataset
+            .quick;
 
         if (text) {
           quickAsk(text);
+        }
+      }
+    );
+  });
+
+/* =========================================================
+   EXTRA MARKET / ALERT BUTTONS
+   ========================================================= */
+
+document
+  .querySelectorAll(
+    "[data-action]"
+  )
+  .forEach(button => {
+    if (
+      button.dataset
+        .atharvActionBound ===
+      "true"
+    ) {
+      return;
+    }
+
+    button.dataset
+      .atharvActionBound =
+      "true";
+
+    button.addEventListener(
+      "click",
+      function () {
+        const action =
+          button.dataset
+            .action;
+
+        if (
+          action ===
+          "market"
+        ) {
+          askMarketUpdate();
+        }
+
+        if (
+          action ===
+          "alerts"
+        ) {
+          askLatestAlerts();
+        }
+
+        if (
+          action ===
+          "chat"
+        ) {
+          showChatScreen();
         }
       }
     );
@@ -2329,8 +2757,17 @@ window.showAlertsScreen =
 window.loadMemories =
   loadMemories;
 
+window.askMarketUpdate =
+  askMarketUpdate;
+
+window.askLatestAlerts =
+  askLatestAlerts;
+
+window.clearAttachment =
+  clearAttachment;
+
 /* =========================================================
-   START
+   STARTUP
    ========================================================= */
 
 console.log(
@@ -2338,7 +2775,7 @@ console.log(
 );
 
 console.log(
-  "ATHARV AI FINAL FRONTEND LOADED 🤖"
+  "ATHARV AI FRONTEND 8.0 LOADED 🤖"
 );
 
 console.log(
@@ -2350,7 +2787,7 @@ console.log(
 );
 
 console.log(
-  "Memory UI: ENABLED"
+  "Permanent Memory: ENABLED"
 );
 
 console.log(
@@ -2366,7 +2803,15 @@ console.log(
 );
 
 console.log(
-  "Attachment UI: ENABLED"
+  "Text File Reading: ENABLED"
+);
+
+console.log(
+  "Attachment Metadata: ENABLED"
+);
+
+console.log(
+  "Live Sources UI: ENABLED"
 );
 
 console.log(
