@@ -203,10 +203,49 @@ function getUserDateTime(timeZone) {
 
 function getUserId(req) {
 
-  const suppliedId =
+  const bodyUserId =
+    req.body &&
     typeof req.body.userId === "string"
       ? req.body.userId.trim()
       : "";
+
+  const queryUserId =
+    req.query &&
+    typeof req.query.userId === "string"
+      ? req.query.userId.trim()
+      : "";
+
+  const suppliedId =
+    bodyUserId ||
+    queryUserId ||
+    "";
+
+  if (suppliedId) {
+
+    return crypto
+      .createHash("sha256")
+      .update(suppliedId)
+      .digest("hex")
+      .slice(0, 64);
+
+  }
+
+  const forwarded =
+    req.headers["x-forwarded-for"];
+
+  const ip =
+    typeof forwarded === "string"
+      ? forwarded.split(",")[0].trim()
+      : req.socket.remoteAddress ||
+        "unknown";
+
+  return crypto
+    .createHash("sha256")
+    .update(ip)
+    .digest("hex")
+    .slice(0, 64);
+
+}
 
   if (suppliedId) {
 
@@ -1571,6 +1610,182 @@ app.get(
 
         ok:
           false,
+
+        error:
+          error.message
+
+      });
+
+    }
+
+  }
+);
+
+// =====================================================
+// DELETE SINGLE MEMORY
+// =====================================================
+
+app.post(
+  "/api/memory/delete",
+  async function (req, res) {
+
+    try {
+
+      const userId =
+        getUserId(req);
+
+      const key =
+        typeof req.body.key === "string"
+          ? req.body.key.trim()
+          : "";
+
+      const allowedKeys = [
+        "name",
+        "language_preference",
+        "response_style",
+        "answer_length",
+        "teaching_style",
+        "learning_goal",
+        "user_note"
+      ];
+
+      if (!key) {
+
+        return res.status(400).json({
+
+          ok: false,
+
+          error:
+            "Memory key is required."
+
+        });
+
+      }
+
+      if (
+        !allowedKeys.includes(key)
+      ) {
+
+        return res.status(400).json({
+
+          ok: false,
+
+          error:
+            "Invalid memory key."
+
+        });
+
+      }
+
+      const deleted =
+        await deleteMemory(
+          userId,
+          key
+        );
+
+      if (!deleted) {
+
+        return res.status(500).json({
+
+          ok: false,
+
+          error:
+            "Memory delete nahi ho paayi."
+
+        });
+
+      }
+
+      const memories =
+        await getMemories(
+          userId
+        );
+
+      return res.json({
+
+        ok: true,
+
+        message:
+          "Memory deleted.",
+
+        memories
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "MEMORY DELETE API ERROR:",
+        error.message
+      );
+
+      return res.status(500).json({
+
+        ok: false,
+
+        error:
+          error.message
+
+      });
+
+    }
+
+  }
+);
+
+
+// =====================================================
+// DELETE ALL MEMORIES API
+// =====================================================
+
+app.post(
+  "/api/memory/clear",
+  async function (req, res) {
+
+    try {
+
+      const userId =
+        getUserId(req);
+
+      const deleted =
+        await deleteAllMemories(
+          userId
+        );
+
+      if (!deleted) {
+
+        return res.status(500).json({
+
+          ok: false,
+
+          error:
+            "Memories clear nahi ho paayi."
+
+        });
+
+      }
+
+      return res.json({
+
+        ok: true,
+
+        message:
+          "All memories deleted.",
+
+        memories: []
+
+      });
+
+    } catch (error) {
+
+      console.error(
+        "MEMORY CLEAR API ERROR:",
+        error.message
+      );
+
+      return res.status(500).json({
+
+        ok: false,
 
         error:
           error.message
