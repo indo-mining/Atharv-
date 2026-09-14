@@ -633,6 +633,10 @@ messageInput.addEventListener(
   }
 );
 
+const navButtons =
+document.querySelectorAll(
+  ".bottom-nav button"
+);
 
 // =====================================================
 // PROFILE ELEMENTS
@@ -673,6 +677,15 @@ document.getElementById(
   "clearAllMemory"
 );
 
+
+// =====================================================
+// BOTTOM NAVIGATION
+// =====================================================
+
+const navButtons =
+document.querySelectorAll(
+  ".bottom-nav button"
+);
 
 // =====================================================
 // MEMORY LABELS
