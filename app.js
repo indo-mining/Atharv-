@@ -96,6 +96,1258 @@ console.log(
 
 
 // =====================================================
+// ATHARV 7.0 VOICE STATE
+// =====================================================
+
+let speechRecognition = null;
+
+let isListening = false;
+
+let isSpeaking = false;
+
+let currentSpeechUtterance = null;
+
+let selectedVoiceLanguage = "en-IN";
+
+
+// =====================================================
+// LANGUAGE DETECTION FOR VOICE
+// =====================================================
+
+function detectVoiceLanguage(text) {
+
+  const value =
+    String(text || "").trim();
+
+  if (!value) {
+    return "en-IN";
+  }
+
+
+  // Devanagari
+  if (
+    /[\u0900-\u097F]/.test(value)
+  ) {
+
+    return "hi-IN";
+
+  }
+
+
+  // Bengali
+  if (
+    /[\u0980-\u09FF]/.test(value)
+  ) {
+
+    return "bn-IN";
+
+  }
+
+
+  // Punjabi / Gurmukhi
+  if (
+    /[\u0A00-\u0A7F]/.test(value)
+  ) {
+
+    return "pa-IN";
+
+  }
+
+
+  // Gujarati
+  if (
+    /[\u0A80-\u0AFF]/.test(value)
+  ) {
+
+    return "gu-IN";
+
+  }
+
+
+  // Tamil
+  if (
+    /[\u0B80-\u0BFF]/.test(value)
+  ) {
+
+    return "ta-IN";
+
+  }
+
+
+  // Telugu
+  if (
+    /[\u0C00-\u0C7F]/.test(value)
+  ) {
+
+    return "te-IN";
+
+  }
+
+
+  // Kannada
+  if (
+    /[\u0C80-\u0CFF]/.test(value)
+  ) {
+
+    return "kn-IN";
+
+  }
+
+
+  // Malayalam
+  if (
+    /[\u0D00-\u0D7F]/.test(value)
+  ) {
+
+    return "ml-IN";
+
+  }
+
+
+  // Arabic
+  if (
+    /[\u0600-\u06FF]/.test(value)
+  ) {
+
+    return "ar-SA";
+
+  }
+
+
+  // Hebrew
+  if (
+    /[\u0590-\u05FF]/.test(value)
+  ) {
+
+    return "he-IL";
+
+  }
+
+
+  // Cyrillic
+  if (
+    /[\u0400-\u04FF]/.test(value)
+  ) {
+
+    return "ru-RU";
+
+  }
+
+
+  // Greek
+  if (
+    /[\u0370-\u03FF]/.test(value)
+  ) {
+
+    return "el-GR";
+
+  }
+
+
+  // Thai
+  if (
+    /[\u0E00-\u0E7F]/.test(value)
+  ) {
+
+    return "th-TH";
+
+  }
+
+
+  // Japanese Hiragana / Katakana
+  if (
+    /[\u3040-\u30FF]/.test(value)
+  ) {
+
+    return "ja-JP";
+
+  }
+
+
+  // Korean
+  if (
+    /[\uAC00-\uD7AF]/.test(value)
+  ) {
+
+    return "ko-KR";
+
+  }
+
+
+  // Chinese Han
+  if (
+    /[\u4E00-\u9FFF]/.test(value)
+  ) {
+
+    return "zh-CN";
+
+  }
+
+
+  // Romanized Hindi / Hinglish
+  const lower =
+    value.toLowerCase();
+
+  const hindiWords = [
+    "mera",
+    "meri",
+    "mujhe",
+    "mujhse",
+    "aap",
+    "apka",
+    "apki",
+    "kya",
+    "kaise",
+    "kyu",
+    "kyon",
+    "hai",
+    "hain",
+    "ho",
+    "kar",
+    "karo",
+    "batao",
+    "bataiye",
+    "chahiye",
+    "nahi",
+    "nahin",
+    "acha",
+    "accha",
+    "haan",
+    "han",
+    "ka",
+    "ki",
+    "ke",
+    "mein",
+    "me",
+    "se",
+    "ko"
+  ];
+
+  const matches =
+    hindiWords.filter(
+      function (word) {
+
+        return new RegExp(
+          "\\b" +
+          word +
+          "\\b",
+          "i"
+        ).test(lower);
+
+      }
+    ).length;
+
+
+  if (
+    matches >= 2
+  ) {
+
+    return "hi-IN";
+
+  }
+
+
+  return "en-IN";
+
+}
+
+
+// =====================================================
+// VOICE SUPPORT CHECK
+// =====================================================
+
+function getSpeechRecognitionClass() {
+
+  return (
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition ||
+    null
+  );
+
+}
+
+
+function isVoiceInputSupported() {
+
+  return !!getSpeechRecognitionClass();
+
+}
+
+
+function isVoiceOutputSupported() {
+
+  return (
+    "speechSynthesis" in window &&
+    "SpeechSynthesisUtterance" in window
+  );
+
+}
+
+
+// =====================================================
+// CREATE VOICE CONTROLS
+// =====================================================
+
+function createVoiceControls() {
+
+  if (!messageInput) {
+    return;
+  }
+
+
+  // Avoid duplicate controls
+  if (
+    document.getElementById(
+      "atharvVoiceControls"
+    )
+  ) {
+    return;
+  }
+
+
+  const controls =
+    document.createElement(
+      "div"
+    );
+
+  controls.id =
+    "atharvVoiceControls";
+
+  controls.style.display =
+    "flex";
+
+  controls.style.alignItems =
+    "center";
+
+  controls.style.gap =
+    "8px";
+
+  controls.style.marginTop =
+    "8px";
+
+  controls.style.marginBottom =
+    "4px";
+
+
+  // ---------------------------------------------------
+  // MIC BUTTON
+  // ---------------------------------------------------
+
+  const micButton =
+    document.createElement(
+      "button"
+    );
+
+  micButton.type =
+    "button";
+
+  micButton.id =
+    "atharvMicButton";
+
+  micButton.title =
+    "Bolkar poochhein";
+
+  micButton.setAttribute(
+    "aria-label",
+    "Voice input"
+  );
+
+  micButton.textContent =
+    "🎙️";
+
+
+  micButton.style.width =
+    "44px";
+
+  micButton.style.height =
+    "44px";
+
+  micButton.style.borderRadius =
+    "50%";
+
+  micButton.style.border =
+    "none";
+
+  micButton.style.cursor =
+    "pointer";
+
+  micButton.style.fontSize =
+    "20px";
+
+
+  // ---------------------------------------------------
+  // STOP SPEECH BUTTON
+  // ---------------------------------------------------
+
+  const stopButton =
+    document.createElement(
+      "button"
+    );
+
+  stopButton.type =
+    "button";
+
+  stopButton.id =
+    "atharvStopVoiceButton";
+
+  stopButton.title =
+    "Atharv ki voice rokein";
+
+  stopButton.setAttribute(
+    "aria-label",
+    "Stop voice"
+  );
+
+  stopButton.textContent =
+    "🔇";
+
+
+  stopButton.style.width =
+    "44px";
+
+  stopButton.style.height =
+    "44px";
+
+  stopButton.style.borderRadius =
+    "50%";
+
+  stopButton.style.border =
+    "none";
+
+  stopButton.style.cursor =
+    "pointer";
+
+  stopButton.style.fontSize =
+    "18px";
+
+
+  // ---------------------------------------------------
+  // VOICE STATUS
+  // ---------------------------------------------------
+
+  const status =
+    document.createElement(
+      "span"
+    );
+
+  status.id =
+    "atharvVoiceStatus";
+
+  status.textContent =
+    "Voice ready";
+
+  status.style.fontSize =
+    "12px";
+
+  status.style.opacity =
+    "0.65";
+
+
+  controls.appendChild(
+    micButton
+  );
+
+  controls.appendChild(
+    stopButton
+  );
+
+  controls.appendChild(
+    status
+  );
+
+
+  // Put controls below input
+  const inputParent =
+    messageInput.parentElement;
+
+  if (
+    inputParent
+  ) {
+
+    inputParent.appendChild(
+      controls
+    );
+
+  }
+
+
+  micButton.addEventListener(
+    "click",
+    function () {
+
+      toggleVoiceInput(
+        micButton,
+        status
+      );
+
+    }
+  );
+
+
+  stopButton.addEventListener(
+    "click",
+    function () {
+
+      stopVoiceOutput();
+
+      if (
+        isListening &&
+        speechRecognition
+      ) {
+
+        try {
+          speechRecognition.stop();
+        } catch (error) {
+          console.warn(
+            "VOICE STOP:",
+            error
+          );
+        }
+
+      }
+
+    }
+  );
+
+
+  setupSpeechRecognition(
+    micButton,
+    status
+  );
+
+}
+
+
+// =====================================================
+// SPEECH RECOGNITION SETUP
+// =====================================================
+
+function setupSpeechRecognition(
+  micButton,
+  status
+) {
+
+  const RecognitionClass =
+    getSpeechRecognitionClass();
+
+
+  if (
+    !RecognitionClass
+  ) {
+
+    micButton.disabled =
+      true;
+
+    micButton.style.opacity =
+      "0.4";
+
+    status.textContent =
+      "Voice input supported nahi hai";
+
+    return;
+
+  }
+
+
+  speechRecognition =
+    new RecognitionClass();
+
+
+  speechRecognition.continuous =
+    false;
+
+  speechRecognition.interimResults =
+    true;
+
+  speechRecognition.maxAlternatives =
+    1;
+
+  speechRecognition.lang =
+    selectedVoiceLanguage;
+
+
+  speechRecognition.onstart =
+    function () {
+
+      isListening =
+        true;
+
+      micButton.textContent =
+        "🛑";
+
+      micButton.title =
+        "Listening...";
+
+      status.textContent =
+        "🎙️ Sun raha hoon...";
+
+    };
+
+
+  speechRecognition.onresult =
+    function (event) {
+
+      let finalText =
+        "";
+
+      let interimText =
+        "";
+
+
+      for (
+        let i = event.resultIndex;
+        i < event.results.length;
+        i++
+      ) {
+
+        const transcript =
+          event.results[i][0].transcript;
+
+
+        if (
+          event.results[i].isFinal
+        ) {
+
+          finalText +=
+            transcript;
+
+        } else {
+
+          interimText +=
+            transcript;
+
+        }
+
+      }
+
+
+      if (
+        interimText
+      ) {
+
+        messageInput.value =
+          interimText;
+
+      }
+
+
+      if (
+        finalText.trim()
+      ) {
+
+        const cleaned =
+          finalText.trim();
+
+
+        messageInput.value =
+          cleaned;
+
+
+        // Detect language from
+        // what user actually spoke.
+        selectedVoiceLanguage =
+          detectVoiceLanguage(
+            cleaned
+          );
+
+
+        // Send automatically.
+        setTimeout(
+          function () {
+
+            sendMessage();
+
+          },
+          150
+        );
+
+      }
+
+    };
+
+
+  speechRecognition.onerror =
+    function (event) {
+
+      console.error(
+        "SPEECH RECOGNITION ERROR:",
+        event.error
+      );
+
+
+      isListening =
+        false;
+
+
+      micButton.textContent =
+        "🎙️";
+
+
+      micButton.title =
+        "Bolkar poochhein";
+
+
+      if (
+        event.error ===
+        "not-allowed"
+      ) {
+
+        status.textContent =
+          "🎙️ Microphone permission allow karein.";
+
+      } else if (
+        event.error ===
+        "no-speech"
+      ) {
+
+        status.textContent =
+          "Kuch sunai nahi diya.";
+
+      } else if (
+        event.error ===
+        "network"
+      ) {
+
+        status.textContent =
+          "Voice service network error.";
+
+      } else {
+
+        status.textContent =
+          "Voice input error.";
+
+      }
+
+    };
+
+
+  speechRecognition.onend =
+    function () {
+
+      isListening =
+        false;
+
+      micButton.textContent =
+        "🎙️";
+
+      micButton.title =
+        "Bolkar poochhein";
+
+
+      if (
+        status.textContent
+          .includes(
+            "Sun raha"
+          )
+      ) {
+
+        status.textContent =
+          "Voice ready";
+
+      }
+
+    };
+
+}
+
+
+// =====================================================
+// TOGGLE VOICE INPUT
+// =====================================================
+
+function toggleVoiceInput(
+  micButton,
+  status
+) {
+
+  if (
+    !speechRecognition
+  ) {
+
+    status.textContent =
+      "Is browser mein voice input available nahi hai.";
+
+    return;
+
+  }
+
+
+  if (
+    isListening
+  ) {
+
+    try {
+
+      speechRecognition.stop();
+
+    } catch (
+      error
+    ) {
+
+      console.warn(
+        "STOP LISTENING ERROR:",
+        error
+      );
+
+    }
+
+    return;
+
+  }
+
+
+  if (
+    isSpeaking
+  ) {
+
+    stopVoiceOutput();
+
+  }
+
+
+  const currentText =
+    messageInput.value.trim();
+
+
+  selectedVoiceLanguage =
+    detectVoiceLanguage(
+      currentText
+    );
+
+
+  speechRecognition.lang =
+    selectedVoiceLanguage;
+
+
+  try {
+
+    speechRecognition.start();
+
+  } catch (
+    error
+  ) {
+
+    console.warn(
+      "START LISTENING ERROR:",
+      error
+    );
+
+    status.textContent =
+      "Mic start nahi ho paaya.";
+
+  }
+
+}
+
+
+// =====================================================
+// FIND BEST SPEECH VOICE
+// =====================================================
+
+function findBestSpeechVoice(
+  language
+) {
+
+  if (
+    !isVoiceOutputSupported()
+  ) {
+    return null;
+  }
+
+
+  const voices =
+    window.speechSynthesis
+      .getVoices();
+
+
+  if (
+    !voices ||
+    voices.length === 0
+  ) {
+
+    return null;
+
+  }
+
+
+  const target =
+    String(
+      language ||
+      "en-IN"
+    ).toLowerCase();
+
+
+  const base =
+    target.split("-")[0];
+
+
+  // Exact locale first
+  let voice =
+    voices.find(
+      function (item) {
+
+        return (
+          item.lang &&
+          item.lang.toLowerCase() ===
+            target
+        );
+
+      }
+    );
+
+
+  if (voice) {
+    return voice;
+  }
+
+
+  // Same language
+  voice =
+    voices.find(
+      function (item) {
+
+        return (
+          item.lang &&
+          item.lang
+            .toLowerCase()
+            .startsWith(
+              base + "-"
+            )
+        );
+
+      }
+    );
+
+
+  if (voice) {
+    return voice;
+  }
+
+
+  // Any matching language
+  voice =
+    voices.find(
+      function (item) {
+
+        return (
+          item.lang &&
+          item.lang
+            .toLowerCase()
+            .startsWith(
+              base
+            )
+        );
+
+      }
+    );
+
+
+  return voice || null;
+
+}
+
+
+// =====================================================
+// SPEAK ATHARV ANSWER
+// =====================================================
+
+function speakText(
+  text
+) {
+
+  if (
+    !isVoiceOutputSupported()
+  ) {
+
+    console.warn(
+      "Speech synthesis not supported."
+    );
+
+    return;
+
+  }
+
+
+  const cleanText =
+    String(
+      text || ""
+    ).trim();
+
+
+  if (!cleanText) {
+    return;
+  }
+
+
+  stopVoiceOutput();
+
+
+  const language =
+    detectVoiceLanguage(
+      cleanText
+    );
+
+
+  selectedVoiceLanguage =
+    language;
+
+
+  const utterance =
+    new SpeechSynthesisUtterance(
+      cleanText
+    );
+
+
+  utterance.lang =
+    language;
+
+  utterance.rate =
+    0.95;
+
+  utterance.pitch =
+    1;
+
+  utterance.volume =
+    1;
+
+
+  const voice =
+    findBestSpeechVoice(
+      language
+    );
+
+
+  if (voice) {
+
+    utterance.voice =
+      voice;
+
+  }
+
+
+  utterance.onstart =
+    function () {
+
+      isSpeaking =
+        true;
+
+    };
+
+
+  utterance.onend =
+    function () {
+
+      isSpeaking =
+        false;
+
+      currentSpeechUtterance =
+        null;
+
+    };
+
+
+  utterance.onerror =
+    function (event) {
+
+      console.error(
+        "SPEECH OUTPUT ERROR:",
+        event.error
+      );
+
+      isSpeaking =
+        false;
+
+      currentSpeechUtterance =
+        null;
+
+    };
+
+
+  currentSpeechUtterance =
+    utterance;
+
+
+  window.speechSynthesis.speak(
+    utterance
+  );
+
+}
+
+
+// =====================================================
+// STOP ATHARV VOICE
+// =====================================================
+
+function stopVoiceOutput() {
+
+  if (
+    !isVoiceOutputSupported()
+  ) {
+    return;
+  }
+
+
+  try {
+
+    window.speechSynthesis.cancel();
+
+  } catch (
+    error
+  ) {
+
+    console.warn(
+      "SPEECH CANCEL ERROR:",
+      error
+    );
+
+  }
+
+
+  isSpeaking =
+    false;
+
+  currentSpeechUtterance =
+    null;
+
+}
+
+
+// =====================================================
+// VOICE BUTTON INSIDE AI MESSAGE
+// =====================================================
+
+function addVoiceButtonToMessage(
+  messageElement,
+  text
+) {
+
+  if (
+    !messageElement ||
+    !isVoiceOutputSupported()
+  ) {
+    return;
+  }
+
+
+  const voiceButton =
+    document.createElement(
+      "button"
+    );
+
+  voiceButton.type =
+    "button";
+
+  voiceButton.className =
+    "atharv-message-voice";
+
+  voiceButton.textContent =
+    "🔊";
+
+  voiceButton.title =
+    "Atharv ka jawab sunen";
+
+  voiceButton.setAttribute(
+    "aria-label",
+    "Listen to Atharv"
+  );
+
+
+  voiceButton.style.marginTop =
+    "8px";
+
+  voiceButton.style.border =
+    "none";
+
+  voiceButton.style.background =
+    "transparent";
+
+  voiceButton.style.cursor =
+    "pointer";
+
+  voiceButton.style.fontSize =
+    "17px";
+
+
+  voiceButton.addEventListener(
+    "click",
+    function () {
+
+      if (
+        isSpeaking
+      ) {
+
+        stopVoiceOutput();
+
+        voiceButton.textContent =
+          "🔊";
+
+        return;
+
+      }
+
+
+      // Stop any previous answer
+      stopVoiceOutput();
+
+
+      // Reset all visible voice buttons
+      document
+        .querySelectorAll(
+          ".atharv-message-voice"
+        )
+        .forEach(
+          function (button) {
+
+            button.textContent =
+              "🔊";
+
+          }
+        );
+
+
+      speakText(
+        text
+      );
+
+
+      voiceButton.textContent =
+        "⏹️";
+
+
+      // Restore icon after estimated
+      // speech duration.
+      setTimeout(
+        function () {
+
+          if (
+            !isSpeaking
+          ) {
+
+            voiceButton.textContent =
+              "🔊";
+
+          }
+
+        },
+        Math.max(
+          1500,
+          String(text).length *
+            55
+        )
+      );
+
+    }
+  );
+
+
+  messageElement.appendChild(
+    voiceButton
+  );
+
+}
+
+
+// =====================================================
 // ADD MESSAGE
 // =====================================================
 
@@ -112,19 +1364,36 @@ function addMessage(
   message.className =
     "message " + type;
 
+
   // textContent is intentional.
   // It keeps AI output safe from HTML injection.
   message.textContent =
     String(text || "");
 
+
   chatBox.appendChild(
     message
   );
+
+
+  // Add speaker only to AI replies.
+  if (
+    type === "ai"
+  ) {
+
+    addVoiceButtonToMessage(
+      message,
+      String(text || "")
+    );
+
+  }
+
 
   message.scrollIntoView({
     behavior: "smooth",
     block: "end"
   });
+
 
   return message;
 
@@ -155,6 +1424,7 @@ function saveChatHistory() {
             return;
           }
 
+
           messages.push({
 
             text:
@@ -172,12 +1442,14 @@ function saveChatHistory() {
         }
       );
 
+
     localStorage.setItem(
       ATHARV_HISTORY_KEY,
       JSON.stringify(
         messages
       )
     );
+
 
   } catch (error) {
 
@@ -204,12 +1476,15 @@ function getChatHistory() {
         ATHARV_HISTORY_KEY
       );
 
+
     if (!saved) {
       return [];
     }
 
+
     const messages =
       JSON.parse(saved);
+
 
     if (
       !Array.isArray(messages)
@@ -217,7 +1492,9 @@ function getChatHistory() {
       return [];
     }
 
+
     return messages;
+
 
   } catch (error) {
 
@@ -225,6 +1502,7 @@ function getChatHistory() {
       "HISTORY READ ERROR:",
       error
     );
+
 
     return [];
 
@@ -244,15 +1522,20 @@ function loadChatHistory() {
     const messages =
       getChatHistory();
 
+
     if (
       !Array.isArray(messages) ||
       messages.length === 0
     ) {
+
       return;
+
     }
+
 
     chatBox.innerHTML =
       "";
+
 
     messages.forEach(
       function (item) {
@@ -277,6 +1560,7 @@ function loadChatHistory() {
       }
     );
 
+
   } catch (error) {
 
     console.error(
@@ -297,12 +1581,17 @@ function clearChatHistory() {
 
   try {
 
+    stopVoiceOutput();
+
+
     localStorage.removeItem(
       ATHARV_HISTORY_KEY
     );
 
+
     chatBox.innerHTML =
       "";
+
 
   } catch (error) {
 
@@ -324,23 +1613,29 @@ function showThinking() {
 
   removeThinking();
 
+
   const message =
     document.createElement(
       "div"
     );
 
+
   message.className =
     "message ai thinking";
+
 
   message.id =
     "thinkingMessage";
 
+
   message.textContent =
     "Atharv soch raha hai... 🤔";
+
 
   chatBox.appendChild(
     message
   );
+
 
   message.scrollIntoView({
     behavior: "smooth",
@@ -360,6 +1655,7 @@ function removeThinking() {
     document.getElementById(
       "thinkingMessage"
     );
+
 
   if (thinking) {
     thinking.remove();
@@ -381,12 +1677,11 @@ function getServerAnswer(
     typeof data !==
       "object"
   ) {
+
     return "";
+
   }
 
-  // IMPORTANT:
-  // Current server primarily returns "answer".
-  // Other fields are compatibility fallbacks.
 
   const possibleAnswers = [
     data.answer,
@@ -396,6 +1691,7 @@ function getServerAnswer(
     data.text,
     data.content
   ];
+
 
   for (
     const value of
@@ -414,6 +1710,7 @@ function getServerAnswer(
 
   }
 
+
   return "";
 
 }
@@ -428,12 +1725,19 @@ async function sendMessage() {
   const message =
     messageInput.value.trim();
 
+
   if (
     !message ||
     isThinking
   ) {
+
     return;
+
   }
+
+
+  // Stop current speech
+  stopVoiceOutput();
 
 
   // ---------------------------------------------------
@@ -445,10 +1749,13 @@ async function sendMessage() {
     "user"
   );
 
+
   saveChatHistory();
+
 
   messageInput.value =
     "";
+
 
   messageInput.style.height =
     "auto";
@@ -461,15 +1768,18 @@ async function sendMessage() {
   isThinking =
     true;
 
+
   if (sendButton) {
 
     sendButton.disabled =
       true;
 
+
     sendButton.style.opacity =
       "0.5";
 
   }
+
 
   showThinking();
 
@@ -480,6 +1790,7 @@ async function sendMessage() {
 
   const controller =
     new AbortController();
+
 
   const timeoutId =
     setTimeout(
@@ -500,6 +1811,7 @@ async function sendMessage() {
 
     const fullHistory =
       getChatHistory();
+
 
     const recentHistory =
       fullHistory.slice(-8);
@@ -539,6 +1851,7 @@ async function sendMessage() {
 
           },
 
+
           body:
             JSON.stringify({
 
@@ -555,6 +1868,7 @@ async function sendMessage() {
                 ATHARV_USER_ID
 
             }),
+
 
           signal:
             controller.signal
@@ -576,6 +1890,7 @@ async function sendMessage() {
       response.status
     );
 
+
     console.log(
       "ATHARV SERVER RESPONSE:",
       responseText
@@ -595,6 +1910,7 @@ async function sendMessage() {
             )
           : {};
 
+
     } catch (
       jsonError
     ) {
@@ -603,6 +1919,7 @@ async function sendMessage() {
         "JSON PARSE ERROR:",
         jsonError
       );
+
 
       throw new Error(
         "Server ne valid JSON response nahi diya."
@@ -623,6 +1940,7 @@ async function sendMessage() {
         data.error ||
         data.message ||
         `Server error (${response.status})`;
+
 
       throw new Error(
         serverError
@@ -659,6 +1977,7 @@ async function sendMessage() {
         data
       );
 
+
       throw new Error(
         "Atharv server ne empty response diya."
       );
@@ -689,6 +2008,7 @@ async function sendMessage() {
 
     removeThinking();
 
+
     console.error(
       "ATHARV ERROR:",
       error
@@ -704,6 +2024,7 @@ async function sendMessage() {
         "⏳ Response lane mein zyada time lag raha hai. Please dobara try karein.",
         "ai"
       );
+
 
     } else {
 
@@ -728,18 +2049,22 @@ async function sendMessage() {
       timeoutId
     );
 
+
     isThinking =
       false;
+
 
     if (sendButton) {
 
       sendButton.disabled =
         false;
 
+
       sendButton.style.opacity =
         "1";
 
     }
+
 
     messageInput.focus();
 
@@ -759,11 +2084,15 @@ function quickAsk(
   if (
     isThinking
   ) {
+
     return;
+
   }
+
 
   messageInput.value =
     text;
+
 
   sendMessage();
 
@@ -805,6 +2134,7 @@ messageInput.addEventListener(
     this.style.height =
       "auto";
 
+
     this.style.height =
       Math.min(
         this.scrollHeight,
@@ -834,30 +2164,36 @@ const profileButton =
     ".profile"
   );
 
+
 const profileScreen =
   document.getElementById(
     "profileScreen"
   );
+
 
 const chatScreen =
   document.getElementById(
     "chatScreen"
   );
 
+
 const profileBack =
   document.getElementById(
     "profileBack"
   );
+
 
 const memoryList =
   document.getElementById(
     "memoryList"
   );
 
+
 const refreshMemory =
   document.getElementById(
     "refreshMemory"
   );
+
 
 const clearAllMemory =
   document.getElementById(
@@ -908,12 +2244,14 @@ function showChatScreen() {
 
   }
 
+
   if (profileScreen) {
 
     profileScreen.hidden =
       true;
 
   }
+
 
   updateNavActive(
     "chat"
@@ -935,6 +2273,7 @@ function showProfileScreen() {
 
   }
 
+
   if (profileScreen) {
 
     profileScreen.hidden =
@@ -942,11 +2281,14 @@ function showProfileScreen() {
 
   }
 
+
   updateNavActive(
     "profile"
   );
 
+
   loadMemories();
+
 
   window.scrollTo({
     top: 0,
@@ -970,6 +2312,7 @@ function updateNavActive(
       button.classList.remove(
         "active"
       );
+
 
       if (
         button.dataset.nav ===
@@ -1000,6 +2343,7 @@ function renderMemories(
     return;
   }
 
+
   memoryList.innerHTML =
     "";
 
@@ -1014,15 +2358,19 @@ function renderMemories(
         "div"
       );
 
+
     empty.className =
       "memory-empty";
+
 
     empty.textContent =
       "🧠 Abhi Atharv ke paas koi saved memory nahi hai.";
 
+
     memoryList.appendChild(
       empty
     );
+
 
     return;
 
@@ -1037,13 +2385,17 @@ function renderMemories(
         typeof memory !==
           "object"
       ) {
+
         return;
+
       }
+
 
       const item =
         document.createElement(
           "div"
         );
+
 
       item.className =
         "memory-item";
@@ -1054,6 +2406,7 @@ function renderMemories(
           "div"
         );
 
+
       content.className =
         "memory-content";
 
@@ -1063,8 +2416,10 @@ function renderMemories(
           "div"
         );
 
+
       label.className =
         "memory-label";
+
 
       label.textContent =
         memoryLabels[
@@ -1079,8 +2434,10 @@ function renderMemories(
           "div"
         );
 
+
       value.className =
         "memory-value";
+
 
       value.textContent =
         memory.memory_value ||
@@ -1090,6 +2447,7 @@ function renderMemories(
       content.appendChild(
         label
       );
+
 
       content.appendChild(
         value
@@ -1101,11 +2459,14 @@ function renderMemories(
           "button"
         );
 
+
       deleteButton.type =
         "button";
 
+
       deleteButton.className =
         "memory-delete";
+
 
       deleteButton.textContent =
         "Forget";
@@ -1126,6 +2487,7 @@ function renderMemories(
       item.appendChild(
         content
       );
+
 
       item.appendChild(
         deleteButton
@@ -1272,6 +2634,7 @@ async function deleteSingleMemory(
 
           },
 
+
           body:
             JSON.stringify({
 
@@ -1303,8 +2666,6 @@ async function deleteSingleMemory(
     }
 
 
-    // Server may return memories,
-    // otherwise reload them.
     if (
       Array.isArray(
         data.memories
@@ -1369,6 +2730,7 @@ async function deleteAllMemories() {
       clearAllMemory.disabled =
         true;
 
+
       clearAllMemory.textContent =
         "Deleting...";
 
@@ -1393,6 +2755,7 @@ async function deleteAllMemories() {
               "application/json"
 
           },
+
 
           body:
             JSON.stringify({
@@ -1452,6 +2815,7 @@ async function deleteAllMemories() {
 
       clearAllMemory.disabled =
         false;
+
 
       clearAllMemory.textContent =
         "🧹 Forget All Memories";
@@ -1567,7 +2931,9 @@ navButtons.forEach(
             "📈 Market module next stage mein activate hoga."
           );
 
+
           showChatScreen();
+
 
           return;
 
@@ -1583,7 +2949,9 @@ navButtons.forEach(
             "🔔 Alerts module next stage mein activate hoga."
           );
 
+
           showChatScreen();
+
 
           return;
 
@@ -1594,6 +2962,49 @@ navButtons.forEach(
 
   }
 );
+
+
+// =====================================================
+// VOICE INITIALIZATION
+// =====================================================
+
+function initializeAtharvVoice() {
+
+  createVoiceControls();
+
+
+  if (
+    isVoiceOutputSupported()
+  ) {
+
+    // Some browsers load voices asynchronously.
+    window.speechSynthesis.onvoiceschanged =
+      function () {
+
+        console.log(
+          "ATHARV SPEECH VOICES:",
+          window.speechSynthesis
+            .getVoices()
+            .length
+        );
+
+      };
+
+  }
+
+
+  console.log(
+    "Voice input supported:",
+    isVoiceInputSupported()
+  );
+
+
+  console.log(
+    "Voice output supported:",
+    isVoiceOutputSupported()
+  );
+
+}
 
 
 // =====================================================
@@ -1637,6 +3048,14 @@ console.log(
 );
 
 console.log(
+  "ATHARV 7.0 VOICE INPUT ENABLED 🎙️"
+);
+
+console.log(
+  "ATHARV 7.0 VOICE OUTPUT ENABLED 🔊"
+);
+
+console.log(
   "================================"
 );
 
@@ -1646,3 +3065,10 @@ console.log(
 // =====================================================
 
 loadChatHistory();
+
+
+// =====================================================
+// INITIALIZE VOICE
+// =====================================================
+
+initializeAtharvVoice();
