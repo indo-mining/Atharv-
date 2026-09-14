@@ -34,6 +34,28 @@ const WEB_SEARCH_ENABLED =
 
 
 // =====================================================
+// REQUEST SIZE LIMITS
+// =====================================================
+
+// These limits prevent very large conversation requests
+// from causing Groq 413 Request Entity Too Large errors.
+
+const MAX_HISTORY_MESSAGES = 6;
+
+const MAX_HISTORY_ITEM_CHARS = 1500;
+
+const MAX_HISTORY_TOTAL_CHARS = 7000;
+
+const MAX_MEMORY_ITEMS = 20;
+
+const MAX_MEMORY_VALUE_CHARS = 500;
+
+const MAX_MEMORY_TOTAL_CHARS = 3000;
+
+const MAX_CURRENT_MESSAGE_CHARS = 6000;
+
+
+// =====================================================
 // DATABASE
 // =====================================================
 
@@ -300,7 +322,38 @@ function getUserId(req) {
 
 
 // =====================================================
-// MEMORY DATABASE HELPERS
+// TEXT LIMIT HELPER
+// =====================================================
+
+function limitText(
+  text,
+  maxChars
+) {
+
+  const value =
+    String(text || "");
+
+  if (
+    value.length <= maxChars
+  ) {
+
+    return value;
+
+  }
+
+  return (
+    value.slice(
+      0,
+      maxChars
+    ) +
+    "\n[older content trimmed]"
+  );
+
+}
+
+
+// =====================================================
+// DATABASE MEMORY HELPERS
 // =====================================================
 
 async function getMemories(userId) {
@@ -320,7 +373,7 @@ async function getMemories(userId) {
         FROM public.user_memories
         WHERE user_id = $1
         ORDER BY updated_at DESC
-        LIMIT 30
+        LIMIT 20
         `,
         [userId]
       );
@@ -600,10 +653,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // NAME
-  // ===================================================
-
   const namePatterns = [
 
     /(?:mera|my)\s+naam\s+(?:hai|is)\s+([a-zA-Z][a-zA-Z .'-]{1,60})/i,
@@ -668,10 +718,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // LANGUAGE PREFERENCE
-  // ===================================================
-
   if (
     /(mujhe|mujhse|please).*(hindi|english|hinglish).*(mein|me|language|jawab|reply|answer)/i
       .test(text) ||
@@ -710,10 +757,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // SIMPLE LANGUAGE
-  // ===================================================
-
   if (
     /(?:simple|easy|aasaan).*(language|mein|me|samjha|samjhana|explain)/i
       .test(text) ||
@@ -735,10 +779,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // SHORT ANSWERS
-  // ===================================================
-
   if (
     /(?:short|chhota|chhote|brief).*(answer|reply|response|jawab)/i
       .test(text) ||
@@ -760,10 +801,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // DETAILED ANSWERS
-  // ===================================================
-
   if (
     /(?:detailed|detail mein|detail me|deeply|thorough).*(answer|reply|explain|samjha)/i
       .test(text)
@@ -782,10 +820,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // STEP BY STEP
-  // ===================================================
-
   if (
     /(?:step by step|step-by-step|ek ek karke|one by one)/i
       .test(text)
@@ -804,10 +839,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // ENGLISH LEARNING
-  // ===================================================
-
   if (
     /(?:english|angrezi).*(seekh|learn|practice|speaking|bolna)/i
       .test(text) ||
@@ -829,10 +861,7 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
   // EXPLICIT REMEMBER
-  // ===================================================
-
   if (
     isRememberRequest(text) &&
     !containsSensitiveData(text)
@@ -876,10 +905,6 @@ function extractMemories(message) {
   }
 
 
-  // ===================================================
-  // UNIQUE KEYS
-  // ===================================================
-
   const unique =
     new Map();
 
@@ -918,20 +943,53 @@ function buildMemoryText(
 
   }
 
-  return memories
-    .map(
-      function (memory) {
+  let totalChars = 0;
 
-        return (
-          "- " +
-          memory.memory_key +
-          ": " +
-          memory.memory_value
-        );
+  const lines = [];
 
-      }
+  for (
+    const memory of memories.slice(
+      0,
+      MAX_MEMORY_ITEMS
     )
-    .join("\n");
+  ) {
+
+    const key =
+      limitText(
+        memory.memory_key,
+        100
+      );
+
+    const value =
+      limitText(
+        memory.memory_value,
+        MAX_MEMORY_VALUE_CHARS
+      );
+
+    const line =
+      "- " +
+      key +
+      ": " +
+      value;
+
+    if (
+      totalChars +
+      line.length >
+      MAX_MEMORY_TOTAL_CHARS
+    ) {
+
+      break;
+
+    }
+
+    lines.push(line);
+
+    totalChars +=
+      line.length;
+
+  }
+
+  return lines.join("\n");
 
 }
 
@@ -948,27 +1006,86 @@ function cleanHistory(
     return [];
   }
 
-  return history
-    .filter(
-      function (item) {
+  const valid =
+    history
+      .filter(
+        function (item) {
 
-        return (
+          return (
 
-          item &&
+            item &&
 
-          typeof item.text ===
-            "string" &&
+            typeof item.text ===
+              "string" &&
 
-          (
-            item.type === "user" ||
-            item.type === "ai"
-          )
+            (
+              item.type === "user" ||
+              item.type === "ai"
+            )
 
-        );
+          );
 
-      }
-    )
-    .slice(-6);
+        }
+      )
+      .slice(
+        -MAX_HISTORY_MESSAGES
+      );
+
+
+  const result = [];
+
+  let totalChars = 0;
+
+
+  // Process newest messages first.
+  for (
+    let i = valid.length - 1;
+    i >= 0;
+    i--
+  ) {
+
+    const item =
+      valid[i];
+
+    const text =
+      limitText(
+        item.text,
+        MAX_HISTORY_ITEM_CHARS
+      );
+
+    const needed =
+      text.length + 20;
+
+
+    if (
+      totalChars +
+      needed >
+      MAX_HISTORY_TOTAL_CHARS
+    ) {
+
+      continue;
+
+    }
+
+
+    result.unshift({
+
+      type:
+        item.type,
+
+      text:
+        text
+
+    });
+
+
+    totalChars +=
+      needed;
+
+  }
+
+
+  return result;
 
 }
 
@@ -1014,6 +1131,13 @@ function buildPrompt(
     buildMemoryText(memories);
 
 
+  const safeMessage =
+    limitText(
+      message,
+      MAX_CURRENT_MESSAGE_CHARS
+    );
+
+
   return `
 SAVED USER MEMORIES:
 
@@ -1027,7 +1151,7 @@ END CONTEXT
 
 CURRENT USER MESSAGE:
 
-${message}
+${safeMessage}
 
 Answer the current message naturally.
 
@@ -1121,6 +1245,34 @@ async function callGroq(
   }
 
 
+  const safeMessage =
+    limitText(
+      message,
+      MAX_CURRENT_MESSAGE_CHARS
+    );
+
+
+  const safeHistory =
+    cleanHistory(history);
+
+
+  const safeMemories =
+    Array.isArray(memories)
+      ? memories.slice(
+          0,
+          MAX_MEMORY_ITEMS
+        )
+      : [];
+
+
+  const prompt =
+    buildPrompt(
+      safeMessage,
+      safeHistory,
+      safeMemories
+    );
+
+
   const requestBody = {
 
     model:
@@ -1146,11 +1298,7 @@ async function callGroq(
           "user",
 
         content:
-          buildPrompt(
-            message,
-            history,
-            memories
-          )
+          prompt
 
       }
 
@@ -1159,7 +1307,7 @@ async function callGroq(
     temperature:
       0.4,
 
-    max_tokens:
+    max_completion_tokens:
       2500
 
   };
@@ -1176,6 +1324,32 @@ async function callGroq(
     };
 
   }
+
+
+  // Useful diagnostic information.
+  console.log(
+    "GROQ REQUEST:",
+    JSON.stringify({
+      model: GROQ_MODEL,
+      historyMessages:
+        safeHistory.length,
+      historyChars:
+        safeHistory.reduce(
+          function (total, item) {
+            return total + item.text.length;
+          },
+          0
+        ),
+      memoryItems:
+        safeMemories.length,
+      messageChars:
+        safeMessage.length,
+      promptChars:
+        prompt.length,
+      webSearch:
+        WEB_SEARCH_ENABLED
+    })
+  );
 
 
   const response =
@@ -1221,6 +1395,15 @@ async function callGroq(
       data.error.message
         ? data.error.message
         : "Unknown Groq error";
+
+
+    console.error(
+      "GROQ API ERROR:",
+      JSON.stringify(
+        data
+      )
+    );
+
 
     throw new Error(
       "Groq " +
@@ -1361,10 +1544,7 @@ async function processMemory(
   }
 
 
-  // -----------------------------------------------
   // FORGET EVERYTHING
-  // -----------------------------------------------
-
   if (
     isForgetRequest(message) &&
     /sab|everything|all|meri memory/i
@@ -1380,10 +1560,7 @@ async function processMemory(
   }
 
 
-  // -----------------------------------------------
   // FORGET COMMAND
-  // -----------------------------------------------
-
   if (
     isForgetRequest(message)
   ) {
@@ -1444,10 +1621,7 @@ async function processMemory(
   }
 
 
-  // -----------------------------------------------
   // SAVE NEW MEMORIES
-  // -----------------------------------------------
-
   const extracted =
     extractMemories(message);
 
@@ -2222,6 +2396,10 @@ app.listen(
 
     console.log(
       "Step-by-Step Teaching: ENABLED"
+    );
+
+    console.log(
+      "Request Size Protection: ENABLED"
     );
 
     console.log(
