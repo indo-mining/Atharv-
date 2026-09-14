@@ -10,9 +10,10 @@
     content="width=device-width, initial-scale=1.0"
   >
 
+  <!-- PWA -->
   <meta
     name="theme-color"
-    content="#ffffff"
+    content="#16a34a"
   >
 
   <meta
@@ -33,6 +34,17 @@
   <meta
     name="apple-mobile-web-app-status-bar-style"
     content="default"
+  >
+
+  <meta
+    name="apple-mobile-web-app-title"
+    content="Atharv AI"
+  >
+
+  <!-- PWA Manifest -->
+  <link
+    rel="manifest"
+    href="/manifest.json"
   >
 
   <title>Atharv AI</title>
@@ -116,7 +128,10 @@
       class="chat-box"
     >
 
-      <div class="message ai">
+      <div
+        class="message ai"
+        data-message-text="Namaste! 🙏 Main Atharv hoon. Aap mujhse kisi bhi language mein sawaal pooch sakte hain."
+      >
 
         Namaste! 🙏<br><br>
 
@@ -189,9 +204,10 @@
     </div>
 
 
+
     <!-- ======================================
          VOICE AREA
-         ATHARV 7.0
+         ATHARV VOICE
     ======================================= -->
 
     <div
@@ -229,14 +245,16 @@
     </div>
 
 
+
     <!-- ======================================
          VOICE INFORMATION
     ======================================= -->
 
-    <div
-      class="voice-hint"
-    >
-      🎙️ Bolkar poochhein • 🔊 Atharv ka jawab sunein
+    <div class="voice-hint">
+
+      🎙️ Bolkar poochhein •
+      🔊 Atharv ka jawab sunein
+
     </div>
 
 
@@ -382,9 +400,12 @@
       </strong>
 
       <p>
+
         Aap kisi bhi saved memory ko kabhi bhi delete kar sakte hain.
+
         Atharv passwords, OTP, API keys aur similar sensitive information
         ko memory mein save nahi karta.
+
       </p>
 
     </div>
@@ -489,6 +510,52 @@
   ========================================= -->
 
   <script src="app.js"></script>
+
+
+
+  <!-- ========================================
+       ATHARV PWA SERVICE WORKER
+  ========================================= -->
+
+  <script>
+
+    if ("serviceWorker" in navigator) {
+
+      window.addEventListener(
+        "load",
+        function () {
+
+          navigator.serviceWorker
+            .register("/service-worker.js")
+
+            .then(
+              function (registration) {
+
+                console.log(
+                  "Atharv Service Worker registered:",
+                  registration.scope
+                );
+
+              }
+            )
+
+            .catch(
+              function (error) {
+
+                console.error(
+                  "Atharv Service Worker registration failed:",
+                  error
+                );
+
+              }
+            );
+
+        }
+      );
+
+    }
+
+  </script>
 
 
 </body>
