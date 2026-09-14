@@ -15,17 +15,96 @@ const ATHARV_HISTORY_KEY =
 "atharv_chat_history";
 
 // =====================================================
+// PERMANENT USER ID
+// =====================================================
+
+const ATHARV_USER_ID_KEY =
+"atharv_user_id";
+
+function getAtharvUserId() {
+
+try {
+
+  let userId =
+    localStorage.getItem(
+      ATHARV_USER_ID_KEY
+    );
+
+  if (userId) {
+    return userId;
+  }
+
+  // Generate a unique browser/user ID
+  if (
+    window.crypto &&
+    typeof window.crypto.randomUUID === "function"
+  ) {
+
+    userId =
+      window.crypto.randomUUID();
+
+  } else {
+
+    userId =
+      "atharv_" +
+      Date.now() +
+      "_" +
+      Math.random()
+        .toString(36)
+        .substring(2, 12);
+
+  }
+
+  localStorage.setItem(
+    ATHARV_USER_ID_KEY,
+    userId
+  );
+
+  return userId;
+
+} catch (error) {
+
+  console.error(
+    "USER ID ERROR:",
+    error
+  );
+
+  // Fallback if localStorage is unavailable
+  return (
+    "atharv_" +
+    Date.now() +
+    "_" +
+    Math.random()
+      .toString(36)
+      .substring(2, 12)
+  );
+
+}
+
+}
+
+const ATHARV_USER_ID =
+getAtharvUserId();
+
+console.log(
+  "ATHARV USER ID:",
+  ATHARV_USER_ID
+);
+
+// =====================================================
 // ADD MESSAGE
 // =====================================================
 
 function addMessage(text, type) {
+
 const message =
 document.createElement("div");
 
 message.className =
 "message " + type;
 
-message.textContent = text;
+message.textContent =
+text;
 
 chatBox.appendChild(message);
 
@@ -42,24 +121,32 @@ return message;
 // =====================================================
 
 function saveChatHistory() {
+
 try {
+
 const messages = [];
 
 document
   .querySelectorAll("#chatBox .message")
   .forEach(function (message) {
 
-    if (message.id === "thinkingMessage") {
+    if (
+      message.id ===
+      "thinkingMessage"
+    ) {
       return;
     }
 
     messages.push({
-      text: message.textContent,
+      text:
+        message.textContent,
+
       type:
         message.classList.contains("user")
           ? "user"
           : "ai"
     });
+
   });
 
 localStorage.setItem(
@@ -68,10 +155,12 @@ localStorage.setItem(
 );
 
 } catch (error) {
+
 console.error(
 "HISTORY SAVE ERROR:",
 error
 );
+
 }
 }
 
@@ -80,6 +169,7 @@ error
 // =====================================================
 
 function getChatHistory() {
+
 try {
 
 const saved =
@@ -103,8 +193,8 @@ return messages;
 } catch (error) {
 
 console.error(
-  "HISTORY READ ERROR:",
-  error
+"HISTORY READ ERROR:",
+error
 );
 
 return [];
@@ -147,14 +237,16 @@ messages.forEach(function (item) {
       item.text,
       item.type
     );
+
   }
+
 });
 
 } catch (error) {
 
 console.error(
-  "HISTORY LOAD ERROR:",
-  error
+"HISTORY LOAD ERROR:",
+error
 );
 
 }
@@ -177,8 +269,8 @@ chatBox.innerHTML = "";
 } catch (error) {
 
 console.error(
-  "CLEAR HISTORY ERROR:",
-  error
+"CLEAR HISTORY ERROR:",
+error
 );
 
 }
@@ -210,6 +302,7 @@ message.scrollIntoView({
 behavior: "smooth",
 block: "end"
 });
+
 }
 
 // =====================================================
@@ -220,12 +313,13 @@ function removeThinking() {
 
 const thinking =
 document.getElementById(
-"thinkingMessage"
+  "thinkingMessage"
 );
 
 if (thinking) {
-thinking.remove();
+  thinking.remove();
 }
+
 }
 
 // =====================================================
@@ -306,7 +400,8 @@ const recentHistory =
 const timeZone =
   Intl.DateTimeFormat()
     .resolvedOptions()
-    .timeZone || "Asia/Kolkata";
+    .timeZone ||
+  "Asia/Kolkata";
 
 // ---------------------------------------------
 // SEND REQUEST
@@ -328,6 +423,7 @@ const response =
 
       body:
         JSON.stringify({
+
           message:
             message,
 
@@ -335,7 +431,12 @@ const response =
             recentHistory,
 
           timeZone:
-            timeZone
+            timeZone,
+
+          // Permanent Atharv user ID
+          userId:
+            ATHARV_USER_ID
+
         }),
 
       signal:
@@ -379,6 +480,7 @@ try {
   throw new Error(
     "Server ne valid JSON response nahi diya."
   );
+
 }
 
 // ---------------------------------------------
@@ -400,11 +502,12 @@ if (!response.ok) {
   throw new Error(
     serverError
   );
+
 }
 
 // ---------------------------------------------
 // REMOVE THINKING
-// ---------------------------------------------
+// -----------------------------------------------
 
 removeThinking();
 
@@ -430,8 +533,8 @@ saveChatHistory();
 removeThinking();
 
 console.error(
-  "ATHARV ERROR:",
-  error
+"ATHARV ERROR:",
+error
 );
 
 // ---------------------------------------------
@@ -460,6 +563,7 @@ else {
     error.message,
     "ai"
   );
+
 }
 
 saveChatHistory();
@@ -481,6 +585,7 @@ sendButton.style.opacity =
 messageInput.focus();
 
 }
+
 }
 
 // =====================================================
@@ -497,6 +602,7 @@ messageInput.value =
 text;
 
 sendMessage();
+
 }
 
 // =====================================================
@@ -515,6 +621,7 @@ if (
   event.preventDefault();
 
   sendMessage();
+
 }
 
 }
@@ -561,9 +668,10 @@ function () {
   );
 
   saveChatHistory();
-}
 
+}
 );
+
 }
 
 // =====================================================
@@ -588,12 +696,14 @@ button.addEventListener(
         btn.classList.remove(
           "active"
         );
+
       }
     );
 
     button.classList.add(
       "active"
     );
+
   }
 );
 
@@ -610,6 +720,10 @@ console.log(
 
 console.log(
 "ATHARV AI LOADED 🤖"
+);
+
+console.log(
+"Permanent User ID enabled."
 );
 
 console.log(
