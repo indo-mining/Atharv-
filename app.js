@@ -2377,9 +2377,9 @@ alert(
 
 async function deleteAllMemories() {
 
-const confirmed =
+  const confirmed =
 window.confirm(
-"Kya aap Atharv ki SAARI memories delete karna chahte hain?\n\nYe action undo nahi kiya ja sakta."
+  `Kya aap "${label}" memory ko bhoolna chahte hain?`
 );
 
 if (!confirmed) {
