@@ -8,7 +8,9 @@ const { Pool } = require("pg");
 
 const app = express();
 
-const PORT = process.env.PORT || 10000;
+const PORT =
+  process.env.PORT || 10000;
+
 
 // =====================================================
 // CONFIG
@@ -23,6 +25,7 @@ const GROQ_MODEL =
 
 const DATABASE_URL =
   process.env.DATABASE_URL || "";
+
 
 // =====================================================
 // DATABASE
@@ -62,7 +65,9 @@ if (DATABASE_URL) {
 
     }
   );
+
 }
+
 
 // =====================================================
 // APP
@@ -75,6 +80,7 @@ app.use(
     limit: "1mb"
   })
 );
+
 
 // =====================================================
 // ATHARV AI BRAIN
@@ -166,6 +172,7 @@ Atharv has its own identity and personality.
 Do not claim to be ChatGPT.
 `;
 
+
 // =====================================================
 // DATE / TIME
 // =====================================================
@@ -196,6 +203,7 @@ function getUserDateTime(timeZone) {
   }
 
 }
+
 
 // =====================================================
 // USER ID
@@ -247,32 +255,6 @@ function getUserId(req) {
 
 }
 
-  if (suppliedId) {
-
-    return crypto
-      .createHash("sha256")
-      .update(suppliedId)
-      .digest("hex")
-      .slice(0, 64);
-
-  }
-
-  const forwarded =
-    req.headers["x-forwarded-for"];
-
-  const ip =
-    typeof forwarded === "string"
-      ? forwarded.split(",")[0].trim()
-      : req.socket.remoteAddress ||
-        "unknown";
-
-  return crypto
-    .createHash("sha256")
-    .update(ip)
-    .digest("hex")
-    .slice(0, 64);
-
-}
 
 // =====================================================
 // MEMORY DATABASE HELPERS
@@ -314,6 +296,7 @@ async function getMemories(userId) {
   }
 
 }
+
 
 // =====================================================
 // SAVE MEMORY
@@ -371,6 +354,7 @@ async function saveMemory(
 
 }
 
+
 // =====================================================
 // DELETE MEMORY
 // =====================================================
@@ -413,11 +397,14 @@ async function deleteMemory(
 
 }
 
+
 // =====================================================
 // DELETE ALL MEMORIES
 // =====================================================
 
-async function deleteAllMemories(userId) {
+async function deleteAllMemories(
+  userId
+) {
 
   if (!pool) {
     return false;
@@ -447,6 +434,7 @@ async function deleteAllMemories(userId) {
   }
 
 }
+
 
 // =====================================================
 // SENSITIVE DATA PROTECTION
@@ -491,6 +479,7 @@ function containsSensitiveData(text) {
 
 }
 
+
 // =====================================================
 // MEMORY COMMAND DETECTION
 // =====================================================
@@ -527,6 +516,7 @@ function isForgetRequest(message) {
 
 }
 
+
 function isRememberRequest(message) {
 
   const text =
@@ -549,6 +539,7 @@ function isRememberRequest(message) {
 
 }
 
+
 // =====================================================
 // EXTRACT INTELLIGENT MEMORIES
 // =====================================================
@@ -565,6 +556,7 @@ function extractMemories(message) {
     return memories;
   }
 
+
   // ===================================================
   // NAME
   // ===================================================
@@ -580,6 +572,7 @@ function extractMemories(message) {
     /(?:i am|i'm)\s+([a-zA-Z][a-zA-Z .'-]{1,40})/i
 
   ];
+
 
   for (
     const pattern of namePatterns
@@ -631,6 +624,7 @@ function extractMemories(message) {
 
   }
 
+
   // ===================================================
   // LANGUAGE PREFERENCE
   // ===================================================
@@ -672,6 +666,7 @@ function extractMemories(message) {
 
   }
 
+
   // ===================================================
   // SIMPLE LANGUAGE
   // ===================================================
@@ -695,6 +690,7 @@ function extractMemories(message) {
     });
 
   }
+
 
   // ===================================================
   // SHORT ANSWERS
@@ -720,6 +716,7 @@ function extractMemories(message) {
 
   }
 
+
   // ===================================================
   // DETAILED ANSWERS
   // ===================================================
@@ -741,6 +738,7 @@ function extractMemories(message) {
 
   }
 
+
   // ===================================================
   // STEP BY STEP
   // ===================================================
@@ -761,6 +759,7 @@ function extractMemories(message) {
     });
 
   }
+
 
   // ===================================================
   // ENGLISH LEARNING
@@ -785,6 +784,7 @@ function extractMemories(message) {
     });
 
   }
+
 
   // ===================================================
   // EXPLICIT REMEMBER
@@ -811,8 +811,6 @@ function extractMemories(message) {
         )
         .trim();
 
-    // Only create generic note when
-    // no specific memory was detected.
 
     if (
       memories.length === 0 &&
@@ -834,8 +832,9 @@ function extractMemories(message) {
 
   }
 
+
   // ===================================================
-  // REMOVE DUPLICATE MEMORY KEYS
+  // UNIQUE KEYS
   // ===================================================
 
   const unique =
@@ -858,11 +857,14 @@ function extractMemories(message) {
 
 }
 
+
 // =====================================================
 // MEMORY TEXT
 // =====================================================
 
-function buildMemoryText(memories) {
+function buildMemoryText(
+  memories
+) {
 
   if (
     !Array.isArray(memories) ||
@@ -890,11 +892,14 @@ function buildMemoryText(memories) {
 
 }
 
+
 // =====================================================
 // CLEAN HISTORY
 // =====================================================
 
-function cleanHistory(history) {
+function cleanHistory(
+  history
+) {
 
   if (!Array.isArray(history)) {
     return [];
@@ -923,6 +928,7 @@ function cleanHistory(history) {
     .slice(-6);
 
 }
+
 
 // =====================================================
 // BUILD PROMPT
@@ -960,8 +966,10 @@ function buildPrompt(
 
   }
 
+
   const memoryText =
     buildMemoryText(memories);
+
 
   return `
 SAVED USER MEMORIES:
@@ -998,6 +1006,7 @@ Do not repeat the whole conversation.
 
 }
 
+
 // =====================================================
 // GROQ AI
 // =====================================================
@@ -1016,6 +1025,7 @@ async function callGroq(
     );
 
   }
+
 
   const response =
     await fetch(
@@ -1083,8 +1093,10 @@ async function callGroq(
       }
     );
 
+
   const data =
     await response.json();
+
 
   if (!response.ok) {
 
@@ -1104,6 +1116,7 @@ async function callGroq(
 
   }
 
+
   const reply =
     data &&
     data.choices &&
@@ -1113,6 +1126,7 @@ async function callGroq(
       ? data.choices[0].message.content.trim()
       : "";
 
+
   if (!reply) {
 
     throw new Error(
@@ -1121,9 +1135,11 @@ async function callGroq(
 
   }
 
+
   return reply;
 
 }
+
 
 // =====================================================
 // SSE
@@ -1142,6 +1158,7 @@ function sendSSE(
 
 }
 
+
 // =====================================================
 // ARTIFICIAL STREAM
 // =====================================================
@@ -1159,6 +1176,7 @@ async function sendArtificialStream(
         String(text)
       ];
 
+
   for (
     const chunk of chunks
   ) {
@@ -1166,13 +1184,16 @@ async function sendArtificialStream(
     sendSSE(
       res,
       {
+
         type:
           "chunk",
 
         text:
           chunk
+
       }
     );
+
 
     await new Promise(
       function (resolve) {
@@ -1189,15 +1210,19 @@ async function sendArtificialStream(
 
 }
 
+
 // =====================================================
 // CHAT USER ID
 // =====================================================
 
-function getChatUserId(req) {
+function getChatUserId(
+  req
+) {
 
   return getUserId(req);
 
 }
+
 
 // =====================================================
 // PROCESS MEMORY
@@ -1212,13 +1237,15 @@ async function processMemory(
     return;
   }
 
+
   // -----------------------------------------------
   // FORGET EVERYTHING
   // -----------------------------------------------
 
   if (
     isForgetRequest(message) &&
-    /sab|everything|all|meri memory/i.test(message)
+    /sab|everything|all|meri memory/i
+      .test(message)
   ) {
 
     await deleteAllMemories(
@@ -1228,6 +1255,7 @@ async function processMemory(
     return;
 
   }
+
 
   // -----------------------------------------------
   // FORGET COMMAND
@@ -1242,6 +1270,7 @@ async function processMemory(
       "user_note"
     );
 
+
     if (
       /naam|name/i.test(message)
     ) {
@@ -1253,8 +1282,10 @@ async function processMemory(
 
     }
 
+
     if (
-      /language|bhasha|hindi|english|hinglish/i.test(message)
+      /language|bhasha|hindi|english|hinglish/i
+        .test(message)
     ) {
 
       await deleteMemory(
@@ -1264,8 +1295,10 @@ async function processMemory(
 
     }
 
+
     if (
-      /simple|style|answer|reply|response/i.test(message)
+      /simple|style|answer|reply|response/i
+        .test(message)
     ) {
 
       await deleteMemory(
@@ -1287,12 +1320,14 @@ async function processMemory(
 
   }
 
+
   // -----------------------------------------------
   // SAVE NEW MEMORIES
   // -----------------------------------------------
 
   const extracted =
     extractMemories(message);
+
 
   if (
     extracted.length &&
@@ -1315,6 +1350,7 @@ async function processMemory(
 
 }
 
+
 // =====================================================
 // NORMAL CHAT
 // =====================================================
@@ -1328,15 +1364,18 @@ app.post(
         ? req.body.message.trim()
         : "";
 
+
     const history =
       Array.isArray(req.body.history)
         ? req.body.history
         : [];
 
+
     const timeZone =
       typeof req.body.timeZone === "string"
         ? req.body.timeZone
         : "UTC";
+
 
     if (!message) {
 
@@ -1349,25 +1388,30 @@ app.post(
 
     }
 
+
     try {
 
       const userId =
         getChatUserId(req);
+
 
       await processMemory(
         userId,
         message
       );
 
+
       const memories =
         await getMemories(
           userId
         );
 
+
       const currentTime =
         getUserDateTime(
           timeZone
         );
+
 
       const reply =
         await callGroq(
@@ -1376,6 +1420,7 @@ app.post(
           history,
           memories
         );
+
 
       return res.json({
 
@@ -1392,12 +1437,14 @@ app.post(
 
       });
 
+
     } catch (error) {
 
       console.error(
         "ATHARV GROQ ERROR:",
         error.message
       );
+
 
       return res.status(503).json({
 
@@ -1412,6 +1459,7 @@ app.post(
   }
 );
 
+
 // =====================================================
 // STREAM CHAT
 // =====================================================
@@ -1425,15 +1473,18 @@ app.post(
         ? req.body.message.trim()
         : "";
 
+
     const history =
       Array.isArray(req.body.history)
         ? req.body.history
         : [];
 
+
     const timeZone =
       typeof req.body.timeZone === "string"
         ? req.body.timeZone
         : "UTC";
+
 
     if (!message) {
 
@@ -1446,7 +1497,9 @@ app.post(
 
     }
 
+
     res.status(200);
+
 
     res.setHeader(
       "Content-Type",
@@ -1463,6 +1516,7 @@ app.post(
       "keep-alive"
     );
 
+
     if (
       typeof res.flushHeaders ===
       "function"
@@ -1472,25 +1526,30 @@ app.post(
 
     }
 
+
     try {
 
       const userId =
         getChatUserId(req);
+
 
       await processMemory(
         userId,
         message
       );
 
+
       const memories =
         await getMemories(
           userId
         );
 
+
       const currentTime =
         getUserDateTime(
           timeZone
         );
+
 
       sendSSE(
         res,
@@ -1508,6 +1567,7 @@ app.post(
         }
       );
 
+
       const reply =
         await callGroq(
           message,
@@ -1516,10 +1576,12 @@ app.post(
           memories
         );
 
+
       await sendArtificialStream(
         res,
         reply
       );
+
 
       sendSSE(
         res,
@@ -1540,12 +1602,14 @@ app.post(
         }
       );
 
+
     } catch (error) {
 
       console.error(
         "ATHARV STREAM ERROR:",
         error.message
       );
+
 
       sendSSE(
         res,
@@ -1559,6 +1623,7 @@ app.post(
 
         }
       );
+
 
     } finally {
 
@@ -1577,8 +1642,9 @@ app.post(
   }
 );
 
+
 // =====================================================
-// MEMORY TEST API
+// GET MEMORIES
 // =====================================================
 
 app.get(
@@ -1590,10 +1656,12 @@ app.get(
       const userId =
         getUserId(req);
 
+
       const memories =
         await getMemories(
           userId
         );
+
 
       return res.json({
 
@@ -1604,7 +1672,14 @@ app.get(
 
       });
 
+
     } catch (error) {
+
+      console.error(
+        "MEMORY API ERROR:",
+        error.message
+      );
+
 
       return res.status(500).json({
 
@@ -1621,8 +1696,33 @@ app.get(
   }
 );
 
+
 // =====================================================
-// DELETE SINGLE MEMORY
+// ALLOWED MEMORY KEYS
+// =====================================================
+
+const ALLOWED_MEMORY_KEYS =
+  new Set([
+
+    "name",
+
+    "language_preference",
+
+    "response_style",
+
+    "answer_length",
+
+    "teaching_style",
+
+    "learning_goal",
+
+    "user_note"
+
+  ]);
+
+
+// =====================================================
+// DELETE SINGLE MEMORY API
 // =====================================================
 
 app.post(
@@ -1634,26 +1734,19 @@ app.post(
       const userId =
         getUserId(req);
 
+
       const key =
         typeof req.body.key === "string"
           ? req.body.key.trim()
           : "";
 
-      const allowedKeys = [
-        "name",
-        "language_preference",
-        "response_style",
-        "answer_length",
-        "teaching_style",
-        "learning_goal",
-        "user_note"
-      ];
 
       if (!key) {
 
         return res.status(400).json({
 
-          ok: false,
+          ok:
+            false,
 
           error:
             "Memory key is required."
@@ -1662,13 +1755,15 @@ app.post(
 
       }
 
+
       if (
-        !allowedKeys.includes(key)
+        !ALLOWED_MEMORY_KEYS.has(key)
       ) {
 
         return res.status(400).json({
 
-          ok: false,
+          ok:
+            false,
 
           error:
             "Invalid memory key."
@@ -1677,17 +1772,20 @@ app.post(
 
       }
 
+
       const deleted =
         await deleteMemory(
           userId,
           key
         );
 
+
       if (!deleted) {
 
         return res.status(500).json({
 
-          ok: false,
+          ok:
+            false,
 
           error:
             "Memory delete nahi ho paayi."
@@ -1696,14 +1794,17 @@ app.post(
 
       }
 
+
       const memories =
         await getMemories(
           userId
         );
 
+
       return res.json({
 
-        ok: true,
+        ok:
+          true,
 
         message:
           "Memory deleted.",
@@ -1712,6 +1813,7 @@ app.post(
 
       });
 
+
     } catch (error) {
 
       console.error(
@@ -1719,9 +1821,11 @@ app.post(
         error.message
       );
 
+
       return res.status(500).json({
 
-        ok: false,
+        ok:
+          false,
 
         error:
           error.message
@@ -1747,16 +1851,19 @@ app.post(
       const userId =
         getUserId(req);
 
+
       const deleted =
         await deleteAllMemories(
           userId
         );
 
+
       if (!deleted) {
 
         return res.status(500).json({
 
-          ok: false,
+          ok:
+            false,
 
           error:
             "Memories clear nahi ho paayi."
@@ -1765,9 +1872,11 @@ app.post(
 
       }
 
+
       return res.json({
 
-        ok: true,
+        ok:
+          true,
 
         message:
           "All memories deleted.",
@@ -1776,6 +1885,7 @@ app.post(
 
       });
 
+
     } catch (error) {
 
       console.error(
@@ -1783,9 +1893,11 @@ app.post(
         error.message
       );
 
+
       return res.status(500).json({
 
-        ok: false,
+        ok:
+          false,
 
         error:
           error.message
@@ -1797,6 +1909,7 @@ app.post(
   }
 );
 
+
 // =====================================================
 // HEALTH
 // =====================================================
@@ -1807,6 +1920,7 @@ app.get(
 
     let database =
       false;
+
 
     if (pool) {
 
@@ -1827,6 +1941,7 @@ app.get(
       }
 
     }
+
 
     res.json({
 
@@ -1865,6 +1980,12 @@ app.get(
         memoryRecall:
           database,
 
+        memoryDelete:
+          database,
+
+        memoryClear:
+          database,
+
         stepByStepTeaching:
           true,
 
@@ -1890,6 +2011,7 @@ app.get(
   }
 );
 
+
 // =====================================================
 // STATIC FRONTEND
 // =====================================================
@@ -1899,6 +2021,7 @@ app.use(
     __dirname
   )
 );
+
 
 // =====================================================
 // CATCH ALL
@@ -1916,6 +2039,7 @@ app.use(
 
   }
 );
+
 
 // =====================================================
 // START SERVER
@@ -1951,6 +2075,14 @@ app.listen(
 
     console.log(
       "Intelligent Memory: ENABLED"
+    );
+
+    console.log(
+      "Memory Delete: ENABLED"
+    );
+
+    console.log(
+      "Memory Clear: ENABLED"
     );
 
     console.log(
