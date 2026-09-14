@@ -21,10 +21,16 @@ const GROQ_API_KEY =
 
 const GROQ_MODEL =
   process.env.GROQ_MODEL ||
-  "openai/gpt-oss-20b";
+  "groq/compound-mini";
 
 const DATABASE_URL =
   process.env.DATABASE_URL || "";
+
+
+// Live Web Search is available through Groq Compound models.
+const WEB_SEARCH_ENABLED =
+  GROQ_MODEL === "groq/compound-mini" ||
+  GROQ_MODEL === "groq/compound";
 
 
 // =====================================================
@@ -115,6 +121,14 @@ LANGUAGE:
 - If a saved language preference exists, use it when appropriate.
 - Do not translate unless requested.
 
+WORLD LANGUAGES:
+- Try to understand and respond in the user's language even when it is uncommon.
+- Preserve the user's script when practical.
+- Do not automatically switch to English.
+- If the user asks in Hindi, answer in Hindi or natural Hinglish.
+- If the user asks in English, answer in English.
+- If the user asks in another language, answer in that language when you can reliably do so.
+
 CONTEXT:
 - Use recent conversation context.
 - Understand follow-up messages such as:
@@ -130,11 +144,37 @@ MEMORY BEHAVIOR:
 - Do not mention all memories in every response.
 - Only use memories that are relevant to the current request.
 
-ACCURACY:
+ACCURACY AND LIVE INFORMATION:
 - Do not invent facts.
 - Do not invent current prices, news or events.
-- Do not pretend to have live internet access.
-- If you do not know something, say so honestly.
+- When the user asks for latest, today, current, recent, breaking, live, current price, current status, current news or other time-sensitive information, use the available web-search capability.
+- When web search is available, use retrieved information rather than guessing from old knowledge.
+- Clearly distinguish current information from general knowledge.
+- If reliable current information cannot be found, say so honestly.
+- Never present old knowledge as current information.
+- When useful, mention the source or date of current information.
+- For current events, prefer reliable and relevant sources.
+- For India-related queries, give priority to relevant Indian sources when available.
+- For global queries, consider reliable international sources as well.
+
+WEB SEARCH:
+- Use web search when the user's question requires current information.
+- Examples include:
+  latest news,
+  today's news,
+  current events,
+  current stock price,
+  current crypto price,
+  current weather,
+  current political/news developments,
+  latest technology news,
+  latest company updates,
+  current sports scores,
+  current product information,
+  current government information,
+  current market information.
+- Do not use current-looking language when you did not actually retrieve current information.
+- Do not fabricate search results, links, citations or sources.
 
 TEACHING:
 When explaining how to do something:
@@ -159,12 +199,15 @@ STYLE:
 - Do not give unnecessarily long answers.
 - Use headings and bullets when useful.
 - Be patient and never blame the user.
+- Focus on solving the user's actual problem.
 
 FINANCE:
 - Never guarantee profit.
 - Never invent live market prices.
+- When current market data is requested, use available web-search capability.
 - Explain risk.
 - Predictions must be scenarios, not certainty.
+- Clearly separate factual market data from opinion or analysis.
 
 IDENTITY:
 You are Atharv.
@@ -998,11 +1041,62 @@ they want that language.
 If a response-style preference is saved,
 follow it naturally.
 
+For current/latest/time-sensitive questions,
+use the available live web-search capability.
+
 Do not mention the memory system
 unless the user asks about it.
 
 Do not repeat the whole conversation.
 `;
+
+}
+
+
+// =====================================================
+// CHECK WHETHER SEARCH WAS ACTUALLY USED
+// =====================================================
+
+function didUseWebSearch(data) {
+
+  const executedTools =
+    data &&
+    data.choices &&
+    data.choices[0] &&
+    data.choices[0].message &&
+    data.choices[0].message.executed_tools;
+
+  if (!Array.isArray(executedTools)) {
+    return false;
+  }
+
+  return executedTools.some(
+    function (tool) {
+
+      const type =
+        String(
+          tool &&
+          tool.type
+            ? tool.type
+            : ""
+        ).toLowerCase();
+
+      const name =
+        String(
+          tool &&
+          tool.name
+            ? tool.name
+            : ""
+        ).toLowerCase();
+
+      return (
+        type.includes("search") ||
+        name.includes("search") ||
+        type === "web_search"
+      );
+
+    }
+  );
 
 }
 
@@ -1027,6 +1121,63 @@ async function callGroq(
   }
 
 
+  const requestBody = {
+
+    model:
+      GROQ_MODEL,
+
+    messages: [
+
+      {
+
+        role:
+          "system",
+
+        content:
+          ATHARV_INSTRUCTIONS +
+          "\n\nCurrent date/time: " +
+          currentTime
+
+      },
+
+      {
+
+        role:
+          "user",
+
+        content:
+          buildPrompt(
+            message,
+            history,
+            memories
+          )
+
+      }
+
+    ],
+
+    temperature:
+      0.4,
+
+    max_tokens:
+      2500
+
+  };
+
+
+  // Groq Compound Web Search settings.
+  if (WEB_SEARCH_ENABLED) {
+
+    requestBody.search_settings = {
+
+      country:
+        "india"
+
+    };
+
+  }
+
+
   const response =
     await fetch(
       "https://api.groq.com/openai/v1/chat/completions",
@@ -1042,53 +1193,17 @@ async function callGroq(
 
           Authorization:
             "Bearer " +
-            GROQ_API_KEY
+            GROQ_API_KEY,
+
+          "Groq-Model-Version":
+            "latest"
 
         },
 
         body:
-          JSON.stringify({
-
-            model:
-              GROQ_MODEL,
-
-            messages: [
-
-              {
-
-                role:
-                  "system",
-
-                content:
-                  ATHARV_INSTRUCTIONS +
-                  "\n\nCurrent date/time: " +
-                  currentTime
-
-              },
-
-              {
-
-                role:
-                  "user",
-
-                content:
-                  buildPrompt(
-                    message,
-                    history,
-                    memories
-                  )
-
-              }
-
-            ],
-
-            temperature:
-              0.4,
-
-            max_tokens:
-              2500
-
-          })
+          JSON.stringify(
+            requestBody
+          )
 
       }
     );
@@ -1136,7 +1251,15 @@ async function callGroq(
   }
 
 
-  return reply;
+  return {
+
+    reply:
+      reply,
+
+    webSearchUsed:
+      didUseWebSearch(data)
+
+  };
 
 }
 
@@ -1413,7 +1536,7 @@ app.post(
         );
 
 
-      const reply =
+      const result =
         await callGroq(
           message,
           currentTime,
@@ -1424,7 +1547,8 @@ app.post(
 
       return res.json({
 
-        reply,
+        reply:
+          result.reply,
 
         provider:
           "groq",
@@ -1433,7 +1557,7 @@ app.post(
           true,
 
         webSearch:
-          false
+          result.webSearchUsed
 
       });
 
@@ -1562,13 +1686,16 @@ app.post(
             "groq",
 
           memory:
-            true
+            true,
+
+          webSearchAvailable:
+            WEB_SEARCH_ENABLED
 
         }
       );
 
 
-      const reply =
+      const result =
         await callGroq(
           message,
           currentTime,
@@ -1579,7 +1706,7 @@ app.post(
 
       await sendArtificialStream(
         res,
-        reply
+        result.reply
       );
 
 
@@ -1597,7 +1724,7 @@ app.post(
             true,
 
           webSearch:
-            false
+            result.webSearchUsed
 
         }
       );
@@ -1996,10 +2123,10 @@ app.get(
           true,
 
         webSearch:
-          false,
+          WEB_SEARCH_ENABLED,
 
         marketLiveData:
-          false
+          WEB_SEARCH_ENABLED
 
       },
 
@@ -2098,7 +2225,10 @@ app.listen(
     );
 
     console.log(
-      "Live Web Search: TEMPORARILY OFF"
+      "Live Web Search:",
+      WEB_SEARCH_ENABLED
+        ? "ENABLED"
+        : "DISABLED"
     );
 
     console.log(
