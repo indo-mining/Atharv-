@@ -1,3 +1,14 @@
+/* =========================================================
+   ATHARV AI - FINAL APP.JS
+   Frontend Controller
+   ========================================================= */
+
+"use strict";
+
+/* =========================================================
+   ELEMENTS
+   ========================================================= */
+
 const chatBox = document.getElementById("chatBox");
 const messageInput = document.getElementById("message");
 const sendButton = document.querySelector(".send");
@@ -5,40 +16,42 @@ const sendButton = document.querySelector(".send");
 const API_BASE = "";
 
 let isThinking = false;
+let currentController = null;
 
-// =====================================================
-// STORAGE
-// =====================================================
+/* =========================================================
+   STORAGE
+   ========================================================= */
 
 const ATHARV_HISTORY_KEY = "atharv_chat_history";
 const ATHARV_USER_ID_KEY = "atharv_user_id";
+const ATHARV_LANGUAGE_KEY = "atharv_language";
 
-// =====================================================
-// PERMANENT USER ID
-// =====================================================
+/* =========================================================
+   USER ID
+   ========================================================= */
 
 function getAtharvUserId() {
   try {
-    let userId = localStorage.getItem(ATHARV_USER_ID_KEY);
+    let id = localStorage.getItem(ATHARV_USER_ID_KEY);
 
-    if (userId) return userId;
+    if (id) return id;
 
     if (
       window.crypto &&
       typeof window.crypto.randomUUID === "function"
     ) {
-      userId = window.crypto.randomUUID();
+      id = window.crypto.randomUUID();
     } else {
-      userId =
+      id =
         "atharv_" +
         Date.now() +
         "_" +
-        Math.random().toString(36).substring(2, 12);
+        Math.random().toString(36).slice(2, 12);
     }
 
-    localStorage.setItem(ATHARV_USER_ID_KEY, userId);
+    localStorage.setItem(ATHARV_USER_ID_KEY, id);
 
-    return userId;
+    return id;
   } catch (error) {
     console.error("USER ID ERROR:", error);
 
@@ -46,7 +59,7 @@ function getAtharvUserId() {
       "atharv_" +
       Date.now() +
       "_" +
-      Math.random().toString(36).substring(2, 12)
+      Math.random().toString(36).slice(2, 12)
     );
   }
 }
@@ -55,9 +68,9 @@ const ATHARV_USER_ID = getAtharvUserId();
 
 console.log("ATHARV USER ID:", ATHARV_USER_ID);
 
-// =====================================================
-// VOICE STATE
-// =====================================================
+/* =========================================================
+   VOICE
+   ========================================================= */
 
 let speechRecognition = null;
 let isListening = false;
@@ -65,9 +78,68 @@ let isSpeaking = false;
 let currentSpeechUtterance = null;
 let selectedVoiceLanguage = "en-IN";
 
-// =====================================================
-// VOICE LANGUAGE DETECTION
-// =====================================================
+/* =========================================================
+   LANGUAGE
+   ========================================================= */
+
+const languageSelect =
+  document.getElementById("atharvLanguage");
+
+let selectedLanguage =
+  localStorage.getItem(ATHARV_LANGUAGE_KEY) || "auto";
+
+if (languageSelect) {
+  languageSelect.value = selectedLanguage;
+
+  languageSelect.addEventListener("change", function () {
+    selectedLanguage = this.value || "auto";
+
+    localStorage.setItem(
+      ATHARV_LANGUAGE_KEY,
+      selectedLanguage
+    );
+
+    updateVoiceLanguageFromSelection();
+
+    console.log(
+      "ATHARV LANGUAGE:",
+      selectedLanguage
+    );
+  });
+}
+
+/* =========================================================
+   LANGUAGE MAP
+   ========================================================= */
+
+const LANGUAGE_MAP = {
+  auto: "auto",
+  hi: "Hindi",
+  en: "English",
+  hinglish: "Hinglish",
+  bn: "Bengali",
+  mr: "Marathi",
+  gu: "Gujarati",
+  ta: "Tamil",
+  te: "Telugu",
+  kn: "Kannada",
+  ml: "Malayalam",
+  pa: "Punjabi",
+  ur: "Urdu",
+  ar: "Arabic",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+  ru: "Russian",
+  ja: "Japanese",
+  ko: "Korean",
+  zh: "Chinese"
+};
+
+/* =========================================================
+   VOICE LANGUAGE DETECTION
+   ========================================================= */
 
 function detectVoiceLanguage(text) {
   const value = String(text || "").trim();
@@ -143,9 +215,51 @@ function detectVoiceLanguage(text) {
   return "en-IN";
 }
 
-// =====================================================
-// VOICE SUPPORT
-// =====================================================
+/* =========================================================
+   LANGUAGE -> VOICE
+   ========================================================= */
+
+function languageToVoiceCode(language) {
+  const map = {
+    hi: "hi-IN",
+    en: "en-IN",
+    hinglish: "hi-IN",
+    bn: "bn-IN",
+    mr: "mr-IN",
+    gu: "gu-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    kn: "kn-IN",
+    ml: "ml-IN",
+    pa: "pa-IN",
+    ur: "ur-PK",
+    ar: "ar-SA",
+    es: "es-ES",
+    fr: "fr-FR",
+    de: "de-DE",
+    pt: "pt-BR",
+    ru: "ru-RU",
+    ja: "ja-JP",
+    ko: "ko-KR",
+    zh: "zh-CN"
+  };
+
+  return map[language] || "en-IN";
+}
+
+function updateVoiceLanguageFromSelection() {
+  if (
+    selectedLanguage &&
+    selectedLanguage !== "auto"
+  ) {
+    selectedVoiceLanguage =
+      languageToVoiceCode(selectedLanguage);
+  }
+}
+
+/* =========================================================
+   VOICE SUPPORT
+   ========================================================= */
 
 function getSpeechRecognitionClass() {
   return (
@@ -166,9 +280,9 @@ function isVoiceOutputSupported() {
   );
 }
 
-// =====================================================
-// VOICE CONTROLS
-// =====================================================
+/* =========================================================
+   VOICE CONTROLS
+   ========================================================= */
 
 function getVoiceControls() {
   return {
@@ -188,16 +302,23 @@ function getVoiceControls() {
   };
 }
 
-// =====================================================
-// CREATE FALLBACK VOICE CONTROLS
-// =====================================================
+function updateVoiceStatus(text) {
+  const controls = getVoiceControls();
+
+  if (controls.status) {
+    controls.status.textContent = text;
+  }
+}
+
+/* =========================================================
+   VOICE BUTTON CREATION
+   ========================================================= */
 
 function createVoiceControls() {
   if (!messageInput) return;
 
-  let controls = getVoiceControls();
+  const controls = getVoiceControls();
 
-  // Existing HTML controls
   if (controls.micButton) {
     bindVoiceButtons(
       controls.micButton,
@@ -213,20 +334,19 @@ function createVoiceControls() {
     return;
   }
 
-  // Create inline mic button
-  const micButton = document.createElement("button");
+  const micButton =
+    document.createElement("button");
 
   micButton.type = "button";
   micButton.id = "atharvMicButton";
   micButton.className = "voice-input-button";
   micButton.textContent = "🎙️";
   micButton.title = "Bolkar poochhein";
-  micButton.setAttribute(
-    "aria-label",
-    "Bolkar poochhein"
-  );
 
-  if (sendButton && sendButton.parentElement) {
+  if (
+    sendButton &&
+    sendButton.parentElement
+  ) {
     sendButton.parentElement.insertBefore(
       micButton,
       sendButton
@@ -237,23 +357,26 @@ function createVoiceControls() {
     );
   }
 
-  // Status below input
-  let status = document.getElementById(
-    "atharvVoiceStatus"
-  );
+  let status =
+    document.getElementById(
+      "atharvVoiceStatus"
+    );
 
   if (!status) {
-    status = document.createElement("div");
+    status =
+      document.createElement("div");
 
     status.id = "atharvVoiceStatus";
     status.className = "voice-status";
     status.textContent = "Voice ready";
 
-    const parent =
-      messageInput.parentElement;
-
-    if (parent && parent.parentElement) {
-      parent.parentElement.appendChild(status);
+    if (
+      messageInput.parentElement &&
+      messageInput.parentElement.parentElement
+    ) {
+      messageInput.parentElement.parentElement.appendChild(
+        status
+      );
     }
   }
 
@@ -269,9 +392,9 @@ function createVoiceControls() {
   );
 }
 
-// =====================================================
-// BIND VOICE BUTTONS
-// =====================================================
+/* =========================================================
+   BIND VOICE BUTTONS
+   ========================================================= */
 
 function bindVoiceButtons(
   micButton,
@@ -281,12 +404,14 @@ function bindVoiceButtons(
   if (!micButton || !status) return;
 
   if (
-    micButton.dataset.atharvBound === "true"
+    micButton.dataset.atharvBound ===
+    "true"
   ) {
     return;
   }
 
-  micButton.dataset.atharvBound = "true";
+  micButton.dataset.atharvBound =
+    "true";
 
   micButton.addEventListener(
     "click",
@@ -326,21 +451,9 @@ function bindVoiceButtons(
   }
 }
 
-// =====================================================
-// VOICE STATUS
-// =====================================================
-
-function updateVoiceStatus(text) {
-  const controls = getVoiceControls();
-
-  if (controls.status) {
-    controls.status.textContent = text;
-  }
-}
-
-// =====================================================
-// SPEECH RECOGNITION
-// =====================================================
+/* =========================================================
+   SPEECH RECOGNITION
+   ========================================================= */
 
 function setupSpeechRecognition(
   micButton,
@@ -408,7 +521,6 @@ function setupSpeechRecognition(
         }
       }
 
-      // Show what is currently being spoken
       if (interimText) {
         messageInput.value =
           interimText;
@@ -418,24 +530,30 @@ function setupSpeechRecognition(
         );
       }
 
-      // Final voice text
       if (finalText.trim()) {
         const cleaned =
           finalText.trim();
 
-        messageInput.value = cleaned;
+        messageInput.value =
+          cleaned;
 
         messageInput.dispatchEvent(
           new Event("input")
         );
 
-        selectedVoiceLanguage =
-          detectVoiceLanguage(cleaned);
+        if (
+          selectedLanguage ===
+          "auto"
+        ) {
+          selectedVoiceLanguage =
+            detectVoiceLanguage(
+              cleaned
+            );
+        }
 
         speechRecognition.lang =
           selectedVoiceLanguage;
 
-        // Automatically send after speaking
         setTimeout(function () {
           if (
             messageInput.value.trim() &&
@@ -457,15 +575,13 @@ function setupSpeechRecognition(
       isListening = false;
 
       micButton.textContent = "🎙️";
-      micButton.title =
-        "Bolkar poochhein";
-
       micButton.classList.remove(
         "listening"
       );
 
       if (
-        event.error === "not-allowed"
+        event.error ===
+        "not-allowed"
       ) {
         status.textContent =
           "🎙️ Microphone permission allow karein.";
@@ -474,11 +590,6 @@ function setupSpeechRecognition(
       ) {
         status.textContent =
           "Kuch sunai nahi diya.";
-      } else if (
-        event.error === "network"
-      ) {
-        status.textContent =
-          "Voice service network error.";
       } else {
         status.textContent =
           "Voice input error.";
@@ -508,9 +619,9 @@ function setupSpeechRecognition(
     };
 }
 
-// =====================================================
-// TOGGLE VOICE INPUT
-// =====================================================
+/* =========================================================
+   TOGGLE VOICE
+   ========================================================= */
 
 function toggleVoiceInput(
   micButton,
@@ -535,7 +646,7 @@ function toggleVoiceInput(
       speechRecognition.stop();
     } catch (error) {
       console.warn(
-        "STOP LISTENING ERROR:",
+        "STOP LISTENING:",
         error
       );
     }
@@ -547,11 +658,19 @@ function toggleVoiceInput(
     stopVoiceOutput();
   }
 
-  const currentText =
-    messageInput.value.trim();
-
-  selectedVoiceLanguage =
-    detectVoiceLanguage(currentText);
+  if (
+    selectedLanguage !== "auto"
+  ) {
+    selectedVoiceLanguage =
+      languageToVoiceCode(
+        selectedLanguage
+      );
+  } else {
+    selectedVoiceLanguage =
+      detectVoiceLanguage(
+        messageInput.value
+      );
+  }
 
   speechRecognition.lang =
     selectedVoiceLanguage;
@@ -560,7 +679,7 @@ function toggleVoiceInput(
     speechRecognition.start();
   } catch (error) {
     console.warn(
-      "START LISTENING ERROR:",
+      "START LISTENING:",
       error
     );
 
@@ -569,9 +688,9 @@ function toggleVoiceInput(
   }
 }
 
-// =====================================================
-// FIND BEST SPEECH VOICE
-// =====================================================
+/* =========================================================
+   SPEECH VOICE
+   ========================================================= */
 
 function findBestSpeechVoice(
   language
@@ -615,13 +734,15 @@ function findBestSpeechVoice(
         item.lang &&
         item.lang
           .toLowerCase()
-          .startsWith(base + "-")
+          .startsWith(
+            base + "-"
+          )
       );
     });
 
   if (voice) return voice;
 
-  voice =
+  return (
     voices.find(function (item) {
       return (
         item.lang &&
@@ -629,24 +750,19 @@ function findBestSpeechVoice(
           .toLowerCase()
           .startsWith(base)
       );
-    });
-
-  return voice || null;
+    }) || null
+  );
 }
 
-// =====================================================
-// SPEAK ATHARV ANSWER
-// =====================================================
+/* =========================================================
+   SPEAK
+   ========================================================= */
 
 function speakText(
   text,
   button = null
 ) {
   if (!isVoiceOutputSupported()) {
-    console.warn(
-      "Speech synthesis not supported."
-    );
-
     return;
   }
 
@@ -668,8 +784,21 @@ function speakText(
       );
     });
 
-  const language =
-    detectVoiceLanguage(cleanText);
+  let language;
+
+  if (
+    selectedLanguage !== "auto"
+  ) {
+    language =
+      languageToVoiceCode(
+        selectedLanguage
+      );
+  } else {
+    language =
+      detectVoiceLanguage(
+        cleanText
+      );
+  }
 
   selectedVoiceLanguage =
     language;
@@ -696,7 +825,8 @@ function speakText(
       isSpeaking = true;
 
       if (button) {
-        button.textContent = "⏹️";
+        button.textContent =
+          "⏹️";
 
         button.classList.add(
           "speaking"
@@ -707,10 +837,12 @@ function speakText(
   utterance.onend =
     function () {
       isSpeaking = false;
-      currentSpeechUtterance = null;
+      currentSpeechUtterance =
+        null;
 
       if (button) {
-        button.textContent = "🔊";
+        button.textContent =
+          "🔊";
 
         button.classList.remove(
           "speaking"
@@ -726,10 +858,12 @@ function speakText(
       );
 
       isSpeaking = false;
-      currentSpeechUtterance = null;
+      currentSpeechUtterance =
+        null;
 
       if (button) {
-        button.textContent = "🔊";
+        button.textContent =
+          "🔊";
 
         button.classList.remove(
           "speaking"
@@ -745,9 +879,9 @@ function speakText(
   );
 }
 
-// =====================================================
-// STOP VOICE OUTPUT
-// =====================================================
+/* =========================================================
+   STOP SPEECH
+   ========================================================= */
 
 function stopVoiceOutput() {
   if (isVoiceOutputSupported()) {
@@ -755,7 +889,7 @@ function stopVoiceOutput() {
       window.speechSynthesis.cancel();
     } catch (error) {
       console.warn(
-        "SPEECH CANCEL ERROR:",
+        "SPEECH CANCEL:",
         error
       );
     }
@@ -770,16 +904,15 @@ function stopVoiceOutput() {
     )
     .forEach(function (button) {
       button.textContent = "🔊";
-
       button.classList.remove(
         "speaking"
       );
     });
 }
 
-// =====================================================
-// AI MESSAGE SPEAKER BUTTON
-// =====================================================
+/* =========================================================
+   AI MESSAGE VOICE BUTTON
+   ========================================================= */
 
 function addVoiceButtonToMessage(
   messageElement,
@@ -801,27 +934,23 @@ function addVoiceButtonToMessage(
   voiceButton.className =
     "atharv-message-voice";
 
-  voiceButton.textContent = "🔊";
+  voiceButton.textContent =
+    "🔊";
+
   voiceButton.title =
     "Atharv ka jawab sunen";
-
-  voiceButton.setAttribute(
-    "aria-label",
-    "Listen to Atharv"
-  );
 
   voiceButton.addEventListener(
     "click",
     function () {
       if (isSpeaking) {
         stopVoiceOutput();
-        return;
+      } else {
+        speakText(
+          text,
+          voiceButton
+        );
       }
-
-      speakText(
-        text,
-        voiceButton
-      );
     }
   );
 
@@ -830,14 +959,16 @@ function addVoiceButtonToMessage(
   );
 }
 
-// =====================================================
-// ADD MESSAGE
-// =====================================================
+/* =========================================================
+   MESSAGE
+   ========================================================= */
 
 function addMessage(
   text,
   type
 ) {
+  if (!chatBox) return null;
+
   const cleanText =
     String(text || "");
 
@@ -874,17 +1005,19 @@ function addMessage(
   return message;
 }
 
-// =====================================================
-// SAVE CHAT HISTORY
-// =====================================================
+/* =========================================================
+   HISTORY
+   ========================================================= */
 
 function saveChatHistory() {
   try {
+    if (!chatBox) return;
+
     const messages = [];
 
-    document
+    chatBox
       .querySelectorAll(
-        "#chatBox .message"
+        ".message"
       )
       .forEach(function (message) {
         if (
@@ -894,14 +1027,14 @@ function saveChatHistory() {
           return;
         }
 
-        const cleanText =
+        const text =
           message.dataset
-            .messageText !== undefined
-            ? message.dataset.messageText
-            : message.textContent;
+            .messageText ||
+          message.textContent ||
+          "";
 
         messages.push({
-          text: cleanText,
+          text: text,
           type:
             message.classList.contains(
               "user"
@@ -913,7 +1046,9 @@ function saveChatHistory() {
 
     localStorage.setItem(
       ATHARV_HISTORY_KEY,
-      JSON.stringify(messages)
+      JSON.stringify(
+        messages.slice(-100)
+      )
     );
   } catch (error) {
     console.error(
@@ -922,10 +1057,6 @@ function saveChatHistory() {
     );
   }
 }
-
-// =====================================================
-// GET CHAT HISTORY
-// =====================================================
 
 function getChatHistory() {
   try {
@@ -939,13 +1070,9 @@ function getChatHistory() {
     const messages =
       JSON.parse(saved);
 
-    if (
-      !Array.isArray(messages)
-    ) {
-      return [];
-    }
-
-    return messages;
+    return Array.isArray(messages)
+      ? messages
+      : [];
   } catch (error) {
     console.error(
       "HISTORY READ ERROR:",
@@ -956,74 +1083,54 @@ function getChatHistory() {
   }
 }
 
-// =====================================================
-// LOAD CHAT HISTORY
-// =====================================================
-
 function loadChatHistory() {
-  try {
-    const messages =
-      getChatHistory();
+  if (!chatBox) return;
 
+  const messages =
+    getChatHistory();
+
+  if (!messages.length) return;
+
+  chatBox.innerHTML = "";
+
+  messages.forEach(function (item) {
     if (
-      !Array.isArray(messages) ||
-      messages.length === 0
+      item &&
+      typeof item.text ===
+        "string" &&
+      (
+        item.type === "user" ||
+        item.type === "ai"
+      )
     ) {
-      return;
+      addMessage(
+        item.text,
+        item.type
+      );
     }
-
-    chatBox.innerHTML = "";
-
-    messages.forEach(function (item) {
-      if (
-        item &&
-        typeof item.text === "string" &&
-        (
-          item.type === "user" ||
-          item.type === "ai"
-        )
-      ) {
-        addMessage(
-          item.text,
-          item.type
-        );
-      }
-    });
-  } catch (error) {
-    console.error(
-      "HISTORY LOAD ERROR:",
-      error
-    );
-  }
+  });
 }
-
-// =====================================================
-// CLEAR CHAT HISTORY
-// =====================================================
 
 function clearChatHistory() {
-  try {
-    stopVoiceOutput();
+  stopVoiceOutput();
 
-    localStorage.removeItem(
-      ATHARV_HISTORY_KEY
-    );
+  localStorage.removeItem(
+    ATHARV_HISTORY_KEY
+  );
 
+  if (chatBox) {
     chatBox.innerHTML = "";
-  } catch (error) {
-    console.error(
-      "CLEAR HISTORY ERROR:",
-      error
-    );
   }
 }
 
-// =====================================================
-// THINKING
-// =====================================================
+/* =========================================================
+   THINKING
+   ========================================================= */
 
 function showThinking() {
   removeThinking();
+
+  if (!chatBox) return;
 
   const message =
     document.createElement(
@@ -1050,19 +1157,17 @@ function showThinking() {
 }
 
 function removeThinking() {
-  const thinking =
+  const item =
     document.getElementById(
       "thinkingMessage"
     );
 
-  if (thinking) {
-    thinking.remove();
-  }
+  if (item) item.remove();
 }
 
-// =====================================================
-// SERVER ANSWER
-// =====================================================
+/* =========================================================
+   SERVER RESPONSE
+   ========================================================= */
 
 function getServerAnswer(data) {
   if (
@@ -1072,7 +1177,7 @@ function getServerAnswer(data) {
     return "";
   }
 
-  const possibleAnswers = [
+  const possible = [
     data.answer,
     data.response,
     data.reply,
@@ -1082,7 +1187,7 @@ function getServerAnswer(data) {
   ];
 
   for (
-    const value of possibleAnswers
+    const value of possible
   ) {
     if (
       typeof value === "string" &&
@@ -1095,9 +1200,173 @@ function getServerAnswer(data) {
   return "";
 }
 
-// =====================================================
-// SEND MESSAGE
-// =====================================================
+/* =========================================================
+   ATTACHMENT
+   ========================================================= */
+
+let selectedAttachment = null;
+
+const fileInput =
+  document.getElementById(
+    "fileInput"
+  );
+
+const attachmentPreview =
+  document.getElementById(
+    "attachmentPreview"
+  );
+
+const attachmentButton =
+  document.getElementById(
+    "attachmentButton"
+  );
+
+function clearAttachment() {
+  selectedAttachment = null;
+
+  if (fileInput) {
+    fileInput.value = "";
+  }
+
+  if (attachmentPreview) {
+    attachmentPreview.innerHTML = "";
+    attachmentPreview.hidden = true;
+  }
+}
+
+function renderAttachmentPreview(
+  file
+) {
+  if (!attachmentPreview) return;
+
+  attachmentPreview.innerHTML = "";
+
+  const wrapper =
+    document.createElement(
+      "div"
+    );
+
+  wrapper.className =
+    "attachment-item";
+
+  const name =
+    document.createElement(
+      "span"
+    );
+
+  name.textContent =
+    "📎 " +
+    file.name +
+    " (" +
+    Math.round(
+      file.size / 1024
+    ) +
+    " KB)";
+
+  const remove =
+    document.createElement(
+      "button"
+    );
+
+  remove.type = "button";
+  remove.textContent = "✕";
+
+  remove.addEventListener(
+    "click",
+    clearAttachment
+  );
+
+  wrapper.appendChild(name);
+  wrapper.appendChild(remove);
+
+  attachmentPreview.appendChild(
+    wrapper
+  );
+
+  attachmentPreview.hidden =
+    false;
+}
+
+if (attachmentButton && fileInput) {
+  attachmentButton.addEventListener(
+    "click",
+    function () {
+      fileInput.click();
+    }
+  );
+}
+
+if (fileInput) {
+  fileInput.addEventListener(
+    "change",
+    function () {
+      const file =
+        this.files &&
+        this.files[0];
+
+      if (!file) return;
+
+      const maxSize =
+        10 * 1024 * 1024;
+
+      if (file.size > maxSize) {
+        alert(
+          "File 10 MB se chhoti honi chahiye."
+        );
+
+        clearAttachment();
+        return;
+      }
+
+      selectedAttachment =
+        file;
+
+      renderAttachmentPreview(
+        file
+      );
+    }
+  );
+}
+
+/* =========================================================
+   FILE TEXT READER
+   ========================================================= */
+
+async function readTextFile(file) {
+  const type =
+    file.type || "";
+
+  const name =
+    file.name.toLowerCase();
+
+  const isText =
+    type.startsWith(
+      "text/"
+    ) ||
+    name.endsWith(".txt") ||
+    name.endsWith(".csv") ||
+    name.endsWith(".md") ||
+    name.endsWith(".json");
+
+  if (!isText) {
+    return null;
+  }
+
+  try {
+    return await file.text();
+  } catch (error) {
+    console.error(
+      "FILE READ ERROR:",
+      error
+    );
+
+    return null;
+  }
+}
+
+/* =========================================================
+   SEND MESSAGE
+   ========================================================= */
 
 async function sendMessage() {
   if (!messageInput) return;
@@ -1114,6 +1383,18 @@ async function sendMessage() {
 
   stopVoiceOutput();
 
+  let attachment =
+    selectedAttachment;
+
+  let attachmentText = null;
+
+  if (attachment) {
+    attachmentText =
+      await readTextFile(
+        attachment
+      );
+  }
+
   addMessage(
     message,
     "user"
@@ -1122,31 +1403,35 @@ async function sendMessage() {
   saveChatHistory();
 
   messageInput.value = "";
-  messageInput.style.height = "auto";
+  messageInput.style.height =
+    "auto";
 
   isThinking = true;
 
   if (sendButton) {
     sendButton.disabled = true;
-    sendButton.style.opacity = "0.5";
+    sendButton.style.opacity =
+      "0.5";
   }
 
   showThinking();
 
-  const controller =
+  currentController =
     new AbortController();
 
   const timeoutId =
     setTimeout(function () {
-      controller.abort();
-    }, 60000);
+      if (currentController) {
+        currentController.abort();
+      }
+    }, 90000);
 
   try {
     const fullHistory =
       getChatHistory();
 
     const recentHistory =
-      fullHistory.slice(-8);
+      fullHistory.slice(-10);
 
     const timeZone =
       Intl.DateTimeFormat()
@@ -1154,9 +1439,49 @@ async function sendMessage() {
         .timeZone ||
       "Asia/Kolkata";
 
+    const body = {
+      message: message,
+      history: recentHistory,
+      timeZone: timeZone,
+      userId: ATHARV_USER_ID,
+
+      language:
+        selectedLanguage,
+
+      languageName:
+        LANGUAGE_MAP[
+          selectedLanguage
+        ] || "Auto Detect"
+    };
+
+    /*
+      Text files can safely be sent as text.
+      Images/PDFs are identified for the backend,
+      but are not converted to base64 here because
+      the current /api/chat endpoint may not accept
+      binary payloads.
+    */
+
+    if (attachment) {
+      body.attachment = {
+        name: attachment.name,
+        type: attachment.type,
+        size: attachment.size
+      };
+
+      if (attachmentText) {
+        body.attachmentText =
+          attachmentText.slice(
+            0,
+            50000
+          );
+      }
+    }
+
     const response =
       await fetch(
-        API_BASE + "/api/chat",
+        API_BASE +
+          "/api/chat",
         {
           method: "POST",
 
@@ -1164,19 +1489,15 @@ async function sendMessage() {
             "Content-Type":
               "application/json",
 
-            "Accept":
+            Accept:
               "application/json"
           },
 
-          body: JSON.stringify({
-            message: message,
-            history: recentHistory,
-            timeZone: timeZone,
-            userId: ATHARV_USER_ID
-          }),
+          body:
+            JSON.stringify(body),
 
           signal:
-            controller.signal
+            currentController.signal
         }
       );
 
@@ -1184,25 +1505,23 @@ async function sendMessage() {
       await response.text();
 
     console.log(
-      "ATHARV SERVER STATUS:",
+      "ATHARV STATUS:",
       response.status
-    );
-
-    console.log(
-      "ATHARV SERVER RESPONSE:",
-      responseText
     );
 
     let data = {};
 
     try {
-      data = responseText
-        ? JSON.parse(responseText)
-        : {};
-    } catch (jsonError) {
+      data =
+        responseText
+          ? JSON.parse(
+              responseText
+            )
+          : {};
+    } catch (error) {
       console.error(
         "JSON PARSE ERROR:",
-        jsonError
+        error
       );
 
       throw new Error(
@@ -1211,13 +1530,12 @@ async function sendMessage() {
     }
 
     if (!response.ok) {
-      const serverError =
-        data.error ||
-        data.message ||
-        `Server error (${response.status})`;
-
       throw new Error(
-        serverError
+        data.error ||
+          data.message ||
+          "Server error (" +
+            response.status +
+            ")"
       );
     }
 
@@ -1225,11 +1543,6 @@ async function sendMessage() {
       getServerAnswer(data);
 
     if (!reply) {
-      console.error(
-        "EMPTY ATHARV RESPONSE:",
-        data
-      );
-
       throw new Error(
         "Atharv server ne empty response diya."
       );
@@ -1244,6 +1557,13 @@ async function sendMessage() {
 
     saveChatHistory();
 
+    /*
+      Attachment is cleared only after
+      successful request.
+    */
+
+    clearAttachment();
+
   } catch (error) {
     removeThinking();
 
@@ -1253,7 +1573,8 @@ async function sendMessage() {
     );
 
     if (
-      error.name === "AbortError"
+      error.name ===
+      "AbortError"
     ) {
       addMessage(
         "⏳ Response lane mein zyada time lag raha hai. Please dobara try karein.",
@@ -1275,11 +1596,15 @@ async function sendMessage() {
   } finally {
     clearTimeout(timeoutId);
 
+    currentController = null;
     isThinking = false;
 
     if (sendButton) {
-      sendButton.disabled = false;
-      sendButton.style.opacity = "1";
+      sendButton.disabled =
+        false;
+
+      sendButton.style.opacity =
+        "1";
     }
 
     if (messageInput) {
@@ -1288,9 +1613,9 @@ async function sendMessage() {
   }
 }
 
-// =====================================================
-// QUICK ASK
-// =====================================================
+/* =========================================================
+   QUICK ASK
+   ========================================================= */
 
 function quickAsk(text) {
   if (
@@ -1300,7 +1625,8 @@ function quickAsk(text) {
     return;
   }
 
-  messageInput.value = text;
+  messageInput.value =
+    text;
 
   messageInput.dispatchEvent(
     new Event("input")
@@ -1309,9 +1635,9 @@ function quickAsk(text) {
   sendMessage();
 }
 
-// =====================================================
-// ENTER TO SEND
-// =====================================================
+/* =========================================================
+   INPUT
+   ========================================================= */
 
 if (messageInput) {
   messageInput.addEventListener(
@@ -1322,6 +1648,7 @@ if (messageInput) {
         !event.shiftKey
       ) {
         event.preventDefault();
+
         sendMessage();
       }
     }
@@ -1330,7 +1657,8 @@ if (messageInput) {
   messageInput.addEventListener(
     "input",
     function () {
-      this.style.height = "auto";
+      this.style.height =
+        "auto";
 
       this.style.height =
         Math.min(
@@ -1341,18 +1669,9 @@ if (messageInput) {
   );
 }
 
-// =====================================================
-// NAVIGATION
-// =====================================================
-
-const navButtons =
-  document.querySelectorAll(
-    ".bottom-nav button"
-  );
-
-// =====================================================
-// PROFILE
-// =====================================================
+/* =========================================================
+   PROFILE / MEMORY
+   ========================================================= */
 
 const profileButton =
   document.querySelector(
@@ -1389,10 +1708,6 @@ const clearAllMemory =
     "clearAllMemory"
   );
 
-// =====================================================
-// MEMORY LABELS
-// =====================================================
-
 const memoryLabels = {
   name: "Name",
   language_preference:
@@ -1409,10 +1724,6 @@ const memoryLabels = {
     "Personal Note"
 };
 
-// =====================================================
-// SHOW CHAT
-// =====================================================
-
 function showChatScreen() {
   if (chatScreen) {
     chatScreen.hidden = false;
@@ -1425,10 +1736,6 @@ function showChatScreen() {
   updateNavActive("chat");
 }
 
-// =====================================================
-// SHOW PROFILE
-// =====================================================
-
 function showProfileScreen() {
   if (chatScreen) {
     chatScreen.hidden = true;
@@ -1438,23 +1745,21 @@ function showProfileScreen() {
     profileScreen.hidden = false;
   }
 
-  updateNavActive("profile");
+  updateNavActive(
+    "profile"
+  );
 
   loadMemories();
-
-  window.scrollTo({
-    top: 0,
-    behavior: "smooth"
-  });
 }
 
-// =====================================================
-// NAV ACTIVE
-// =====================================================
-
-function updateNavActive(name) {
-  navButtons.forEach(
-    function (button) {
+function updateNavActive(
+  name
+) {
+  document
+    .querySelectorAll(
+      ".bottom-nav button"
+    )
+    .forEach(function (button) {
       button.classList.remove(
         "active"
       );
@@ -1467,13 +1772,12 @@ function updateNavActive(name) {
           "active"
         );
       }
-    }
-  );
+    });
 }
 
-// =====================================================
-// RENDER MEMORIES
-// =====================================================
+/* =========================================================
+   MEMORY RENDER
+   ========================================================= */
 
 function renderMemories(
   memories
@@ -1508,7 +1812,8 @@ function renderMemories(
     function (memory) {
       if (
         !memory ||
-        typeof memory !== "object"
+        typeof memory !==
+          "object"
       ) {
         return;
       }
@@ -1569,7 +1874,9 @@ function renderMemories(
           "button"
         );
 
-      deleteButton.type = "button";
+      deleteButton.type =
+        "button";
+
       deleteButton.className =
         "memory-delete";
 
@@ -1600,9 +1907,9 @@ function renderMemories(
   );
 }
 
-// =====================================================
-// LOAD MEMORIES
-// =====================================================
+/* =========================================================
+   LOAD MEMORY
+   ========================================================= */
 
 async function loadMemories() {
   if (!memoryList) return;
@@ -1620,8 +1927,9 @@ async function loadMemories() {
           ),
         {
           method: "GET",
+
           headers: {
-            "Accept":
+            Accept:
               "application/json"
           }
         }
@@ -1656,9 +1964,9 @@ async function loadMemories() {
   }
 }
 
-// =====================================================
-// DELETE SINGLE MEMORY
-// =====================================================
+/* =========================================================
+   DELETE MEMORY
+   ========================================================= */
 
 async function deleteSingleMemory(
   key
@@ -1667,12 +1975,13 @@ async function deleteSingleMemory(
     memoryLabels[key] ||
     key;
 
-  const confirmed =
-    window.confirm(
+  if (
+    !window.confirm(
       `Kya aap "${label}" memory ko bhoolna chahte hain?`
-    );
-
-  if (!confirmed) return;
+    )
+  ) {
+    return;
+  }
 
   try {
     const response =
@@ -1686,14 +1995,13 @@ async function deleteSingleMemory(
             "Content-Type":
               "application/json",
 
-            "Accept":
+            Accept:
               "application/json"
           },
 
           body: JSON.stringify({
             userId:
               ATHARV_USER_ID,
-
             key: key
           })
         }
@@ -1709,17 +2017,9 @@ async function deleteSingleMemory(
       );
     }
 
-    if (
-      Array.isArray(
-        data.memories
-      )
-    ) {
-      renderMemories(
-        data.memories
-      );
-    } else {
-      await loadMemories();
-    }
+    renderMemories(
+      data.memories || []
+    );
   } catch (error) {
     console.error(
       "MEMORY DELETE ERROR:",
@@ -1736,17 +2036,18 @@ async function deleteSingleMemory(
   }
 }
 
-// =====================================================
-// DELETE ALL MEMORIES
-// =====================================================
+/* =========================================================
+   DELETE ALL MEMORY
+   ========================================================= */
 
 async function deleteAllMemories() {
-  const confirmed =
-    window.confirm(
+  if (
+    !window.confirm(
       "Kya aap Atharv ki SAARI memories delete karna chahte hain?\n\nYe action undo nahi kiya ja sakta."
-    );
-
-  if (!confirmed) return;
+    )
+  ) {
+    return;
+  }
 
   try {
     if (clearAllMemory) {
@@ -1768,7 +2069,7 @@ async function deleteAllMemories() {
             "Content-Type":
               "application/json",
 
-            "Accept":
+            Accept:
               "application/json"
           },
 
@@ -1814,9 +2115,9 @@ async function deleteAllMemories() {
   }
 }
 
-// =====================================================
-// PROFILE EVENTS
-// =====================================================
+/* =========================================================
+   PROFILE EVENTS
+   ========================================================= */
 
 if (profileButton) {
   profileButton.addEventListener(
@@ -1846,12 +2147,69 @@ if (clearAllMemory) {
   );
 }
 
-// =====================================================
-// BOTTOM NAVIGATION
-// =====================================================
+/* =========================================================
+   MARKET / ALERTS
+   ========================================================= */
 
-navButtons.forEach(
-  function (button) {
+function showMarketScreen() {
+  const screen =
+    document.getElementById(
+      "marketScreen"
+    );
+
+  if (screen) {
+    if (chatScreen) {
+      chatScreen.hidden = true;
+    }
+
+    if (profileScreen) {
+      profileScreen.hidden = true;
+    }
+
+    screen.hidden = false;
+    updateNavActive("market");
+    return;
+  }
+
+  quickAsk(
+    "Give me the latest stock market update for India, including NIFTY, SENSEX and important market news."
+  );
+}
+
+function showAlertsScreen() {
+  const screen =
+    document.getElementById(
+      "alertsScreen"
+    );
+
+  if (screen) {
+    if (chatScreen) {
+      chatScreen.hidden = true;
+    }
+
+    if (profileScreen) {
+      profileScreen.hidden = true;
+    }
+
+    screen.hidden = false;
+    updateNavActive("alerts");
+    return;
+  }
+
+  quickAsk(
+    "What important alerts or major breaking news should I know about right now?"
+  );
+}
+
+/* =========================================================
+   BOTTOM NAV
+   ========================================================= */
+
+document
+  .querySelectorAll(
+    ".bottom-nav button"
+  )
+  .forEach(function (button) {
     button.addEventListener(
       "click",
       function () {
@@ -1869,35 +2227,52 @@ navButtons.forEach(
         }
 
         if (nav === "market") {
-          alert(
-            "📈 Market module next stage mein activate hoga."
-          );
-
-          showChatScreen();
+          showMarketScreen();
           return;
         }
 
         if (nav === "alerts") {
-          alert(
-            "🔔 Alerts module next stage mein activate hoga."
-          );
-
-          showChatScreen();
+          showAlertsScreen();
           return;
         }
       }
     );
-  }
-);
+  });
 
-// =====================================================
-// VOICE INITIALIZATION
-// =====================================================
+/* =========================================================
+   QUICK BUTTONS
+   ========================================================= */
+
+document
+  .querySelectorAll(
+    "[data-quick]"
+  )
+  .forEach(function (button) {
+    button.addEventListener(
+      "click",
+      function () {
+        const text =
+          button.dataset.quick;
+
+        if (text) {
+          quickAsk(text);
+        }
+      }
+    );
+  });
+
+/* =========================================================
+   VOICE INITIALIZATION
+   ========================================================= */
 
 function initializeAtharvVoice() {
+  updateVoiceLanguageFromSelection();
+
   createVoiceControls();
 
-  if (isVoiceOutputSupported()) {
+  if (
+    isVoiceOutputSupported()
+  ) {
     window.speechSynthesis.onvoiceschanged =
       function () {
         console.log(
@@ -1910,19 +2285,19 @@ function initializeAtharvVoice() {
   }
 
   console.log(
-    "Voice input supported:",
+    "Voice input:",
     isVoiceInputSupported()
   );
 
   console.log(
-    "Voice output supported:",
+    "Voice output:",
     isVoiceOutputSupported()
   );
 }
 
-// =====================================================
-// GLOBAL FUNCTIONS
-// =====================================================
+/* =========================================================
+   GLOBAL FUNCTIONS
+   ========================================================= */
 
 window.sendMessage =
   sendMessage;
@@ -1939,58 +2314,77 @@ window.speakText =
 window.stopVoiceOutput =
   stopVoiceOutput;
 
-// =====================================================
-// START
-// =====================================================
+window.showProfileScreen =
+  showProfileScreen;
+
+window.showChatScreen =
+  showChatScreen;
+
+window.showMarketScreen =
+  showMarketScreen;
+
+window.showAlertsScreen =
+  showAlertsScreen;
+
+window.loadMemories =
+  loadMemories;
+
+/* =========================================================
+   START
+   ========================================================= */
 
 console.log(
-  "================================"
+  "========================================"
 );
 
 console.log(
-  "ATHARV AI LOADED 🤖"
+  "ATHARV AI FINAL FRONTEND LOADED 🤖"
 );
 
 console.log(
-  "Permanent User ID enabled."
+  "Permanent User ID: ENABLED"
 );
 
 console.log(
-  "Memory UI enabled."
+  "Chat History: ENABLED"
 );
 
 console.log(
-  "Chat history enabled."
+  "Memory UI: ENABLED"
 );
 
 console.log(
-  "Conversation context enabled."
+  "Multilingual UI: ENABLED"
 );
 
 console.log(
-  "Text chat enabled 💬"
+  "Voice Input: ENABLED"
 );
 
 console.log(
-  "Voice input enabled 🎙️"
+  "Voice Output: ENABLED"
 );
 
 console.log(
-  "Voice output enabled 🔊"
+  "Attachment UI: ENABLED"
 );
 
 console.log(
-  "================================"
+  "Market UI: ENABLED"
 );
 
-// =====================================================
-// LOAD CHAT
-// =====================================================
+console.log(
+  "Alerts UI: ENABLED"
+);
+
+console.log(
+  "========================================"
+);
+
+/* =========================================================
+   INITIAL LOAD
+   ========================================================= */
 
 loadChatHistory();
-
-// =====================================================
-// INITIALIZE VOICE
-// =====================================================
 
 initializeAtharvVoice();
