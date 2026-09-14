@@ -14,6 +14,7 @@ let isThinking = false;
 const ATHARV_HISTORY_KEY =
 "atharv_chat_history";
 
+
 // =====================================================
 // PERMANENT USER ID
 // =====================================================
@@ -23,63 +24,62 @@ const ATHARV_USER_ID_KEY =
 
 function getAtharvUserId() {
 
-try {
+  try {
 
-  let userId =
-    localStorage.getItem(
-      ATHARV_USER_ID_KEY
+    let userId =
+      localStorage.getItem(
+        ATHARV_USER_ID_KEY
+      );
+
+    if (userId) {
+      return userId;
+    }
+
+    if (
+      window.crypto &&
+      typeof window.crypto.randomUUID ===
+        "function"
+    ) {
+
+      userId =
+        window.crypto.randomUUID();
+
+    } else {
+
+      userId =
+        "atharv_" +
+        Date.now() +
+        "_" +
+        Math.random()
+          .toString(36)
+          .substring(2, 12);
+
+    }
+
+    localStorage.setItem(
+      ATHARV_USER_ID_KEY,
+      userId
     );
 
-  if (userId) {
     return userId;
-  }
 
-  // Generate a unique browser/user ID
-  if (
-    window.crypto &&
-    typeof window.crypto.randomUUID === "function"
-  ) {
+  } catch (error) {
 
-    userId =
-      window.crypto.randomUUID();
+    console.error(
+      "USER ID ERROR:",
+      error
+    );
 
-  } else {
-
-    userId =
+    return (
       "atharv_" +
       Date.now() +
       "_" +
       Math.random()
         .toString(36)
-        .substring(2, 12);
+        .substring(2, 12)
+    );
 
   }
-
-  localStorage.setItem(
-    ATHARV_USER_ID_KEY,
-    userId
-  );
-
-  return userId;
-
-} catch (error) {
-
-  console.error(
-    "USER ID ERROR:",
-    error
-  );
-
-  // Fallback if localStorage is unavailable
-  return (
-    "atharv_" +
-    Date.now() +
-    "_" +
-    Math.random()
-      .toString(36)
-      .substring(2, 12)
-  );
-
-}
 
 }
 
@@ -91,30 +91,34 @@ console.log(
   ATHARV_USER_ID
 );
 
+
 // =====================================================
 // ADD MESSAGE
 // =====================================================
 
 function addMessage(text, type) {
 
-const message =
-document.createElement("div");
+  const message =
+    document.createElement("div");
 
-message.className =
-"message " + type;
+  message.className =
+    "message " + type;
 
-message.textContent =
-text;
+  message.textContent =
+    text;
 
-chatBox.appendChild(message);
+  chatBox.appendChild(
+    message
+  );
 
-message.scrollIntoView({
-behavior: "smooth",
-block: "end"
-});
+  message.scrollIntoView({
+    behavior: "smooth",
+    block: "end"
+  });
 
-return message;
+  return message;
 }
+
 
 // =====================================================
 // SAVE HISTORY
@@ -122,47 +126,55 @@ return message;
 
 function saveChatHistory() {
 
-try {
+  try {
 
-const messages = [];
+    const messages = [];
 
-document
-  .querySelectorAll("#chatBox .message")
-  .forEach(function (message) {
+    document
+      .querySelectorAll(
+        "#chatBox .message"
+      )
+      .forEach(function (message) {
 
-    if (
-      message.id ===
-      "thinkingMessage"
-    ) {
-      return;
-    }
+        if (
+          message.id ===
+          "thinkingMessage"
+        ) {
+          return;
+        }
 
-    messages.push({
-      text:
-        message.textContent,
+        messages.push({
 
-      type:
-        message.classList.contains("user")
-          ? "user"
-          : "ai"
-    });
+          text:
+            message.textContent,
 
-  });
+          type:
+            message.classList.contains(
+              "user"
+            )
+              ? "user"
+              : "ai"
 
-localStorage.setItem(
-  ATHARV_HISTORY_KEY,
-  JSON.stringify(messages)
-);
+        });
 
-} catch (error) {
+      });
 
-console.error(
-"HISTORY SAVE ERROR:",
-error
-);
+    localStorage.setItem(
+      ATHARV_HISTORY_KEY,
+      JSON.stringify(messages)
+    );
+
+  } catch (error) {
+
+    console.error(
+      "HISTORY SAVE ERROR:",
+      error
+    );
+
+  }
 
 }
-}
+
 
 // =====================================================
 // GET HISTORY
@@ -170,37 +182,39 @@ error
 
 function getChatHistory() {
 
-try {
+  try {
 
-const saved =
-  localStorage.getItem(
-    ATHARV_HISTORY_KEY
-  );
+    const saved =
+      localStorage.getItem(
+        ATHARV_HISTORY_KEY
+      );
 
-if (!saved) {
-  return [];
+    if (!saved) {
+      return [];
+    }
+
+    const messages =
+      JSON.parse(saved);
+
+    if (!Array.isArray(messages)) {
+      return [];
+    }
+
+    return messages;
+
+  } catch (error) {
+
+    console.error(
+      "HISTORY READ ERROR:",
+      error
+    );
+
+    return [];
+
+  }
+
 }
 
-const messages =
-  JSON.parse(saved);
-
-if (!Array.isArray(messages)) {
-  return [];
-}
-
-return messages;
-
-} catch (error) {
-
-console.error(
-"HISTORY READ ERROR:",
-error
-);
-
-return [];
-
-}
-}
 
 // =====================================================
 // LOAD HISTORY
@@ -208,49 +222,52 @@ return [];
 
 function loadChatHistory() {
 
-try {
+  try {
 
-const messages =
-  getChatHistory();
+    const messages =
+      getChatHistory();
 
-if (
-  !Array.isArray(messages) ||
-  messages.length === 0
-) {
-  return;
-}
+    if (
+      !Array.isArray(messages) ||
+      messages.length === 0
+    ) {
+      return;
+    }
 
-chatBox.innerHTML = "";
+    chatBox.innerHTML = "";
 
-messages.forEach(function (item) {
+    messages.forEach(function (item) {
 
-  if (
-    item &&
-    typeof item.text === "string" &&
-    (
-      item.type === "user" ||
-      item.type === "ai"
-    )
-  ) {
+      if (
+        item &&
+        typeof item.text ===
+          "string" &&
+        (
+          item.type === "user" ||
+          item.type === "ai"
+        )
+      ) {
 
-    addMessage(
-      item.text,
-      item.type
+        addMessage(
+          item.text,
+          item.type
+        );
+
+      }
+
+    });
+
+  } catch (error) {
+
+    console.error(
+      "HISTORY LOAD ERROR:",
+      error
     );
 
   }
 
-});
-
-} catch (error) {
-
-console.error(
-"HISTORY LOAD ERROR:",
-error
-);
-
 }
-}
+
 
 // =====================================================
 // CLEAR HISTORY
@@ -258,23 +275,25 @@ error
 
 function clearChatHistory() {
 
-try {
+  try {
 
-localStorage.removeItem(
-  ATHARV_HISTORY_KEY
-);
+    localStorage.removeItem(
+      ATHARV_HISTORY_KEY
+    );
 
-chatBox.innerHTML = "";
+    chatBox.innerHTML = "";
 
-} catch (error) {
+  } catch (error) {
 
-console.error(
-"CLEAR HISTORY ERROR:",
-error
-);
+    console.error(
+      "CLEAR HISTORY ERROR:",
+      error
+    );
+
+  }
 
 }
-}
+
 
 // =====================================================
 // THINKING
@@ -282,28 +301,31 @@ error
 
 function showThinking() {
 
-removeThinking();
+  removeThinking();
 
-const message =
-document.createElement("div");
+  const message =
+    document.createElement("div");
 
-message.className =
-"message ai thinking";
+  message.className =
+    "message ai thinking";
 
-message.id =
-"thinkingMessage";
+  message.id =
+    "thinkingMessage";
 
-message.textContent =
-"Atharv soch raha hai... 🤔";
+  message.textContent =
+    "Atharv soch raha hai... 🤔";
 
-chatBox.appendChild(message);
+  chatBox.appendChild(
+    message
+  );
 
-message.scrollIntoView({
-behavior: "smooth",
-block: "end"
-});
+  message.scrollIntoView({
+    behavior: "smooth",
+    block: "end"
+  });
 
 }
+
 
 // =====================================================
 // REMOVE THINKING
@@ -311,16 +333,17 @@ block: "end"
 
 function removeThinking() {
 
-const thinking =
-document.getElementById(
-  "thinkingMessage"
-);
+  const thinking =
+    document.getElementById(
+      "thinkingMessage"
+    );
 
-if (thinking) {
-  thinking.remove();
+  if (thinking) {
+    thinking.remove();
+  }
+
 }
 
-}
 
 // =====================================================
 // SEND MESSAGE
@@ -328,265 +351,226 @@ if (thinking) {
 
 async function sendMessage() {
 
-const message =
-messageInput.value.trim();
+  const message =
+    messageInput.value.trim();
 
-if (
-!message ||
-isThinking
-) {
-return;
-}
+  if (
+    !message ||
+    isThinking
+  ) {
+    return;
+  }
 
-// -----------------------------------------------
-// USER MESSAGE
-// -----------------------------------------------
 
-addMessage(
-message,
-"user"
-);
+  addMessage(
+    message,
+    "user"
+  );
 
-saveChatHistory();
+  saveChatHistory();
 
-messageInput.value = "";
+  messageInput.value = "";
 
-messageInput.style.height =
-"auto";
+  messageInput.style.height =
+    "auto";
 
-// -----------------------------------------------
-// THINKING STATE
-// -----------------------------------------------
 
-isThinking = true;
+  isThinking = true;
 
-sendButton.disabled = true;
+  sendButton.disabled =
+    true;
 
-sendButton.style.opacity =
-"0.5";
+  sendButton.style.opacity =
+    "0.5";
 
-showThinking();
+  showThinking();
 
-// -----------------------------------------------
-// REQUEST TIMEOUT
-// -----------------------------------------------
 
-const controller =
-new AbortController();
+  const controller =
+    new AbortController();
 
-const timeoutId =
-setTimeout(function () {
+  const timeoutId =
+    setTimeout(function () {
 
-  controller.abort();
+      controller.abort();
 
-}, 60000);
+    }, 60000);
 
-try {
 
-// ---------------------------------------------
-// RECENT HISTORY
-// ---------------------------------------------
+  try {
 
-const fullHistory =
-  getChatHistory();
+    const fullHistory =
+      getChatHistory();
 
-const recentHistory =
-  fullHistory.slice(-8);
+    const recentHistory =
+      fullHistory.slice(-8);
 
-// ---------------------------------------------
-// USER TIMEZONE
-// ---------------------------------------------
 
-const timeZone =
-  Intl.DateTimeFormat()
-    .resolvedOptions()
-    .timeZone ||
-  "Asia/Kolkata";
+    const timeZone =
+      Intl.DateTimeFormat()
+        .resolvedOptions()
+        .timeZone ||
+      "Asia/Kolkata";
 
-// ---------------------------------------------
-// SEND REQUEST
-// ---------------------------------------------
 
-const response =
-  await fetch(
-    API_BASE + "/api/chat",
-    {
-      method: "POST",
+    const response =
+      await fetch(
+        API_BASE + "/api/chat",
+        {
 
-      headers: {
-        "Content-Type":
-          "application/json",
+          method: "POST",
 
-        "Accept":
-          "application/json"
-      },
+          headers: {
 
-      body:
-        JSON.stringify({
+            "Content-Type":
+              "application/json",
 
-          message:
-            message,
+            "Accept":
+              "application/json"
 
-          history:
-            recentHistory,
+          },
 
-          timeZone:
-            timeZone,
+          body:
+            JSON.stringify({
 
-          // Permanent Atharv user ID
-          userId:
-            ATHARV_USER_ID
+              message:
+                message,
 
-        }),
+              history:
+                recentHistory,
 
-      signal:
-        controller.signal
+              timeZone:
+                timeZone,
+
+              userId:
+                ATHARV_USER_ID
+
+            }),
+
+          signal:
+            controller.signal
+
+        }
+      );
+
+
+    const responseText =
+      await response.text();
+
+    console.log(
+      "ATHARV SERVER STATUS:",
+      response.status
+    );
+
+    console.log(
+      "ATHARV SERVER RESPONSE:",
+      responseText
+    );
+
+
+    let data = {};
+
+    try {
+
+      data =
+        responseText
+          ? JSON.parse(
+              responseText
+            )
+          : {};
+
+    } catch (jsonError) {
+
+      throw new Error(
+        "Server ne valid JSON response nahi diya."
+      );
+
     }
-  );
 
-// ---------------------------------------------
-// READ RESPONSE
-// ---------------------------------------------
 
-const responseText =
-  await response.text();
+    if (!response.ok) {
 
-console.log(
-  "ATHARV SERVER STATUS:",
-  response.status
-);
+      const serverError =
+        data.error ||
+        data.message ||
+        `Server error (${response.status})`;
 
-console.log(
-  "ATHARV SERVER RESPONSE:",
-  responseText
-);
+      throw new Error(
+        serverError
+      );
 
-let data = {};
+    }
 
-try {
 
-  data =
-    responseText
-      ? JSON.parse(responseText)
-      : {};
+    removeThinking();
 
-} catch (jsonError) {
 
-  console.error(
-    "JSON PARSE ERROR:",
-    jsonError
-  );
+    const reply =
+      data.reply ||
+      data.response ||
+      data.message ||
+      "Atharv ko response nahi mila.";
 
-  throw new Error(
-    "Server ne valid JSON response nahi diya."
-  );
+    addMessage(
+      reply,
+      "ai"
+    );
 
-}
+    saveChatHistory();
 
-// ---------------------------------------------
-// SERVER ERROR
-// ---------------------------------------------
+  } catch (error) {
 
-if (!response.ok) {
+    removeThinking();
 
-  const serverError =
-    data.error ||
-    data.message ||
-    `Server error (${response.status})`;
+    console.error(
+      "ATHARV ERROR:",
+      error
+    );
 
-  console.error(
-    "ATHARV SERVER ERROR:",
-    serverError
-  );
 
-  throw new Error(
-    serverError
-  );
+    if (
+      error.name ===
+      "AbortError"
+    ) {
 
-}
+      addMessage(
+        "⏳ Response lane mein zyada time lag raha hai. Please dobara try karein.",
+        "ai"
+      );
 
-// ---------------------------------------------
-// REMOVE THINKING
-// -----------------------------------------------
+    } else {
 
-removeThinking();
+      addMessage(
+        "⚠️ Atharv response nahi la paaya.\n\nReason: " +
+        error.message,
+        "ai"
+      );
 
-// ---------------------------------------------
-// ATHARV RESPONSE
-// ---------------------------------------------
+    }
 
-const reply =
-  data.reply ||
-  data.response ||
-  data.message ||
-  "Atharv ko response nahi mila.";
+    saveChatHistory();
 
-addMessage(
-  reply,
-  "ai"
-);
+  } finally {
 
-saveChatHistory();
+    clearTimeout(
+      timeoutId
+    );
 
-} catch (error) {
+    isThinking =
+      false;
 
-removeThinking();
+    sendButton.disabled =
+      false;
 
-console.error(
-"ATHARV ERROR:",
-error
-);
+    sendButton.style.opacity =
+      "1";
 
-// ---------------------------------------------
-// TIMEOUT
-// ---------------------------------------------
+    messageInput.focus();
 
-if (
-  error.name === "AbortError"
-) {
-
-  addMessage(
-    "⏳ Live information lane mein zyada time lag raha hai. Please dobara try karein.",
-    "ai"
-  );
+  }
 
 }
 
-// ---------------------------------------------
-// ACTUAL SERVER ERROR
-// ---------------------------------------------
-
-else {
-
-  addMessage(
-    "⚠️ Atharv live response nahi la paaya.\n\nReason: " +
-    error.message,
-    "ai"
-  );
-
-}
-
-saveChatHistory();
-
-} finally {
-
-clearTimeout(
-  timeoutId
-);
-
-isThinking = false;
-
-sendButton.disabled =
-  false;
-
-sendButton.style.opacity =
-  "1";
-
-messageInput.focus();
-
-}
-
-}
 
 // =====================================================
 // QUICK ASK
@@ -594,85 +578,688 @@ messageInput.focus();
 
 function quickAsk(text) {
 
-if (isThinking) {
-return;
+  if (isThinking) {
+    return;
+  }
+
+  messageInput.value =
+    text;
+
+  sendMessage();
+
 }
 
-messageInput.value =
-text;
-
-sendMessage();
-
-}
 
 // =====================================================
 // ENTER TO SEND
 // =====================================================
 
 messageInput.addEventListener(
-"keydown",
-function (event) {
+  "keydown",
+  function (event) {
 
-if (
-  event.key === "Enter" &&
-  !event.shiftKey
-) {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
 
-  event.preventDefault();
+      event.preventDefault();
 
-  sendMessage();
+      sendMessage();
 
-}
+    }
 
-}
+  }
 );
 
+
 // =====================================================
-// AUTO RESIZE TEXTAREA
+// AUTO RESIZE
 // =====================================================
 
 messageInput.addEventListener(
-"input",
-function () {
+  "input",
+  function () {
 
-this.style.height =
-  "auto";
+    this.style.height =
+      "auto";
 
-this.style.height =
-  Math.min(
-    this.scrollHeight,
-    120
-  ) + "px";
+    this.style.height =
+      Math.min(
+        this.scrollHeight,
+        120
+      ) + "px";
+
+  }
+);
+
+
+// =====================================================
+// PROFILE ELEMENTS
+// =====================================================
+
+const profileButton =
+document.querySelector(
+  ".profile"
+);
+
+const profileScreen =
+document.getElementById(
+  "profileScreen"
+);
+
+const chatScreen =
+document.getElementById(
+  "chatScreen"
+);
+
+const profileBack =
+document.getElementById(
+  "profileBack"
+);
+
+const memoryList =
+document.getElementById(
+  "memoryList"
+);
+
+const refreshMemory =
+document.getElementById(
+  "refreshMemory"
+);
+
+const clearAllMemory =
+document.getElementById(
+  "clearAllMemory"
+);
+
+
+// =====================================================
+// MEMORY LABELS
+// =====================================================
+
+const memoryLabels = {
+
+  name:
+    "Name",
+
+  language_preference:
+    "Language Preference",
+
+  response_style:
+    "Response Style",
+
+  answer_length:
+    "Answer Length",
+
+  teaching_style:
+    "Teaching Style",
+
+  learning_goal:
+    "Learning Goal",
+
+  user_note:
+    "Personal Note"
+
+};
+
+
+// =====================================================
+// SHOW CHAT
+// =====================================================
+
+function showChatScreen() {
+
+  if (chatScreen) {
+
+    chatScreen.hidden =
+      false;
+
+  }
+
+  if (profileScreen) {
+
+    profileScreen.hidden =
+      true;
+
+  }
+
+  updateNavActive(
+    "chat"
+  );
 
 }
-);
+
+
+// =====================================================
+// SHOW PROFILE
+// =====================================================
+
+function showProfileScreen() {
+
+  if (chatScreen) {
+
+    chatScreen.hidden =
+      true;
+
+  }
+
+  if (profileScreen) {
+
+    profileScreen.hidden =
+      false;
+
+  }
+
+  updateNavActive(
+    "profile"
+  );
+
+  loadMemories();
+
+  window.scrollTo({
+    top: 0,
+    behavior: "smooth"
+  });
+
+}
+
+
+// =====================================================
+// NAV ACTIVE
+// =====================================================
+
+function updateNavActive(
+  name
+) {
+
+  navButtons.forEach(
+    function (button) {
+
+      button.classList.remove(
+        "active"
+      );
+
+      if (
+        button.dataset.nav ===
+        name
+      ) {
+
+        button.classList.add(
+          "active"
+        );
+
+      }
+
+    }
+  );
+
+}
+
+
+// =====================================================
+// RENDER MEMORIES
+// =====================================================
+
+function renderMemories(
+  memories
+) {
+
+  if (!memoryList) {
+    return;
+  }
+
+  memoryList.innerHTML =
+    "";
+
+
+  if (
+    !Array.isArray(memories) ||
+    memories.length === 0
+  ) {
+
+    const empty =
+      document.createElement(
+        "div"
+      );
+
+    empty.className =
+      "memory-empty";
+
+    empty.textContent =
+      "🧠 Abhi Atharv ke paas koi saved memory nahi hai.";
+
+    memoryList.appendChild(
+      empty
+    );
+
+    return;
+
+  }
+
+
+  memories.forEach(
+    function (memory) {
+
+      const item =
+        document.createElement(
+          "div"
+        );
+
+      item.className =
+        "memory-item";
+
+
+      const content =
+        document.createElement(
+          "div"
+        );
+
+      content.className =
+        "memory-content";
+
+
+      const label =
+        document.createElement(
+          "div"
+        );
+
+      label.className =
+        "memory-label";
+
+      label.textContent =
+        memoryLabels[
+          memory.memory_key
+        ] ||
+        memory.memory_key;
+
+
+      const value =
+        document.createElement(
+          "div"
+        );
+
+      value.className =
+        "memory-value";
+
+      value.textContent =
+        memory.memory_value;
+
+
+      content.appendChild(
+        label
+      );
+
+      content.appendChild(
+        value
+      );
+
+
+      const deleteButton =
+        document.createElement(
+          "button"
+        );
+
+      deleteButton.type =
+        "button";
+
+      deleteButton.className =
+        "memory-delete";
+
+      deleteButton.textContent =
+        "Forget";
+
+
+      deleteButton.addEventListener(
+        "click",
+        function () {
+
+          deleteSingleMemory(
+            memory.memory_key
+          );
+
+        }
+      );
+
+
+      item.appendChild(
+        content
+      );
+
+      item.appendChild(
+        deleteButton
+      );
+
+
+      memoryList.appendChild(
+        item
+      );
+
+    }
+  );
+
+}
+
+
+// =====================================================
+// LOAD MEMORIES
+// =====================================================
+
+async function loadMemories() {
+
+  if (!memoryList) {
+    return;
+  }
+
+  memoryList.innerHTML =
+    '<div class="memory-loading">🧠 Memories load ho rahi hain...</div>';
+
+
+  try {
+
+    const response =
+      await fetch(
+        API_BASE +
+        "/api/memory?userId=" +
+        encodeURIComponent(
+          ATHARV_USER_ID
+        ),
+        {
+          method: "GET",
+
+          headers: {
+            "Accept":
+              "application/json"
+          }
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        "Memory load failed."
+      );
+
+    }
+
+
+    renderMemories(
+      data.memories || []
+    );
+
+  } catch (error) {
+
+    console.error(
+      "MEMORY LOAD ERROR:",
+      error
+    );
+
+    memoryList.innerHTML =
+      '<div class="memory-error">⚠️ Memory load nahi ho paayi.<br><br>' +
+      error.message +
+      "</div>";
+
+  }
+
+}
+
+
+// =====================================================
+// DELETE SINGLE MEMORY
+// =====================================================
+
+async function deleteSingleMemory(
+  key
+) {
+
+  const label =
+    memoryLabels[key] ||
+    key;
+
+
+  const confirmed =
+    window.confirm(
+      `Kya aap "${label}" memory ko bhoolna chahte hain?`
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  try {
+
+    const response =
+      await fetch(
+        API_BASE +
+        "/api/memory/delete",
+        {
+
+          method:
+            "POST",
+
+          headers: {
+
+            "Content-Type":
+              "application/json",
+
+            "Accept":
+              "application/json"
+
+          },
+
+          body:
+            JSON.stringify({
+
+              userId:
+                ATHARV_USER_ID,
+
+              key:
+                key
+
+            })
+
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        "Memory delete failed."
+      );
+
+    }
+
+
+    renderMemories(
+      data.memories || []
+    );
+
+  } catch (error) {
+
+    console.error(
+      "MEMORY DELETE ERROR:",
+      error
+    );
+
+    alert(
+      "Memory delete nahi ho paayi.\n\n" +
+      error.message
+    );
+
+  }
+
+}
+
+
+// =====================================================
+// DELETE ALL MEMORIES
+// =====================================================
+
+async function deleteAllMemories() {
+
+  const confirmed =
+    window.confirm(
+      "Kya aap Atharv ki SAARI memories delete karna chahte hain?\n\nYe action undo nahi kiya ja sakta."
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  try {
+
+    clearAllMemory.disabled =
+      true;
+
+    clearAllMemory.textContent =
+      "Deleting...";
+
+
+    const response =
+      await fetch(
+        API_BASE +
+        "/api/memory/clear",
+        {
+
+          method:
+            "POST",
+
+          headers: {
+
+            "Content-Type":
+              "application/json",
+
+            "Accept":
+              "application/json"
+
+          },
+
+          body:
+            JSON.stringify({
+
+              userId:
+                ATHARV_USER_ID
+
+            })
+
+        }
+      );
+
+
+    const data =
+      await response.json();
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        data.error ||
+        "Memory clear failed."
+      );
+
+    }
+
+
+    renderMemories(
+      []
+    );
+
+  } catch (error) {
+
+    console.error(
+      "MEMORY CLEAR ERROR:",
+      error
+    );
+
+    alert(
+      "All memories delete nahi ho paayi.\n\n" +
+      error.message
+    );
+
+  } finally {
+
+    clearAllMemory.disabled =
+      false;
+
+    clearAllMemory.textContent =
+      "🧹 Forget All Memories";
+
+  }
+
+}
+
 
 // =====================================================
 // PROFILE BUTTON
 // =====================================================
 
-const profileButton =
-document.querySelector(
-".profile"
-);
-
 if (profileButton) {
 
-profileButton.addEventListener(
-"click",
-function () {
-
-  addMessage(
-    "👤 Profile system Atharv ke next stage mein activate hoga.",
-    "ai"
+  profileButton.addEventListener(
+    "click",
+    showProfileScreen
   );
 
-  saveChatHistory();
+}
+
+
+// =====================================================
+// BACK FROM PROFILE
+// =====================================================
+
+if (profileBack) {
+
+  profileBack.addEventListener(
+    "click",
+    showChatScreen
+  );
 
 }
-);
+
+
+// =====================================================
+// REFRESH MEMORY
+// =====================================================
+
+if (refreshMemory) {
+
+  refreshMemory.addEventListener(
+    "click",
+    loadMemories
+  );
 
 }
+
+
+// =====================================================
+// CLEAR ALL
+// =====================================================
+
+if (clearAllMemory) {
+
+  clearAllMemory.addEventListener(
+    "click",
+    deleteAllMemories
+  );
+
+}
+
 
 // =====================================================
 // BOTTOM NAVIGATION
@@ -680,74 +1267,113 @@ function () {
 
 const navButtons =
 document.querySelectorAll(
-".bottom-nav button"
+  ".bottom-nav button"
 );
 
+
 navButtons.forEach(
-function (button) {
+  function (button) {
 
-button.addEventListener(
-  "click",
-  function () {
+    button.addEventListener(
+      "click",
+      function () {
 
-    navButtons.forEach(
-      function (btn) {
+        const nav =
+          button.dataset.nav;
 
-        btn.classList.remove(
-          "active"
+
+        if (
+          nav === "profile"
+        ) {
+
+          showProfileScreen();
+
+          return;
+
+        }
+
+
+        if (
+          nav === "chat"
+        ) {
+
+          showChatScreen();
+
+          return;
+
+        }
+
+
+        // Market / Alerts are
+        // placeholders for future modules.
+
+        updateNavActive(
+          nav
         );
 
-      }
-    );
+        if (
+          nav === "market"
+        ) {
 
-    button.classList.add(
-      "active"
+          alert(
+            "📈 Market module next stage mein activate hoga."
+          );
+
+          showChatScreen();
+
+        }
+
+
+        if (
+          nav === "alerts"
+        ) {
+
+          alert(
+            "🔔 Alerts module next stage mein activate hoga."
+          );
+
+          showChatScreen();
+
+        }
+
+      }
     );
 
   }
 );
 
-}
-);
 
 // =====================================================
 // START
 // =====================================================
 
 console.log(
-"================================"
+  "================================"
 );
 
 console.log(
-"ATHARV AI LOADED 🤖"
+  "ATHARV AI LOADED 🤖"
 );
 
 console.log(
-"Permanent User ID enabled."
+  "Permanent User ID enabled."
 );
 
 console.log(
-"Live request debugging enabled."
+  "Intelligent Memory UI enabled."
 );
 
 console.log(
-"60 second request timeout enabled."
+  "Individual memory delete enabled."
 );
 
 console.log(
-"Local chat history enabled."
+  "Delete all memory enabled."
 );
 
 console.log(
-"Short conversation context enabled."
+  "================================"
 );
 
-console.log(
-"Previous Response ID disabled."
-);
-
-console.log(
-"================================"
-);
 
 loadChatHistory();
