@@ -20,6 +20,21 @@
     content="Atharv AI - Your AI. Every Language. Every Question."
   >
 
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="default"
+  >
+
   <title>Atharv AI</title>
 
   <link
@@ -92,7 +107,9 @@
 
 
 
-    <!-- CHAT BOX -->
+    <!-- ======================================
+         CHAT BOX
+    ======================================= -->
 
     <section
       id="chatBox"
@@ -112,7 +129,9 @@
 
 
 
-    <!-- QUICK QUESTIONS -->
+    <!-- ======================================
+         QUICK QUESTIONS
+    ======================================= -->
 
     <div class="quick-buttons">
 
@@ -143,7 +162,9 @@
 
 
 
-    <!-- MESSAGE INPUT -->
+    <!-- ======================================
+         MESSAGE INPUT
+    ======================================= -->
 
     <div class="input-area">
 
@@ -152,6 +173,7 @@
         placeholder="Ask Atharv anything..."
         rows="1"
         autocomplete="off"
+        aria-label="Message Atharv"
       ></textarea>
 
 
@@ -164,6 +186,57 @@
         ➤
       </button>
 
+    </div>
+
+
+    <!-- ======================================
+         VOICE AREA
+         ATHARV 7.0
+    ======================================= -->
+
+    <div
+      id="atharvVoiceArea"
+      class="atharv-voice-area"
+      aria-label="Atharv voice controls"
+    >
+
+      <button
+        type="button"
+        id="atharvMicButton"
+        aria-label="Bolkar Atharv se poochhein"
+        title="Bolkar poochhein"
+      >
+        🎙️
+      </button>
+
+
+      <button
+        type="button"
+        id="atharvStopVoiceButton"
+        aria-label="Atharv ki voice rokein"
+        title="Atharv ki voice rokein"
+      >
+        🔇
+      </button>
+
+
+      <span
+        id="atharvVoiceStatus"
+      >
+        Voice ready
+      </span>
+
+    </div>
+
+
+    <!-- ======================================
+         VOICE INFORMATION
+    ======================================= -->
+
+    <div
+      class="voice-hint"
+    >
+      🎙️ Bolkar poochhein • 🔊 Atharv ka jawab sunein
     </div>
 
 
