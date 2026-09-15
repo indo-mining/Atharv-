@@ -29,14 +29,14 @@ const pool = new Pool({
 
 /* =========================================================
    ATHARV AI
-   Backend Version 9.0
-   Universal Intelligence Router
+   Backend Version 10.0
+   Universal Intelligence + Smart Token Protection
    ========================================================= */
 
 const ATHARV_INSTRUCTIONS = `
 You are Atharv AI.
 
-Your purpose is to help the user understand information and complete
+Your purpose is to help users understand information and complete
 useful tasks, not merely provide short answers.
 
 CORE RULES:
@@ -48,40 +48,41 @@ CORE RULES:
    statistics or market information.
 5. When live research context is provided, use it as the primary
    source for current information.
-6. If multiple sources disagree, clearly say that they disagree.
+6. If sources disagree, clearly explain the disagreement.
 7. Never present an unverified current number as confirmed.
-8. If live verification failed for a question that requires current
-   information, clearly say that live verification could not be completed.
-9. Do not tell the user merely to "check a website" when useful research
-   information is already available in the supplied research context.
-10. When sources are available, summarize the useful information directly
-    and mention important source names.
+8. If live verification fails for a question requiring current
+   information, say that live verification could not be completed.
+9. Do not merely tell the user to check a website when useful
+   research information is already available.
+10. Summarize useful research directly and mention important sources.
 11. Respect the user's selected language.
-12. If the user selects a language, answer primarily in that language.
-13. If Hinglish is selected, use natural Roman Hindi/Hinglish.
-14. If Hindi is selected, prefer Devanagari Hindi unless the user clearly
-    writes in Roman Hindi and the context suggests otherwise.
-15. If Auto Detect is selected, detect the user's language naturally.
-16. Preserve the user's tone and communication style.
+12. If a language is selected, answer primarily in that language.
+13. Hinglish means natural Roman Hindi mixed with English.
+14. Hindi should normally use Devanagari unless the user clearly
+    uses Roman Hindi and prefers that style.
+15. Auto Detect should follow the user's actual language and style.
+16. Preserve the user's tone.
 17. Do not start every answer with the user's name.
 18. Use remembered information naturally when relevant.
 19. Never reveal API keys, passwords, tokens, database URLs or secrets.
-20. Never claim an action was performed unless it actually was performed.
-21. For financial information, clearly explain uncertainty and risk.
-22. Never promise guaranteed investment returns or option profits.
+20. Never claim an action was performed unless it actually was.
+21. Financial information contains uncertainty and risk.
+22. Never promise investment returns or option profits.
 23. Never claim a future stock price is certain.
-24. For study/exam questions, teach concepts and use evidence where available.
-25. Never claim that an exact future exam question is guaranteed.
-26. For uploaded documents, answer from supplied document content.
-27. For coding questions, provide practical working code when useful.
-28. For professional tasks, create usable output.
-29. For planning tasks, break the work into practical steps.
-30. Keep answers reasonably concise unless detail is requested.
+24. Teach study and exam concepts clearly.
+25. Never guarantee an exact future exam question.
+26. For documents, use supplied document content.
+27. For coding, provide practical working code when useful.
+28. For professional work, create usable output.
+29. For planning, give practical steps.
+30. Keep normal answers reasonably concise.
 31. Use headings, bullets and tables when useful.
-32. For current questions, old model knowledge must not be treated as current.
-33. Support major world languages whenever the model can reliably respond.
-34. Never fabricate a source or URL.
-35. If research sources are weak, say so rather than guessing.
+32. Current information must come from current research.
+33. Support major world languages when reliable.
+34. Never fabricate sources or URLs.
+35. If research is weak, say so rather than guessing.
+36. Focus on solving the user's task, not merely describing it.
+37. When possible, give the user a useful next step automatically.
 `;
 
 /* =========================================================
@@ -89,12 +90,24 @@ CORE RULES:
    ========================================================= */
 
 function safeString(value, max = 10000) {
-  if (value === undefined || value === null) return "";
+  if (value === undefined || value === null) {
+    return "";
+  }
+
   return String(value).slice(0, max);
 }
 
 function limitText(value, max = 50000) {
   return safeString(value, max);
+}
+
+/*
+  Approximate token count.
+  This is intentionally conservative because different models
+  tokenize text differently.
+*/
+function estimateTokens(text) {
+  return Math.ceil(String(text || "").length / 4);
 }
 
 /* =========================================================
@@ -167,7 +180,9 @@ function normalizeLanguagePreference(language) {
     .trim()
     .toLowerCase();
 
-  if (!value) return "auto";
+  if (!value) {
+    return "auto";
+  }
 
   if (LANGUAGE_NAMES[value]) {
     return value;
@@ -353,11 +368,6 @@ function containsSecret(value) {
   );
 }
 
-/* =========================================================
-   MEMORY NAME EXTRACTION
-   FIXED VERSION
-   ========================================================= */
-
 const INVALID_NAME_WORDS = new Set([
   "kya",
   "kaise",
@@ -406,12 +416,15 @@ function isInvalidName(name) {
     return true;
   }
 
-  const words = value
-    .toLowerCase()
-    .split(/\s+/)
-    .filter(Boolean);
+  const words =
+    value
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean);
 
-  if (!words.length) return true;
+  if (!words.length) {
+    return true;
+  }
 
   if (
     words.some(word =>
@@ -433,18 +446,6 @@ function isInvalidName(name) {
 function extractName(message) {
   const text = String(message || "").trim();
 
-  /*
-    IMPORTANT:
-    We only accept a name when it is clearly introduced
-    as a name.
-
-    Examples accepted:
-    "My name is Rajiv"
-    "My name is Rajiv."
-    "Mera naam Rajiv hai"
-    "Mera naam Rajiv hai."
-  */
-
   const patterns = [
     /(?:my\s+name\s+is)\s+([A-Za-z][A-Za-z .'-]{1,60}?)(?=\s*[.!?,]|$)/i,
 
@@ -460,10 +461,11 @@ function extractName(message) {
       continue;
     }
 
-    const name = match[1]
-      .trim()
-      .replace(/\s+/g, " ")
-      .replace(/[.!?,]+$/, "");
+    const name =
+      match[1]
+        .trim()
+        .replace(/\s+/g, " ")
+        .replace(/[.!?,]+$/, "");
 
     if (!isInvalidName(name)) {
       return name;
@@ -495,11 +497,7 @@ async function saveMemory(userId, key, value) {
       memory_value = EXCLUDED.memory_value,
       updated_at = NOW()
     `,
-    [
-      userId,
-      key,
-      value
-    ]
+    [userId, key, value]
   );
 
   return true;
@@ -515,7 +513,7 @@ async function getMemories(userId) {
       FROM public.user_memories
       WHERE user_id = $1
       ORDER BY updated_at DESC
-      LIMIT 50
+      LIMIT 30
       `,
       [userId]
     );
@@ -530,10 +528,7 @@ async function deleteMemory(userId, key) {
     WHERE user_id = $1
     AND memory_key = $2
     `,
-    [
-      userId,
-      key
-    ]
+    [userId, key]
   );
 }
 
@@ -548,19 +543,16 @@ async function clearMemory(userId) {
 }
 
 function buildMemoryContext(memories) {
-  if (
-    !memories ||
-    !memories.length
-  ) {
+  if (!memories || !memories.length) {
     return "";
   }
 
   const lines =
     memories
-      .slice(0, 30)
-      .map(item => {
-        return `- ${item.memory_key}: ${item.memory_value}`;
-      });
+      .slice(0, 15)
+      .map(item =>
+        `- ${safeString(item.memory_key, 100)}: ${safeString(item.memory_value, 250)}`
+      );
 
   return `
 USER MEMORY
@@ -572,10 +564,7 @@ ${lines.join("\n")}
 `;
 }
 
-async function processMemoryRequest(
-  userId,
-  message
-) {
+async function processMemoryRequest(userId, message) {
   const name =
     extractName(message);
 
@@ -603,22 +592,10 @@ async function processMemoryRequest(
   ) {
     const cleaned =
       message
-        .replace(
-          /remember that/gi,
-          ""
-        )
-        .replace(
-          /yaad rakhna/gi,
-          ""
-        )
-        .replace(
-          /yaad rakho/gi,
-          ""
-        )
-        .replace(
-          /याद रखना/g,
-          ""
-        )
+        .replace(/remember that/gi, "")
+        .replace(/yaad rakhna/gi, "")
+        .replace(/yaad rakho/gi, "")
+        .replace(/याद रखना/g, "")
         .trim();
 
     if (cleaned.length > 2) {
@@ -632,7 +609,7 @@ async function processMemoryRequest(
 }
 
 /* =========================================================
-   QUERY INTELLIGENCE ROUTER
+   QUERY ROUTER
    ========================================================= */
 
 function classifyQuery(message) {
@@ -729,39 +706,27 @@ function classifyQuery(message) {
     "recently"
   ];
 
-  if (
-    weatherWords.some(x => text.includes(x))
-  ) {
+  if (weatherWords.some(x => text.includes(x))) {
     return "weather";
   }
 
-  if (
-    cryptoWords.some(x => text.includes(x))
-  ) {
+  if (cryptoWords.some(x => text.includes(x))) {
     return "crypto";
   }
 
-  if (
-    marketWords.some(x => text.includes(x))
-  ) {
+  if (marketWords.some(x => text.includes(x))) {
     return "market";
   }
 
-  if (
-    sportsWords.some(x => text.includes(x))
-  ) {
+  if (sportsWords.some(x => text.includes(x))) {
     return "sports";
   }
 
-  if (
-    newsWords.some(x => text.includes(x))
-  ) {
+  if (newsWords.some(x => text.includes(x))) {
     return "news";
   }
 
-  if (
-    currentWords.some(x => text.includes(x))
-  ) {
+  if (currentWords.some(x => text.includes(x))) {
     return "current";
   }
 
@@ -773,7 +738,7 @@ function needsLiveSearch(message) {
 }
 
 /* =========================================================
-   SEARCH QUERY BUILDER
+   SEARCH
    ========================================================= */
 
 function buildSearchQuery(
@@ -815,10 +780,6 @@ function buildSearchQuery(
   return query;
 }
 
-/* =========================================================
-   TAVILY
-   ========================================================= */
-
 async function searchTavily(query) {
   if (!TAVILY_API_KEY) {
     return {
@@ -835,33 +796,24 @@ async function searchTavily(query) {
         "https://api.tavily.com/search",
         {
           method: "POST",
-
           headers: {
             "Content-Type":
               "application/json"
           },
-
           body: JSON.stringify({
             api_key:
               TAVILY_API_KEY,
-
             query,
-
             search_depth:
               "advanced",
-
             topic:
               "general",
-
             max_results:
-              8,
-
+              6,
             include_answer:
               true,
-
             include_raw_content:
               false,
-
             include_images:
               false
           })
@@ -869,20 +821,15 @@ async function searchTavily(query) {
       );
 
     if (!response.ok) {
-      const errorText =
-        await response.text();
-
       console.error(
         "TAVILY ERROR:",
         response.status,
-        errorText
+        await response.text()
       );
 
       return {
         provider: "tavily",
         ok: false,
-        reason:
-          `HTTP ${response.status}`,
         results: []
       };
     }
@@ -897,30 +844,30 @@ async function searchTavily(query) {
       answer:
         safeString(
           data.answer,
-          7000
+          3000
         ),
 
       results:
         Array.isArray(data.results)
           ? data.results
-              .slice(0, 8)
+              .slice(0, 6)
               .map(item => ({
                 title:
                   safeString(
                     item.title,
-                    300
+                    250
                   ),
 
                 url:
                   safeString(
                     item.url,
-                    500
+                    400
                   ),
 
                 content:
                   safeString(
                     item.content,
-                    3000
+                    1200
                   )
               }))
           : []
@@ -935,15 +882,13 @@ async function searchTavily(query) {
     return {
       provider: "tavily",
       ok: false,
-      reason:
-        "Tavily request failed",
       results: []
     };
   }
 }
 
 /* =========================================================
-   GDELT NEWS FALLBACK
+   GDELT
    ========================================================= */
 
 async function searchGdelt(query) {
@@ -953,7 +898,7 @@ async function searchGdelt(query) {
         query,
         mode: "artlist",
         format: "json",
-        maxrecords: "8",
+        maxrecords: "6",
         sort: "datedesc",
         timespan: "3d"
       });
@@ -985,18 +930,18 @@ async function searchGdelt(query) {
 
       results:
         articles
-          .slice(0, 8)
+          .slice(0, 6)
           .map(item => ({
             title:
               safeString(
                 item.title,
-                300
+                250
               ),
 
             url:
               safeString(
                 item.url,
-                500
+                400
               ),
 
             content:
@@ -1004,7 +949,7 @@ async function searchGdelt(query) {
                 item.seendate ||
                 item.domain ||
                 "",
-                500
+                300
               )
           }))
           .filter(item => item.url)
@@ -1030,14 +975,12 @@ async function searchGdelt(query) {
 
 function extractWeatherLocation(message) {
   const text =
-    String(message || "")
-      .trim();
+    String(message || "").trim();
 
   const patterns = [
     /weather\s+(?:in|of|for)\s+(.+)/i,
     /forecast\s+(?:in|of|for)\s+(.+)/i,
     /temperature\s+(?:in|of|for)\s+(.+)/i,
-
     /(.+?)\s+(?:ka|ki|ke)\s+mausam/i,
     /(.+?)\s+(?:ka|ki|ke)\s+weather/i,
     /(.+?)\s+(?:mein|me)\s+mausam/i,
@@ -1048,17 +991,11 @@ function extractWeatherLocation(message) {
     const match =
       text.match(pattern);
 
-    if (
-      match &&
-      match[1]
-    ) {
-      let location =
+    if (match && match[1]) {
+      const location =
         match[1]
           .trim()
-          .replace(
-            /[?.!,]+$/,
-            ""
-          );
+          .replace(/[?.!,]+$/, "");
 
       if (
         location.length >= 2 &&
@@ -1137,9 +1074,7 @@ async function geocodeLocation(location) {
 
 async function getWeather(location) {
   const geo =
-    await geocodeLocation(
-      location
-    );
+    await geocodeLocation(location);
 
   if (!geo) {
     return {
@@ -1193,8 +1128,7 @@ async function getWeather(location) {
     const daily =
       data.daily || {};
 
-    const weatherText =
-      `
+    const weatherText = `
 Location: ${geo.name}, ${geo.country}
 Timezone: ${geo.timezone}
 
@@ -1214,11 +1148,7 @@ Wind:
 ${current.wind_speed_10m ?? "N/A"} km/h
 
 Forecast:
-${JSON.stringify(
-  daily,
-  null,
-  2
-)}
+${JSON.stringify(daily, null, 2)}
 `;
 
     return {
@@ -1279,22 +1209,13 @@ async function runResearchRouter(
     answers: []
   };
 
-  /*
-    WEATHER:
-    Open-Meteo first because it is structured weather data.
-  */
-
   if (category === "weather") {
     const location =
-      extractWeatherLocation(
-        message
-      );
+      extractWeatherLocation(message);
 
     if (location) {
       const weather =
-        await getWeather(
-          location
-        );
+        await getWeather(location);
 
       if (weather.ok) {
         research.providers.push(
@@ -1313,17 +1234,9 @@ async function runResearchRouter(
       }
     }
 
-    /*
-      Tavily remains useful for weather
-      questions where a location could not
-      be parsed by Open-Meteo.
-    */
-
     if (!research.results.length) {
       const tavily =
-        await searchTavily(
-          query
-        );
+        await searchTavily(query);
 
       if (tavily.ok) {
         research.providers.push(
@@ -1345,16 +1258,9 @@ async function runResearchRouter(
     return research;
   }
 
-  /*
-    NEWS:
-    Tavily + GDELT.
-  */
-
   if (category === "news") {
     const tavily =
-      await searchTavily(
-        query
-      );
+      await searchTavily(query);
 
     if (tavily.ok) {
       research.providers.push(
@@ -1373,9 +1279,7 @@ async function runResearchRouter(
     }
 
     const gdelt =
-      await searchGdelt(
-        query
-      );
+      await searchGdelt(query);
 
     if (gdelt.ok) {
       research.providers.push(
@@ -1390,17 +1294,8 @@ async function runResearchRouter(
     return research;
   }
 
-  /*
-    MARKET / CRYPTO / SPORTS / CURRENT:
-    Tavily first.
-    GDELT fallback for broader current
-    information.
-  */
-
   const tavily =
-    await searchTavily(
-      query
-    );
+    await searchTavily(query);
 
   if (tavily.ok) {
     research.providers.push(
@@ -1423,9 +1318,7 @@ async function runResearchRouter(
     !research.results.length
   ) {
     const gdelt =
-      await searchGdelt(
-        query
-      );
+      await searchGdelt(query);
 
     if (gdelt.ok) {
       research.providers.push(
@@ -1445,12 +1338,10 @@ async function runResearchRouter(
    RESEARCH CONTEXT
    ========================================================= */
 
-function buildResearchContext(
-  research
-) {
+function buildResearchContext(research) {
   if (
     !research ||
-    !research.results ||
+    !Array.isArray(research.results) ||
     !research.results.length
   ) {
     return "";
@@ -1459,48 +1350,31 @@ function buildResearchContext(
   const pieces = [];
 
   if (
-    research.answers &&
+    Array.isArray(research.answers) &&
     research.answers.length
   ) {
-    pieces.push(
-      `
-RESEARCH SUMMARIES:
+    pieces.push(`
+RESEARCH SUMMARY:
 
 ${research.answers
-  .slice(0, 3)
+  .slice(0, 2)
+  .map(x => safeString(x, 1200))
   .join("\n\n")}
-`
-    );
+`);
   }
 
   const sources =
     research.results
-      .slice(0, 12)
-      .map(
-        (item, index) => {
-          return `
+      .slice(0, 6)
+      .map((item, index) => {
+        return `
 SOURCE ${index + 1}
-Provider: ${safeString(
-            item.provider ||
-            research.providers?.join(", "),
-            100
-          )}
-Title: ${safeString(
-            item.title,
-            300
-          )}
-URL: ${safeString(
-            item.url,
-            500
-          )}
+Title: ${safeString(item.title, 220)}
+URL: ${safeString(item.url, 300)}
 Content:
-${safeString(
-            item.content,
-            2500
-          )}
+${safeString(item.content, 700)}
 `;
-        }
-      );
+      });
 
   pieces.push(
     sources.join("\n")
@@ -1510,18 +1384,17 @@ ${safeString(
 LIVE RESEARCH CONTEXT
 
 Category:
-${research.category}
+${safeString(research.category, 50)}
 
 Providers:
-${research.providers.join(", ")}
+${safeString(
+  (research.providers || []).join(", "),
+  150
+)}
 
-IMPORTANT:
-- Use these sources for current information.
-- Do not invent facts not supported by them.
-- If sources conflict, explain the conflict.
-- Do not treat search snippets as absolute truth.
-- Do not invent exact values.
-- If exact live data is unavailable, say so.
+Use this research for current information.
+Do not invent unsupported facts.
+If sources disagree, explain the disagreement.
 
 ${pieces.join("\n")}
 `;
@@ -1530,26 +1403,17 @@ ${pieces.join("\n")}
 function buildSources(research) {
   if (
     !research ||
-    !Array.isArray(
-      research.results
-    )
+    !Array.isArray(research.results)
   ) {
     return [];
   }
 
-  const seen =
-    new Set();
-
+  const seen = new Set();
   const sources = [];
 
-  for (
-    const item of research.results
-  ) {
+  for (const item of research.results) {
     const url =
-      safeString(
-        item.url,
-        500
-      );
+      safeString(item.url, 500);
 
     if (!url || seen.has(url)) {
       continue;
@@ -1559,17 +1423,12 @@ function buildSources(research) {
 
     sources.push({
       title:
-        safeString(
-          item.title,
-          150
-        ),
+        safeString(item.title, 150),
 
       url
     });
 
-    if (
-      sources.length >= 8
-    ) {
+    if (sources.length >= 8) {
       break;
     }
   }
@@ -1585,19 +1444,16 @@ function buildAttachmentContext(body) {
   const description =
     safeString(
       body.attachmentDescription,
-      3000
+      1200
     );
 
   const text =
-    limitText(
+    safeString(
       body.attachmentText,
-      50000
+      12000
     );
 
-  if (
-    !description &&
-    !text
-  ) {
+  if (!description && !text) {
     return "";
   }
 
@@ -1619,7 +1475,7 @@ ${text}
 }
 
 /* =========================================================
-   GROQ
+   GROQ MODEL
    ========================================================= */
 
 function getGroqModel() {
@@ -1637,12 +1493,151 @@ function getGroqModel() {
   return model;
 }
 
+/* =========================================================
+   HISTORY
+   ========================================================= */
+
+function cleanHistory(history) {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+
+  return history
+    .slice(-8)
+    .map(item => ({
+      role:
+        item.role === "assistant"
+          ? "assistant"
+          : "user",
+
+      content:
+        safeString(
+          item.content ||
+          item.text ||
+          "",
+          1800
+        )
+    }))
+    .filter(
+      item => item.content
+    );
+}
+
+/* =========================================================
+   SMART MESSAGE BUDGET
+   ========================================================= */
+
+/*
+  Groq organization limit:
+  8000 TPM.
+
+  We intentionally keep:
+  - input around 4800 tokens maximum
+  - output around 2200 tokens maximum
+
+  Total remains comfortably below 8000 in normal requests.
+*/
+
+function buildBudgetedMessages({
+  systemPrompt,
+  history,
+  message
+}) {
+  const MAX_INPUT_TOKENS = 4800;
+
+  const systemMessage = {
+    role: "system",
+    content: systemPrompt
+  };
+
+  const userMessage = {
+    role: "user",
+    content: message
+  };
+
+  const result = [
+    systemMessage
+  ];
+
+  let used =
+    estimateTokens(
+      systemPrompt
+    ) +
+    estimateTokens(
+      message
+    );
+
+  /*
+    Always preserve current user question.
+  */
+
+  const selectedHistory = [];
+
+  /*
+    Add history from newest to oldest.
+  */
+
+  for (
+    let i = history.length - 1;
+    i >= 0;
+    i--
+  ) {
+    const item = history[i];
+
+    const tokens =
+      estimateTokens(
+        item.content
+      );
+
+    if (
+      used + tokens >
+      MAX_INPUT_TOKENS
+    ) {
+      break;
+    }
+
+    selectedHistory.unshift(item);
+    used += tokens;
+  }
+
+  result.push(
+    ...selectedHistory
+  );
+
+  result.push(
+    userMessage
+  );
+
+  return result;
+}
+
+/* =========================================================
+   GROQ CALL
+   ========================================================= */
+
 async function callGroq(messages) {
   if (!GROQ_API_KEY) {
     throw new Error(
       "GROQ_API_KEY is not configured"
     );
   }
+
+  const model =
+    getGroqModel();
+
+  const body = {
+    model,
+
+    messages,
+
+    temperature: 0.35,
+
+    /*
+      Reduced from 4096 to 2200.
+      This is important for the 8000 TPM limit.
+    */
+    max_tokens: 2200
+  };
 
   const response =
     await fetch(
@@ -1658,18 +1653,8 @@ async function callGroq(messages) {
             `Bearer ${GROQ_API_KEY}`
         },
 
-        body: JSON.stringify({
-          model:
-            getGroqModel(),
-
-          messages,
-
-          temperature:
-            0.35,
-
-          max_tokens:
-            4096
-        })
+        body:
+          JSON.stringify(body)
       }
     );
 
@@ -1694,6 +1679,10 @@ async function callGroq(messages) {
   );
 }
 
+/* =========================================================
+   ERROR HANDLING
+   ========================================================= */
+
 function friendlyError(error) {
   const message =
     String(
@@ -1701,6 +1690,9 @@ function friendlyError(error) {
       error ||
       ""
     );
+
+  const lower =
+    message.toLowerCase();
 
   if (
     message.includes(
@@ -1711,15 +1703,21 @@ function friendlyError(error) {
   }
 
   if (
-    message.toLowerCase()
-      .includes("rate")
+    lower.includes("request too large") ||
+    lower.includes("tokens per minute") ||
+    lower.includes("tpm")
+  ) {
+    return "Atharv received too much context at once. Please send the message again.";
+  }
+
+  if (
+    lower.includes("rate")
   ) {
     return "Atharv is temporarily busy. Please try again in a moment.";
   }
 
   if (
-    message.toLowerCase()
-      .includes("timeout")
+    lower.includes("timeout")
   ) {
     return "The request took too long. Please try again.";
   }
@@ -1761,9 +1759,7 @@ async function generateAtharvResponse({
     };
   }
 
-  /*
-    MEMORY
-  */
+  /* MEMORY */
 
   await processMemoryRequest(
     userId,
@@ -1780,9 +1776,7 @@ async function generateAtharvResponse({
       memories
     );
 
-  /*
-    LANGUAGE
-  */
+  /* LANGUAGE */
 
   const languageContext =
     getLanguageInstruction(
@@ -1791,18 +1785,14 @@ async function generateAtharvResponse({
       cleanMessage
     );
 
-  /*
-    DATE / TIME
-  */
+  /* DATE */
 
   const currentDateTime =
     getUserDateTime(
       timeZone
     );
 
-  /*
-    INTELLIGENCE ROUTER
-  */
+  /* ROUTER */
 
   const category =
     classifyQuery(
@@ -1824,6 +1814,10 @@ async function generateAtharvResponse({
       );
   }
 
+  /*
+    Research is already aggressively limited.
+  */
+
   const researchContext =
     buildResearchContext(
       research
@@ -1836,35 +1830,40 @@ async function generateAtharvResponse({
     });
 
   /*
-    SYSTEM PROMPT
+    Keep system context controlled.
   */
 
   const systemPrompt = `
 ${ATHARV_INSTRUCTIONS}
 
 CURRENT USER DATE/TIME:
-${currentDateTime}
+${safeString(currentDateTime, 300)}
 
 QUERY CATEGORY:
-${category}
+${safeString(category, 50)}
 
 ${languageContext}
 
-${memoryContext}
+${safeString(memoryContext, 2500)}
 
-${researchContext}
+${safeString(researchContext, 5500)}
 
-${attachmentContext}
+${safeString(attachmentContext, 13500)}
 `;
 
   /*
-    HISTORY
+    Clean history.
   */
 
   const cleanHistoryItems =
     cleanHistory(
       history
     );
+
+  /*
+    Don't duplicate current question
+    if frontend already sent it in history.
+  */
 
   const filteredHistory =
     cleanHistoryItems.filter(
@@ -1876,29 +1875,46 @@ ${attachmentContext}
         )
     );
 
-  const messages = [
-    {
-      role:
-        "system",
-
-      content:
-        systemPrompt
-    },
-
-    ...filteredHistory,
-
-    {
-      role:
-        "user",
-
-      content:
-        cleanMessage
-    }
-  ];
-
   /*
-    AI RESPONSE
+    SMART TOKEN BUDGET
   */
+
+  const messages =
+    buildBudgetedMessages({
+      systemPrompt,
+
+      history:
+        filteredHistory,
+
+      message:
+        cleanMessage
+    });
+
+  console.log(
+    "ATHARV REQUEST:",
+    JSON.stringify({
+      category,
+      model: getGroqModel(),
+      estimatedInputTokens:
+        messages.reduce(
+          (total, item) =>
+            total +
+            estimateTokens(
+              item.content
+            ),
+          0
+        ),
+      historyMessages:
+        filteredHistory.length,
+      research:
+        Boolean(research),
+      attachment:
+        Boolean(
+          attachmentDescription ||
+          attachmentText
+        )
+    })
+  );
 
   const answer =
     await callGroq(
@@ -1921,40 +1937,7 @@ ${attachmentContext}
 }
 
 /* =========================================================
-   HISTORY
-   ========================================================= */
-
-function cleanHistory(history) {
-  if (!Array.isArray(history)) {
-    return [];
-  }
-
-  return history
-    .slice(-20)
-
-    .map(item => ({
-      role:
-        item.role === "assistant"
-          ? "assistant"
-          : "user",
-
-      content:
-        safeString(
-          item.content ||
-          item.text ||
-          "",
-          6000
-        )
-    }))
-
-    .filter(
-      item =>
-        item.content
-    );
-}
-
-/* =========================================================
-   CHAT
+   CHAT API
    ========================================================= */
 
 app.post(
@@ -2051,7 +2034,7 @@ app.post(
 );
 
 /* =========================================================
-   STREAM
+   STREAM API
    ========================================================= */
 
 app.post(
@@ -2124,44 +2107,30 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "answer",
-
-          answer:
-            result.answer
+          type: "answer",
+          answer: result.answer
         })}\n\n`
       );
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "sources",
-
-          sources:
-            result.sources
+          type: "sources",
+          sources: result.sources
         })}\n\n`
       );
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "meta",
-
-          category:
-            result.category,
-
-          providers:
-            result.providers,
-
-          model:
-            getGroqModel()
+          type: "meta",
+          category: result.category,
+          providers: result.providers,
+          model: getGroqModel()
         })}\n\n`
       );
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "done"
+          type: "done"
         })}\n\n`
       );
 
@@ -2186,9 +2155,7 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "error",
-
+          type: "error",
           error:
             friendlyError(
               error
@@ -2362,7 +2329,7 @@ app.get(
         "ok",
 
       version:
-        "9.0.0",
+        "10.0.0",
 
       universalLanguage:
         true,
@@ -2371,9 +2338,12 @@ app.get(
         true,
 
       memory:
-        "v5",
+        "v6",
 
       intelligenceRouter:
+        true,
+
+      smartTokenProtection:
         true,
 
       tavily:
@@ -2418,7 +2388,7 @@ app.use(
 
 /*
   IMPORTANT:
-  Keep frontend catch-all LAST.
+  Frontend catch-all must remain LAST.
 */
 
 app.get(
@@ -2454,7 +2424,7 @@ async function startServer() {
         );
 
         console.log(
-          "Version: 9.0.0"
+          "Version: 10.0.0"
         );
 
         console.log(
@@ -2483,6 +2453,10 @@ async function startServer() {
 
         console.log(
           "Memory: enabled"
+        );
+
+        console.log(
+          "Smart Token Protection: enabled"
         );
 
         console.log(
