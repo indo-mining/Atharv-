@@ -1,7 +1,8 @@
 /* =========================================================
-   ATHARV AI - FINAL FRONTEND CONTROLLER
-   Version 8.0
-   Multilingual • Memory • Voice • Files • Market • Alerts
+   ATHARV AI - FRONTEND CONTROLLER
+   Version 9.0
+   Multilingual • Memory • Voice • Files • Live Sources
+   Market • Alerts • Professional Mobile UX
    ========================================================= */
 
 "use strict";
@@ -20,9 +21,14 @@ const ATHARV_LANGUAGE_KEY = "atharv_language";
    ELEMENTS
    ========================================================= */
 
-const chatBox = document.getElementById("chatBox");
-const messageInput = document.getElementById("message");
-const sendButton = document.querySelector(".send");
+const chatBox =
+  document.getElementById("chatBox");
+
+const messageInput =
+  document.getElementById("message");
+
+const sendButton =
+  document.querySelector(".send");
 
 const languageSelect =
   document.getElementById("atharvLanguage");
@@ -59,12 +65,13 @@ let selectedVoiceLanguage = "en-IN";
 
 function getAtharvUserId() {
   try {
-    let id =
-      localStorage.getItem(
-        ATHARV_USER_ID_KEY
-      );
+    let id = localStorage.getItem(
+      ATHARV_USER_ID_KEY
+    );
 
-    if (id) return id;
+    if (id) {
+      return id;
+    }
 
     if (
       window.crypto &&
@@ -90,7 +97,7 @@ function getAtharvUserId() {
     return id;
   } catch (error) {
     console.error(
-      "USER ID ERROR:",
+      "ATHARV USER ID ERROR:",
       error
     );
 
@@ -174,6 +181,11 @@ if (languageSelect) {
 
       updateVoiceLanguageFromSelection();
 
+      if (speechRecognition) {
+        speechRecognition.lang =
+          selectedVoiceLanguage;
+      }
+
       console.log(
         "ATHARV LANGUAGE:",
         selectedLanguage
@@ -193,6 +205,7 @@ function languageToVoiceCode(
     hi: "hi-IN",
     en: "en-IN",
     hinglish: "hi-IN",
+
     bn: "bn-IN",
     mr: "mr-IN",
     gu: "gu-IN",
@@ -202,12 +215,15 @@ function languageToVoiceCode(
     ml: "ml-IN",
     pa: "pa-IN",
     ur: "ur-PK",
+
     ar: "ar-SA",
+
     es: "es-ES",
     fr: "fr-FR",
     de: "de-DE",
     pt: "pt-BR",
     ru: "ru-RU",
+
     ja: "ja-JP",
     ko: "ko-KR",
     zh: "zh-CN"
@@ -333,14 +349,15 @@ function detectVoiceLanguage(text) {
 
   hindiWords.forEach(
     word => {
-      if (
+      const regex =
         new RegExp(
           "\\b" +
             word +
             "\\b",
           "i"
-        ).test(lower)
-      ) {
+        );
+
+      if (regex.test(lower)) {
         matches++;
       }
     }
@@ -416,11 +433,13 @@ function updateVoiceStatus(text) {
 }
 
 /* =========================================================
-   CREATE VOICE CONTROL
+   CREATE VOICE CONTROLS
    ========================================================= */
 
 function createVoiceControls() {
-  if (!messageInput) return;
+  if (!messageInput) {
+    return;
+  }
 
   const controls =
     getVoiceControls();
@@ -446,12 +465,16 @@ function createVoiceControls() {
     );
 
   micButton.type = "button";
+
   micButton.id =
     "atharvMicButton";
+
   micButton.className =
     "voice-input-button";
+
   micButton.textContent =
     "🎙️";
+
   micButton.title =
     "Bolkar poochhein";
 
@@ -523,8 +546,9 @@ function bindVoiceButtons(
   stopButton,
   status
 ) {
-  if (!micButton || !status)
+  if (!micButton || !status) {
     return;
+  }
 
   if (
     micButton.dataset
@@ -586,11 +610,13 @@ function setupSpeechRecognition(
   const RecognitionClass =
     getSpeechRecognitionClass();
 
-  if (!micButton || !status)
+  if (!micButton || !status) {
     return;
+  }
 
   if (!RecognitionClass) {
     micButton.disabled = true;
+
     micButton.style.opacity =
       "0.4";
 
@@ -600,8 +626,9 @@ function setupSpeechRecognition(
     return;
   }
 
-  if (speechRecognition)
+  if (speechRecognition) {
     return;
+  }
 
   speechRecognition =
     new RecognitionClass();
@@ -632,8 +659,9 @@ function setupSpeechRecognition(
         "listening"
       );
 
-      status.textContent =
-        "🎙️ Sun raha hoon...";
+      updateVoiceStatus(
+        "🎙️ Sun raha hoon..."
+      );
     };
 
   speechRecognition.onresult =
@@ -700,7 +728,7 @@ function setupSpeechRecognition(
               sendMessage();
             }
           },
-          200
+          250
         );
       }
     };
@@ -725,17 +753,27 @@ function setupSpeechRecognition(
         event.error ===
         "not-allowed"
       ) {
-        status.textContent =
-          "🎙️ Microphone permission allow karein.";
+        updateVoiceStatus(
+          "🎙️ Microphone permission allow karein."
+        );
       } else if (
         event.error ===
         "no-speech"
       ) {
-        status.textContent =
-          "Kuch sunai nahi diya.";
+        updateVoiceStatus(
+          "Kuch sunai nahi diya."
+        );
+      } else if (
+        event.error ===
+        "network"
+      ) {
+        updateVoiceStatus(
+          "Voice network error. Dobara try karein."
+        );
       } else {
-        status.textContent =
-          "Voice input error.";
+        updateVoiceStatus(
+          "Voice input error."
+        );
       }
     };
 
@@ -758,8 +796,9 @@ function setupSpeechRecognition(
           "Sun raha"
         )
       ) {
-        status.textContent =
-          "Voice ready";
+        updateVoiceStatus(
+          "Voice ready"
+        );
       }
     };
 }
@@ -773,15 +812,17 @@ function toggleVoiceInput(
   status
 ) {
   if (!speechRecognition) {
-    status.textContent =
-      "Is browser mein voice input available nahi hai.";
+    updateVoiceStatus(
+      "Is browser mein voice input available nahi hai."
+    );
 
     return;
   }
 
   if (isThinking) {
-    status.textContent =
-      "Pehle current answer complete hone dein.";
+    updateVoiceStatus(
+      "Pehle current answer complete hone dein."
+    );
 
     return;
   }
@@ -829,8 +870,9 @@ function toggleVoiceInput(
       error
     );
 
-    status.textContent =
-      "Mic start nahi ho paaya.";
+    updateVoiceStatus(
+      "Mic start nahi ho paaya."
+    );
   }
 }
 
@@ -841,8 +883,9 @@ function toggleVoiceInput(
 function findBestSpeechVoice(
   language
 ) {
-  if (!isVoiceOutputSupported())
+  if (!isVoiceOutputSupported()) {
     return null;
+  }
 
   const voices =
     window.speechSynthesis.getVoices();
@@ -870,7 +913,9 @@ function findBestSpeechVoice(
           target
     );
 
-  if (voice) return voice;
+  if (voice) {
+    return voice;
+  }
 
   voice =
     voices.find(
@@ -883,7 +928,9 @@ function findBestSpeechVoice(
           )
     );
 
-  if (voice) return voice;
+  if (voice) {
+    return voice;
+  }
 
   return (
     voices.find(
@@ -900,13 +947,16 @@ function speakText(
   text,
   button = null
 ) {
-  if (!isVoiceOutputSupported())
+  if (!isVoiceOutputSupported()) {
     return;
+  }
 
   const cleanText =
     String(text || "").trim();
 
-  if (!cleanText) return;
+  if (!cleanText) {
+    return;
+  }
 
   stopVoiceOutput();
 
@@ -938,9 +988,14 @@ function speakText(
   utterance.lang =
     language;
 
-  utterance.rate = 0.95;
-  utterance.pitch = 1;
-  utterance.volume = 1;
+  utterance.rate =
+    0.95;
+
+  utterance.pitch =
+    1;
+
+  utterance.volume =
+    1;
 
   const voice =
     findBestSpeechVoice(
@@ -969,6 +1024,7 @@ function speakText(
   utterance.onend =
     function () {
       isSpeaking = false;
+
       currentSpeechUtterance =
         null;
 
@@ -990,6 +1046,7 @@ function speakText(
       );
 
       isSpeaking = false;
+
       currentSpeechUtterance =
         null;
 
@@ -1024,6 +1081,7 @@ function stopVoiceOutput() {
   }
 
   isSpeaking = false;
+
   currentSpeechUtterance =
     null;
 
@@ -1101,7 +1159,9 @@ function addMessage(
   type,
   options = {}
 ) {
-  if (!chatBox) return null;
+  if (!chatBox) {
+    return null;
+  }
 
   const cleanText =
     String(text || "");
@@ -1171,7 +1231,7 @@ function renderSources(
     );
 
   title.textContent =
-    "🌐 Sources";
+    "🌐 Verified Sources";
 
   title.className =
     "atharv-sources-title";
@@ -1183,31 +1243,50 @@ function renderSources(
   sources
     .slice(0, 6)
     .forEach(source => {
-      if (!source) return;
+      if (!source) {
+        return;
+      }
+
+      const url =
+        typeof source.url ===
+        "string"
+          ? source.url
+          : "";
+
+      if (!url) {
+        return;
+      }
 
       const link =
         document.createElement(
           "a"
         );
 
-      link.target = "_blank";
+      link.target =
+        "_blank";
+
       link.rel =
         "noopener noreferrer";
 
       link.href =
-        source.url ||
-        "#";
+        url;
 
       link.textContent =
         source.title ||
         source.name ||
-        source.url ||
-        "Source";
+        url;
 
       wrapper.appendChild(
         link
       );
     });
+
+  if (
+    wrapper.children.length <=
+    1
+  ) {
+    return;
+  }
 
   chatBox.appendChild(
     wrapper
@@ -1225,7 +1304,9 @@ function renderSources(
 
 function saveChatHistory() {
   try {
-    if (!chatBox) return;
+    if (!chatBox) {
+      return;
+    }
 
     const messages = [];
 
@@ -1246,6 +1327,10 @@ function saveChatHistory() {
             .messageText ||
           message.textContent ||
           "";
+
+        if (!text.trim()) {
+          return;
+        }
 
         messages.push({
           text,
@@ -1279,7 +1364,9 @@ function getChatHistory() {
         ATHARV_HISTORY_KEY
       );
 
-    if (!saved) return [];
+    if (!saved) {
+      return [];
+    }
 
     const messages =
       JSON.parse(saved);
@@ -1298,13 +1385,16 @@ function getChatHistory() {
 }
 
 function loadChatHistory() {
-  if (!chatBox) return;
+  if (!chatBox) {
+    return;
+  }
 
   const messages =
     getChatHistory();
 
-  if (!messages.length)
+  if (!messages.length) {
     return;
+  }
 
   chatBox.innerHTML = "";
 
@@ -1339,13 +1429,15 @@ function clearChatHistory() {
 }
 
 /* =========================================================
-   THINKING
+   THINKING UI
    ========================================================= */
 
 function showThinking() {
   removeThinking();
 
-  if (!chatBox) return;
+  if (!chatBox) {
+    return;
+  }
 
   const message =
     document.createElement(
@@ -1359,7 +1451,16 @@ function showThinking() {
     "thinkingMessage";
 
   message.innerHTML =
-    "Atharv <span class=\"atharv-dots\">● ● ●</span>";
+    `
+      <span class="atharv-thinking-label">
+        Atharv
+      </span>
+      <span class="atharv-dots">
+        <span>●</span>
+        <span>●</span>
+        <span>●</span>
+      </span>
+    `;
 
   chatBox.appendChild(
     message
@@ -1377,7 +1478,9 @@ function removeThinking() {
       "thinkingMessage"
     );
 
-  if (item) item.remove();
+  if (item) {
+    item.remove();
+  }
 }
 
 /* =========================================================
@@ -1422,7 +1525,8 @@ function clearAttachment() {
     null;
 
   if (fileInput) {
-    fileInput.value = "";
+    fileInput.value =
+      "";
   }
 
   if (attachmentPreview) {
@@ -1437,8 +1541,9 @@ function clearAttachment() {
 function renderAttachmentPreview(
   file
 ) {
-  if (!attachmentPreview)
+  if (!attachmentPreview) {
     return;
+  }
 
   attachmentPreview.innerHTML =
     "";
@@ -1482,13 +1587,21 @@ function renderAttachmentPreview(
   remove.textContent =
     "✕";
 
+  remove.title =
+    "Remove attachment";
+
   remove.addEventListener(
     "click",
     clearAttachment
   );
 
-  wrapper.appendChild(name);
-  wrapper.appendChild(remove);
+  wrapper.appendChild(
+    name
+  );
+
+  wrapper.appendChild(
+    remove
+  );
 
   attachmentPreview.appendChild(
     wrapper
@@ -1518,7 +1631,9 @@ if (fileInput) {
         this.files &&
         this.files[0];
 
-      if (!file) return;
+      if (!file) {
+        return;
+      }
 
       const maxSize =
         10 * 1024 * 1024;
@@ -1571,7 +1686,13 @@ async function readTextFile(
   }
 
   try {
-    return await file.text();
+    const text =
+      await file.text();
+
+    return text.slice(
+      0,
+      50000
+    );
   } catch (error) {
     console.error(
       "FILE READ ERROR:",
@@ -1589,7 +1710,9 @@ async function readTextFile(
 function getAttachmentDescription(
   file
 ) {
-  if (!file) return "";
+  if (!file) {
+    return "";
+  }
 
   const type =
     file.type || "";
@@ -1605,7 +1728,7 @@ function getAttachmentDescription(
     return (
       "User attached an image named " +
       file.name +
-      ". Image analysis is requested."
+      ". Visual image analysis is requested."
     );
   }
 
@@ -1617,7 +1740,7 @@ function getAttachmentDescription(
     return (
       "User attached a PDF named " +
       file.name +
-      ". PDF analysis is requested."
+      ". PDF/document analysis is requested."
     );
   }
 
@@ -1628,12 +1751,87 @@ function getAttachmentDescription(
 }
 
 /* =========================================================
+   BUILD REQUEST BODY
+   ========================================================= */
+
+async function buildChatRequest(
+  message,
+  attachment
+) {
+  const fullHistory =
+    getChatHistory();
+
+  const recentHistory =
+    fullHistory.slice(
+      -12
+    );
+
+  const timeZone =
+    Intl.DateTimeFormat()
+      .resolvedOptions()
+      .timeZone ||
+    "Asia/Kolkata";
+
+  const body = {
+    message,
+
+    history:
+      recentHistory,
+
+    timeZone,
+
+    userId:
+      ATHARV_USER_ID,
+
+    language:
+      selectedLanguage,
+
+    languageName:
+      LANGUAGE_MAP[
+        selectedLanguage
+      ] ||
+      "Auto Detect"
+  };
+
+  if (attachment) {
+    body.attachment = {
+      name:
+        attachment.name,
+
+      type:
+        attachment.type,
+
+      size:
+        attachment.size
+    };
+
+    body.attachmentDescription =
+      getAttachmentDescription(
+        attachment
+      );
+
+    const attachmentText =
+      await readTextFile(
+        attachment
+      );
+
+    if (attachmentText) {
+      body.attachmentText =
+        attachmentText;
+    }
+  }
+
+  return body;
+}
+
+/* =========================================================
    SEND MESSAGE
    ========================================================= */
 
 async function sendMessage() {
-  if (!messageInput)
+  if (!messageInput) {
     return;
+  }
 
   const message =
     messageInput.value.trim();
@@ -1650,16 +1848,6 @@ async function sendMessage() {
   const attachment =
     selectedAttachment;
 
-  let attachmentText =
-    null;
-
-  if (attachment) {
-    attachmentText =
-      await readTextFile(
-        attachment
-      );
-  }
-
   addMessage(
     message,
     "user"
@@ -1667,11 +1855,14 @@ async function sendMessage() {
 
   saveChatHistory();
 
-  messageInput.value = "";
+  messageInput.value =
+    "";
+
   messageInput.style.height =
     "auto";
 
-  isThinking = true;
+  isThinking =
+    true;
 
   if (sendButton) {
     sendButton.disabled =
@@ -1679,6 +1870,11 @@ async function sendMessage() {
 
     sendButton.style.opacity =
       "0.5";
+
+    sendButton.setAttribute(
+      "aria-disabled",
+      "true"
+    );
   }
 
   showThinking();
@@ -1699,66 +1895,11 @@ async function sendMessage() {
     );
 
   try {
-    const fullHistory =
-      getChatHistory();
-
-    const recentHistory =
-      fullHistory.slice(
-        -12
+    const body =
+      await buildChatRequest(
+        message,
+        attachment
       );
-
-    const timeZone =
-      Intl.DateTimeFormat()
-        .resolvedOptions()
-        .timeZone ||
-      "Asia/Kolkata";
-
-    const body = {
-      message,
-
-      history:
-        recentHistory,
-
-      timeZone,
-
-      userId:
-        ATHARV_USER_ID,
-
-      language:
-        selectedLanguage,
-
-      languageName:
-        LANGUAGE_MAP[
-          selectedLanguage
-        ] ||
-        "Auto Detect"
-    };
-
-    if (attachment) {
-      body.attachment = {
-        name:
-          attachment.name,
-
-        type:
-          attachment.type,
-
-        size:
-          attachment.size
-      };
-
-      body.attachmentDescription =
-        getAttachmentDescription(
-          attachment
-        );
-
-      if (attachmentText) {
-        body.attachmentText =
-          attachmentText.slice(
-            0,
-            50000
-          );
-      }
-    }
 
     const response =
       await fetch(
@@ -1833,7 +1974,8 @@ async function sendMessage() {
     if (
       Array.isArray(
         data.sources
-      )
+      ) &&
+      data.sources.length
     ) {
       renderSources(
         data.sources
@@ -1843,7 +1985,6 @@ async function sendMessage() {
     saveChatHistory();
 
     clearAttachment();
-
   } catch (error) {
     removeThinking();
 
@@ -1863,7 +2004,7 @@ async function sendMessage() {
         "\n\n⏳ Response mein zyada time lag raha hai. Please dobara try karein.";
     } else {
       errorMessage +=
-        "\n\nReason: " +
+        "\n\n" +
         (
           error.message ||
           "Unknown error"
@@ -1876,7 +2017,6 @@ async function sendMessage() {
     );
 
     saveChatHistory();
-
   } finally {
     clearTimeout(
       timeoutId
@@ -1885,7 +2025,8 @@ async function sendMessage() {
     currentController =
       null;
 
-    isThinking = false;
+    isThinking =
+      false;
 
     if (sendButton) {
       sendButton.disabled =
@@ -1893,11 +2034,47 @@ async function sendMessage() {
 
       sendButton.style.opacity =
         "1";
+
+      sendButton.removeAttribute(
+        "aria-disabled"
+      );
     }
 
     if (messageInput) {
       messageInput.focus();
     }
+  }
+}
+
+/* =========================================================
+   CANCEL CURRENT REQUEST
+   ========================================================= */
+
+function cancelCurrentRequest() {
+  if (
+    currentController
+  ) {
+    try {
+      currentController.abort();
+    } catch (error) {
+      console.warn(
+        "REQUEST CANCEL ERROR:",
+        error
+      );
+    }
+  }
+
+  removeThinking();
+
+  isThinking =
+    false;
+
+  if (sendButton) {
+    sendButton.disabled =
+      false;
+
+    sendButton.style.opacity =
+      "1";
   }
 }
 
@@ -1913,10 +2090,17 @@ function quickAsk(text) {
     return;
   }
 
+  const question =
+    String(text || "").trim();
+
+  if (!question) {
+    return;
+  }
+
   showChatScreen();
 
   messageInput.value =
-    text;
+    question;
 
   messageInput.dispatchEvent(
     new Event("input")
@@ -1954,7 +2138,7 @@ if (messageInput) {
       this.style.height =
         Math.min(
           this.scrollHeight,
-          120
+          140
         ) + "px";
     }
   );
@@ -2032,22 +2216,30 @@ const memoryLabels = {
     "Personal Note"
 };
 
+/* =========================================================
+   SCREEN MANAGEMENT
+   ========================================================= */
+
 function hideAllScreens() {
-  if (chatScreen)
+  if (chatScreen) {
     chatScreen.hidden =
       true;
+  }
 
-  if (profileScreen)
+  if (profileScreen) {
     profileScreen.hidden =
       true;
+  }
 
-  if (marketScreen)
+  if (marketScreen) {
     marketScreen.hidden =
       true;
+  }
 
-  if (alertsScreen)
+  if (alertsScreen) {
     alertsScreen.hidden =
       true;
+  }
 }
 
 function showChatScreen() {
@@ -2108,8 +2300,9 @@ function updateNavActive(
 function renderMemories(
   memories
 ) {
-  if (!memoryList)
+  if (!memoryList) {
     return;
+  }
 
   memoryList.innerHTML =
     "";
@@ -2242,8 +2435,9 @@ function renderMemories(
    ========================================================= */
 
 async function loadMemories() {
-  if (!memoryList)
+  if (!memoryList) {
     return;
+  }
 
   memoryList.innerHTML =
     '<div class="memory-loading">🧠 Memories load ho rahi hain...</div>';
@@ -2493,7 +2687,7 @@ if (clearAllMemory) {
 function showMarketScreen() {
   if (!marketScreen) {
     quickAsk(
-      "Give me the latest Indian stock market update including NIFTY, SENSEX, major gainers, losers and important market news."
+      "Give me the latest Indian stock market update including NIFTY, SENSEX, major gainers, losers, sectors and important market news. Use current verified information and mention the exact date and time."
     );
 
     return;
@@ -2511,7 +2705,7 @@ function showMarketScreen() {
 
 function askMarketUpdate() {
   quickAsk(
-    "Give me the latest Indian stock market update. Include NIFTY, SENSEX, major market-moving news, sectors and important stocks. Use current live information and clearly mention the date/time of the data."
+    "Give me the latest Indian stock market update. Include NIFTY, SENSEX, major market-moving news, sectors, important stocks, gainers and losers. Use current verified information and clearly mention the date and time of the data. Do not guess any price."
   );
 }
 
@@ -2522,7 +2716,7 @@ function askMarketUpdate() {
 function showAlertsScreen() {
   if (!alertsScreen) {
     quickAsk(
-      "What are the most important breaking news and alerts in India and the world right now?"
+      "What are the most important breaking news and major developments in India and the world right now? Use current verified information and provide sources."
     );
 
     return;
@@ -2540,7 +2734,7 @@ function showAlertsScreen() {
 
 function askLatestAlerts() {
   quickAsk(
-    "What are the most important breaking news, alerts and major developments in India and the world right now? Use current live information."
+    "What are the most important breaking news, alerts and major developments in India and the world right now? Use current verified live information. Do not invent anything and provide sources."
   );
 }
 
@@ -2638,7 +2832,7 @@ document
   });
 
 /* =========================================================
-   EXTRA MARKET / ALERT BUTTONS
+   EXTRA ACTION BUTTONS
    ========================================================= */
 
 document
@@ -2724,6 +2918,57 @@ function initializeAtharvVoice() {
 }
 
 /* =========================================================
+   PWA / SERVICE WORKER
+   ========================================================= */
+
+function initializeServiceWorker() {
+  if (
+    "serviceWorker" in
+    navigator
+  ) {
+    window.addEventListener(
+      "load",
+      function () {
+        navigator.serviceWorker
+          .register(
+            "/service-worker.js"
+          )
+          .then(
+            registration => {
+              console.log(
+                "ATHARV SERVICE WORKER REGISTERED:",
+                registration.scope
+              );
+            }
+          )
+          .catch(error => {
+            console.warn(
+              "SERVICE WORKER ERROR:",
+              error
+            );
+          });
+      }
+    );
+  }
+}
+
+/* =========================================================
+   VISIBILITY / VOICE SAFETY
+   ========================================================= */
+
+document.addEventListener(
+  "visibilitychange",
+  function () {
+    if (
+      document.hidden &&
+      isSpeaking
+    ) {
+      stopVoiceOutput();
+    }
+  }
+);
+
+/* =========================================================
    GLOBAL FUNCTIONS
    ========================================================= */
 
@@ -2741,6 +2986,9 @@ window.speakText =
 
 window.stopVoiceOutput =
   stopVoiceOutput;
+
+window.cancelCurrentRequest =
+  cancelCurrentRequest;
 
 window.showProfileScreen =
   showProfileScreen;
@@ -2775,7 +3023,7 @@ console.log(
 );
 
 console.log(
-  "ATHARV AI FRONTEND 8.0 LOADED 🤖"
+  "ATHARV AI FRONTEND 9.0 LOADED 🤖"
 );
 
 console.log(
@@ -2791,7 +3039,7 @@ console.log(
 );
 
 console.log(
-  "Multilingual UI: ENABLED"
+  "Multilingual: ENABLED"
 );
 
 console.log(
@@ -2807,7 +3055,7 @@ console.log(
 );
 
 console.log(
-  "Attachment Metadata: ENABLED"
+  "Attachment Context: ENABLED"
 );
 
 console.log(
@@ -2823,6 +3071,10 @@ console.log(
 );
 
 console.log(
+  "PWA Service Worker: ENABLED"
+);
+
+console.log(
   "========================================"
 );
 
@@ -2833,3 +3085,5 @@ console.log(
 loadChatHistory();
 
 initializeAtharvVoice();
+
+initializeServiceWorker();
