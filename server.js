@@ -1474,27 +1474,25 @@ app.get(
    STATIC FRONTEND
    ========================================================= */
 
-const publicPath =
-  path.join(
-    __dirname,
-    "public"
-  );
+// Atharv frontend files are in the repository root,
+// not inside a public folder.
+
+const frontendPath = __dirname;
 
 app.use(
-  express.static(
-    publicPath
-  )
+  express.static(frontendPath)
 );
 
 /*
   Express 5 compatible catch-all.
+  Sends root index.html for frontend routes.
 */
 app.get(
   "*splat",
   (req, res) => {
     res.sendFile(
       path.join(
-        publicPath,
+        frontendPath,
         "index.html"
       )
     );
