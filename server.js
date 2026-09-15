@@ -29,47 +29,59 @@ const pool = new Pool({
 
 /* =========================================================
    ATHARV AI
-   Backend Version 8.0
+   Backend Version 9.0
+   Universal Intelligence Router
    ========================================================= */
 
 const ATHARV_INSTRUCTIONS = `
 You are Atharv AI.
 
-Your purpose is not only to answer questions but to help the user
-complete useful tasks.
+Your purpose is to help the user understand information and complete
+useful tasks, not merely provide short answers.
 
 CORE RULES:
 
-1. Always answer the user's actual request directly.
+1. Answer the user's actual request directly.
 2. Do not unnecessarily ask clarification questions.
-3. Never invent current facts, prices, news, weather, events or statistics.
-4. When live web context is provided, use it carefully and distinguish
-   verified information from uncertainty.
-5. Respect the user's selected language.
-6. If the user selects a language, answer primarily in that language.
-7. If Hinglish is selected, use natural Roman Hindi/Hinglish.
-8. If Hindi is selected, prefer Devanagari Hindi unless the user clearly
-   writes in Roman Hindi and the context suggests otherwise.
-9. If Auto Detect is selected, detect the user's language naturally.
-10. Preserve the user's tone and communication style.
-11. Do not start every answer with the user's name.
-12. Use remembered information naturally when relevant.
-13. Never reveal API keys, passwords, tokens, database URLs or secrets.
-14. Never claim to have performed an action that was not actually performed.
-15. For financial information, clearly mention uncertainty and risk.
-16. Never promise guaranteed stock returns, option profits or exam questions.
-17. For study/exam questions, prioritize concepts and questions based on
-    available evidence rather than claiming certainty.
-18. For uploaded documents, answer from the supplied document content.
-19. For coding questions, explain clearly and provide working code when useful.
-20. For professional tasks, produce practical, usable output.
-21. Keep responses reasonably concise unless the user asks for detail.
-22. Use headings, bullets and tables when they improve readability.
-23. For current information, do not pretend that old knowledge is current.
-24. If live search context is unavailable for a question that clearly needs
-    current information, say that live verification could not be completed.
-25. Support multilingual conversations across major world languages whenever
-    the model can reliably respond.
+3. Never invent facts.
+4. Never invent current prices, news, weather, scores, events,
+   statistics or market information.
+5. When live research context is provided, use it as the primary
+   source for current information.
+6. If multiple sources disagree, clearly say that they disagree.
+7. Never present an unverified current number as confirmed.
+8. If live verification failed for a question that requires current
+   information, clearly say that live verification could not be completed.
+9. Do not tell the user merely to "check a website" when useful research
+   information is already available in the supplied research context.
+10. When sources are available, summarize the useful information directly
+    and mention important source names.
+11. Respect the user's selected language.
+12. If the user selects a language, answer primarily in that language.
+13. If Hinglish is selected, use natural Roman Hindi/Hinglish.
+14. If Hindi is selected, prefer Devanagari Hindi unless the user clearly
+    writes in Roman Hindi and the context suggests otherwise.
+15. If Auto Detect is selected, detect the user's language naturally.
+16. Preserve the user's tone and communication style.
+17. Do not start every answer with the user's name.
+18. Use remembered information naturally when relevant.
+19. Never reveal API keys, passwords, tokens, database URLs or secrets.
+20. Never claim an action was performed unless it actually was performed.
+21. For financial information, clearly explain uncertainty and risk.
+22. Never promise guaranteed investment returns or option profits.
+23. Never claim a future stock price is certain.
+24. For study/exam questions, teach concepts and use evidence where available.
+25. Never claim that an exact future exam question is guaranteed.
+26. For uploaded documents, answer from supplied document content.
+27. For coding questions, provide practical working code when useful.
+28. For professional tasks, create usable output.
+29. For planning tasks, break the work into practical steps.
+30. Keep answers reasonably concise unless detail is requested.
+31. Use headings, bullets and tables when useful.
+32. For current questions, old model knowledge must not be treated as current.
+33. Support major world languages whenever the model can reliably respond.
+34. Never fabricate a source or URL.
+35. If research sources are weak, say so rather than guessing.
 `;
 
 /* =========================================================
@@ -83,14 +95,6 @@ function safeString(value, max = 10000) {
 
 function limitText(value, max = 50000) {
   return safeString(value, max);
-}
-
-function countMatches(text, words) {
-  const value = String(text || "").toLowerCase();
-
-  return words.reduce((count, word) => {
-    return count + (value.includes(word.toLowerCase()) ? 1 : 0);
-  }, 0);
 }
 
 /* =========================================================
@@ -112,14 +116,12 @@ function getUserId(req, body = {}) {
 }
 
 /* =========================================================
-   USER DATE/TIME
+   DATE / TIME
    ========================================================= */
 
 function getUserDateTime(timeZone) {
   try {
-    const tz =
-      timeZone ||
-      "Asia/Kolkata";
+    const tz = timeZone || "Asia/Kolkata";
 
     return new Intl.DateTimeFormat("en-IN", {
       timeZone: tz,
@@ -161,10 +163,9 @@ const LANGUAGE_NAMES = {
 };
 
 function normalizeLanguagePreference(language) {
-  const value =
-    String(language || "")
-      .trim()
-      .toLowerCase();
+  const value = String(language || "")
+    .trim()
+    .toLowerCase();
 
   if (!value) return "auto";
 
@@ -203,53 +204,18 @@ function normalizeLanguagePreference(language) {
 function detectLanguageProfile(text) {
   const value = String(text || "");
 
-  if (/[\u0900-\u097F]/.test(value)) {
-    return "hi";
-  }
-
-  if (/[\u0980-\u09FF]/.test(value)) {
-    return "bn";
-  }
-
-  if (/[\u0A00-\u0A7F]/.test(value)) {
-    return "pa";
-  }
-
-  if (/[\u0A80-\u0AFF]/.test(value)) {
-    return "gu";
-  }
-
-  if (/[\u0B00-\u0B7F]/.test(value)) {
-    return "ta";
-  }
-
-  if (/[\u0C00-\u0C7F]/.test(value)) {
-    return "te";
-  }
-
-  if (/[\u0C80-\u0CFF]/.test(value)) {
-    return "kn";
-  }
-
-  if (/[\u0D00-\u0D7F]/.test(value)) {
-    return "ml";
-  }
-
-  if (/[\u0600-\u06FF]/.test(value)) {
-    return "ur";
-  }
-
-  if (/[\u3040-\u30FF]/.test(value)) {
-    return "ja";
-  }
-
-  if (/[\uAC00-\uD7AF]/.test(value)) {
-    return "ko";
-  }
-
-  if (/[\u4E00-\u9FFF]/.test(value)) {
-    return "zh";
-  }
+  if (/[\u0900-\u097F]/.test(value)) return "hi";
+  if (/[\u0980-\u09FF]/.test(value)) return "bn";
+  if (/[\u0A00-\u0A7F]/.test(value)) return "pa";
+  if (/[\u0A80-\u0AFF]/.test(value)) return "gu";
+  if (/[\u0B00-\u0B7F]/.test(value)) return "ta";
+  if (/[\u0C00-\u0C7F]/.test(value)) return "te";
+  if (/[\u0C80-\u0CFF]/.test(value)) return "kn";
+  if (/[\u0D00-\u0D7F]/.test(value)) return "ml";
+  if (/[\u0600-\u06FF]/.test(value)) return "ur";
+  if (/[\u3040-\u30FF]/.test(value)) return "ja";
+  if (/[\uAC00-\uD7AF]/.test(value)) return "ko";
+  if (/[\u4E00-\u9FFF]/.test(value)) return "zh";
 
   const hinglishWords = [
     "mera",
@@ -270,14 +236,19 @@ function detectLanguageProfile(text) {
     "acha",
     "accha",
     "theek",
-    "thik"
+    "thik",
+    "ka",
+    "ki",
+    "ke"
   ];
 
   const lower = value.toLowerCase();
 
-  if (
-    hinglishWords.filter(x => lower.includes(x)).length >= 2
-  ) {
+  const count = hinglishWords.filter(word => {
+    return new RegExp(`\\b${word}\\b`, "i").test(lower);
+  }).length;
+
+  if (count >= 2) {
     return "hinglish";
   }
 
@@ -289,20 +260,30 @@ function getLanguageInstruction(language, languageName, message) {
     normalizeLanguagePreference(language);
 
   if (selected === "auto") {
-    const detected = detectLanguageProfile(message);
+    const detected =
+      detectLanguageProfile(message);
 
     if (detected === "hinglish") {
       return `
-Language preference: Auto Detect.
-Detected style: Hinglish.
-Reply naturally in Roman Hindi/Hinglish unless the user clearly changes language.
+LANGUAGE:
+Auto Detect
+
+Detected style:
+Hinglish / Roman Hindi.
+
+Reply naturally in Roman Hindi/Hinglish.
+Do not switch to Devanagari unless the user asks.
 `;
     }
 
     return `
-Language preference: Auto Detect.
-Detected language: ${LANGUAGE_NAMES[detected] || detected}.
-Reply in the user's detected language.
+LANGUAGE:
+Auto Detect
+
+Detected language:
+${LANGUAGE_NAMES[detected] || detected}
+
+Reply primarily in the detected language.
 `;
   }
 
@@ -310,18 +291,21 @@ Reply in the user's detected language.
     return `
 MANDATORY RESPONSE LANGUAGE:
 Hinglish / Roman Hindi.
-Use natural Roman Hindi mixed with English where appropriate.
-Do not switch to Devanagari unless the user explicitly asks.
+
+Use natural Roman Hindi mixed with English.
+Do not switch to Devanagari unless explicitly requested.
 `;
   }
 
   return `
 MANDATORY RESPONSE LANGUAGE:
-${languageName || LANGUAGE_NAMES[selected] || selected}.
+${languageName || LANGUAGE_NAMES[selected] || selected}
 
 Answer primarily in this language.
 Do not unnecessarily switch to English.
-Technical names, code, URLs and proper nouns may remain in their original form.
+
+Technical names, code, URLs and proper nouns may remain
+in their original form.
 `;
 }
 
@@ -369,10 +353,50 @@ function containsSecret(value) {
   );
 }
 
+/* =========================================================
+   MEMORY NAME EXTRACTION
+   FIXED VERSION
+   ========================================================= */
+
+const INVALID_NAME_WORDS = new Set([
+  "kya",
+  "kaise",
+  "kyun",
+  "kab",
+  "kahan",
+  "kon",
+  "kaun",
+  "hai",
+  "hain",
+  "mera",
+  "meri",
+  "mere",
+  "naam",
+  "name",
+  "batao",
+  "bata",
+  "please",
+  "plz",
+  "aap",
+  "apka",
+  "apki",
+  "mujhe",
+  "what",
+  "why",
+  "how",
+  "when",
+  "where",
+  "who",
+  "my",
+  "is"
+]);
+
 function isInvalidName(name) {
   if (!name) return true;
 
-  const value = String(name).trim();
+  const value = String(name)
+    .trim()
+    .replace(/\s+/g, " ");
 
   if (value.length < 2 || value.length > 80) {
     return true;
@@ -382,40 +406,74 @@ function isInvalidName(name) {
     return true;
   }
 
+  const words = value
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (!words.length) return true;
+
+  if (
+    words.some(word =>
+      INVALID_NAME_WORDS.has(
+        word.replace(/[.,!?]+$/, "")
+      )
+    )
+  ) {
+    return true;
+  }
+
+  if (!/^[A-Za-z][A-Za-z .'-]*$/.test(value)) {
+    return true;
+  }
+
   return false;
 }
 
 function extractName(message) {
   const text = String(message || "").trim();
 
+  /*
+    IMPORTANT:
+    We only accept a name when it is clearly introduced
+    as a name.
+
+    Examples accepted:
+    "My name is Rajiv"
+    "My name is Rajiv."
+    "Mera naam Rajiv hai"
+    "Mera naam Rajiv hai."
+  */
+
   const patterns = [
-    /(?:my name is)\s+([A-Za-z][A-Za-z .'-]{1,60})/i,
-    /(?:mera naam)\s+([A-Za-z][A-Za-z .'-]{1,60})(?:\s+hai)?/i,
-    /(?:मेरा नाम)\s+([^\n,.!?]{2,60})(?:\s+है)?/i
+    /(?:my\s+name\s+is)\s+([A-Za-z][A-Za-z .'-]{1,60}?)(?=\s*[.!?,]|$)/i,
+
+    /(?:mera\s+naam)\s+([A-Za-z][A-Za-z .'-]{1,60}?)(?:\s+hai)(?=\s*[.!?,]|$)/i,
+
+    /(?:मेरा\s+नाम)\s+([^\n,.!?]{2,60}?)(?:\s+है)(?=\s*[.!?,]|$)/
   ];
 
   for (const pattern of patterns) {
     const match = text.match(pattern);
 
-    if (match && match[1]) {
-      const name = match[1]
-        .trim()
-        .replace(/[.!?,]+$/, "");
+    if (!match || !match[1]) {
+      continue;
+    }
 
-      if (!isInvalidName(name)) {
-        return name;
-      }
+    const name = match[1]
+      .trim()
+      .replace(/\s+/g, " ")
+      .replace(/[.!?,]+$/, "");
+
+    if (!isInvalidName(name)) {
+      return name;
     }
   }
 
   return null;
 }
 
-async function saveMemory(
-  userId,
-  key,
-  value
-) {
+async function saveMemory(userId, key, value) {
   if (
     !userId ||
     !key ||
@@ -431,6 +489,7 @@ async function saveMemory(
       (user_id, memory_key, memory_value)
     VALUES
       ($1, $2, $3)
+
     ON CONFLICT (user_id, memory_key)
     DO UPDATE SET
       memory_value = EXCLUDED.memory_value,
@@ -447,31 +506,34 @@ async function saveMemory(
 }
 
 async function getMemories(userId) {
-  const result = await pool.query(
-    `
-    SELECT memory_key, memory_value
-    FROM public.user_memories
-    WHERE user_id = $1
-    ORDER BY updated_at DESC
-    LIMIT 50
-    `,
-    [userId]
-  );
+  const result =
+    await pool.query(
+      `
+      SELECT
+        memory_key,
+        memory_value
+      FROM public.user_memories
+      WHERE user_id = $1
+      ORDER BY updated_at DESC
+      LIMIT 50
+      `,
+      [userId]
+    );
 
   return result.rows;
 }
 
-async function deleteMemory(
-  userId,
-  key
-) {
+async function deleteMemory(userId, key) {
   await pool.query(
     `
     DELETE FROM public.user_memories
     WHERE user_id = $1
     AND memory_key = $2
     `,
-    [userId, key]
+    [
+      userId,
+      key
+    ]
   );
 }
 
@@ -486,19 +548,23 @@ async function clearMemory(userId) {
 }
 
 function buildMemoryContext(memories) {
-  if (!memories || !memories.length) {
+  if (
+    !memories ||
+    !memories.length
+  ) {
     return "";
   }
 
-  const lines = memories
-    .slice(0, 30)
-    .map(
-      item =>
-        `- ${item.memory_key}: ${item.memory_value}`
-    );
+  const lines =
+    memories
+      .slice(0, 30)
+      .map(item => {
+        return `- ${item.memory_key}: ${item.memory_value}`;
+      });
 
   return `
 USER MEMORY
+
 Use this information naturally when relevant.
 Do not mention the internal memory system.
 
@@ -510,7 +576,8 @@ async function processMemoryRequest(
   userId,
   message
 ) {
-  const name = extractName(message);
+  const name =
+    extractName(message);
 
   if (name) {
     await saveMemory(
@@ -521,21 +588,31 @@ async function processMemoryRequest(
   }
 
   const lower =
-    String(message || "").toLowerCase();
+    String(message || "")
+      .toLowerCase();
 
-  if (
+  const rememberRequest =
     lower.includes("remember that") ||
     lower.includes("yaad rakhna") ||
-    lower.includes("याद रखना")
+    lower.includes("yaad rakho") ||
+    lower.includes("याद रखना");
+
+  if (
+    rememberRequest &&
+    !containsSecret(message)
   ) {
-    if (!containsSecret(message)) {
-      const cleaned = message
+    const cleaned =
+      message
         .replace(
-          /remember that/i,
+          /remember that/gi,
           ""
         )
         .replace(
-          /yaad rakhna/i,
+          /yaad rakhna/gi,
+          ""
+        )
+        .replace(
+          /yaad rakho/gi,
           ""
         )
         .replace(
@@ -544,111 +621,189 @@ async function processMemoryRequest(
         )
         .trim();
 
-      if (cleaned.length > 2) {
-        await saveMemory(
-          userId,
-          "user_note_" + Date.now(),
-          cleaned.slice(0, 500)
-        );
-      }
+    if (cleaned.length > 2) {
+      await saveMemory(
+        userId,
+        "user_note_" + Date.now(),
+        cleaned.slice(0, 500)
+      );
     }
   }
 }
 
 /* =========================================================
-   HISTORY
+   QUERY INTELLIGENCE ROUTER
    ========================================================= */
 
-function cleanHistory(history) {
-  if (!Array.isArray(history)) {
-    return [];
+function classifyQuery(message) {
+  const text =
+    String(message || "")
+      .toLowerCase();
+
+  const weatherWords = [
+    "weather",
+    "forecast",
+    "temperature",
+    "rain",
+    "raining",
+    "mausam",
+    "barish",
+    "baarish",
+    "tapman"
+  ];
+
+  const marketWords = [
+    "stock",
+    "share price",
+    "share",
+    "nifty",
+    "sensex",
+    "market",
+    "stock price",
+    "share bhav",
+    "share bazaar",
+    "bazaar",
+    "ipo",
+    "intraday",
+    "option",
+    "call option",
+    "put option",
+    "futures",
+    "gold price",
+    "silver price"
+  ];
+
+  const cryptoWords = [
+    "bitcoin",
+    "btc",
+    "ethereum",
+    "eth",
+    "crypto",
+    "solana",
+    "toncoin",
+    "dogecoin"
+  ];
+
+  const sportsWords = [
+    "cricket",
+    "football",
+    "soccer",
+    "tennis",
+    "match",
+    "score",
+    "live score",
+    "ipl",
+    "world cup",
+    "winner",
+    "fixture",
+    "result"
+  ];
+
+  const newsWords = [
+    "news",
+    "breaking",
+    "latest news",
+    "headlines",
+    "samachar",
+    "khabar",
+    "taaza khabar",
+    "aaj ki khabar",
+    "aaj ki news",
+    "duniya mein kya ho raha",
+    "what is happening",
+    "what happened"
+  ];
+
+  const currentWords = [
+    "today",
+    "aaj",
+    "abhi",
+    "right now",
+    "current",
+    "latest",
+    "live",
+    "this morning",
+    "this evening",
+    "tonight",
+    "recent",
+    "recently"
+  ];
+
+  if (
+    weatherWords.some(x => text.includes(x))
+  ) {
+    return "weather";
   }
 
-  return history
-    .slice(-20)
-    .map(item => ({
-      role:
-        item.role === "assistant"
-          ? "assistant"
-          : "user",
+  if (
+    cryptoWords.some(x => text.includes(x))
+  ) {
+    return "crypto";
+  }
 
-      content:
-        safeString(
-          item.content ||
-          item.text ||
-          "",
-          6000
-        )
-    }))
-    .filter(item => item.content);
+  if (
+    marketWords.some(x => text.includes(x))
+  ) {
+    return "market";
+  }
+
+  if (
+    sportsWords.some(x => text.includes(x))
+  ) {
+    return "sports";
+  }
+
+  if (
+    newsWords.some(x => text.includes(x))
+  ) {
+    return "news";
+  }
+
+  if (
+    currentWords.some(x => text.includes(x))
+  ) {
+    return "current";
+  }
+
+  return "general";
+}
+
+function needsLiveSearch(message) {
+  return classifyQuery(message) !== "general";
 }
 
 /* =========================================================
-   LIVE SEARCH
+   SEARCH QUERY BUILDER
    ========================================================= */
-
-function needsLiveSearch(message) {
-  const text =
-    String(message || "").toLowerCase();
-
-  const triggers = [
-    "today",
-    "latest",
-    "current",
-    "right now",
-    "breaking",
-    "news",
-    "price",
-    "share price",
-    "stock price",
-    "market",
-    "nifty",
-    "sensex",
-    "weather",
-    "forecast",
-    "cricket",
-    "match",
-    "result",
-    "election",
-    "who is",
-    "what happened",
-    "happening",
-    "live",
-    "bitcoin",
-    "crypto",
-    "gold price",
-    "silver price",
-
-    "aaj",
-    "abhi",
-    "taaza",
-    "taza",
-    "latest news",
-    "samachar",
-    "khabar",
-    "share bhav",
-    "stock",
-    "bazaar",
-    "mausam",
-    "sona",
-    "chandi",
-    "bitcoin",
-    "crypto"
-  ];
-
-  return triggers.some(
-    word => text.includes(word)
-  );
-}
 
 function buildSearchQuery(
   message,
-  languageName
+  languageName,
+  category
 ) {
   let query =
     safeString(message, 1000)
       .replace(/\s+/g, " ")
       .trim();
+
+  const suffixMap = {
+    news:
+      "latest verified news current developments",
+    market:
+      "latest verified market information current price",
+    crypto:
+      "latest verified crypto market information current price",
+    sports:
+      "latest verified sports information live score result",
+    weather:
+      "current weather forecast",
+    current:
+      "latest current verified information"
+  };
+
+  if (suffixMap[category]) {
+    query += ` ${suffixMap[category]}`;
+  }
 
   if (
     languageName &&
@@ -660,11 +815,16 @@ function buildSearchQuery(
   return query;
 }
 
-async function searchWeb(query) {
+/* =========================================================
+   TAVILY
+   ========================================================= */
+
+async function searchTavily(query) {
   if (!TAVILY_API_KEY) {
     return {
+      provider: "tavily",
       ok: false,
-      reason: "Tavily is not configured",
+      reason: "Tavily API key not configured",
       results: []
     };
   }
@@ -675,19 +835,35 @@ async function searchWeb(query) {
         "https://api.tavily.com/search",
         {
           method: "POST",
+
           headers: {
             "Content-Type":
               "application/json"
           },
+
           body: JSON.stringify({
-            api_key: TAVILY_API_KEY,
+            api_key:
+              TAVILY_API_KEY,
+
             query,
-            search_depth: "advanced",
-            topic: "general",
-            max_results: 8,
-            include_answer: true,
-            include_raw_content: false,
-            include_images: false
+
+            search_depth:
+              "advanced",
+
+            topic:
+              "general",
+
+            max_results:
+              8,
+
+            include_answer:
+              true,
+
+            include_raw_content:
+              false,
+
+            include_images:
+              false
           })
         }
       );
@@ -703,8 +879,10 @@ async function searchWeb(query) {
       );
 
       return {
+        provider: "tavily",
         ok: false,
-        reason: "Search provider error",
+        reason:
+          `HTTP ${response.status}`,
         results: []
       };
     }
@@ -713,17 +891,41 @@ async function searchWeb(query) {
       await response.json();
 
     return {
+      provider: "tavily",
       ok: true,
+
       answer:
         safeString(
           data.answer,
-          6000
+          7000
         ),
+
       results:
         Array.isArray(data.results)
-          ? data.results.slice(0, 8)
+          ? data.results
+              .slice(0, 8)
+              .map(item => ({
+                title:
+                  safeString(
+                    item.title,
+                    300
+                  ),
+
+                url:
+                  safeString(
+                    item.url,
+                    500
+                  ),
+
+                content:
+                  safeString(
+                    item.content,
+                    3000
+                  )
+              }))
           : []
     };
+
   } catch (error) {
     console.error(
       "TAVILY FETCH ERROR:",
@@ -731,35 +933,568 @@ async function searchWeb(query) {
     );
 
     return {
+      provider: "tavily",
       ok: false,
-      reason: "Live search failed",
+      reason:
+        "Tavily request failed",
       results: []
     };
   }
 }
 
-function buildSearchContext(search) {
-  if (!search || !search.ok) {
+/* =========================================================
+   GDELT NEWS FALLBACK
+   ========================================================= */
+
+async function searchGdelt(query) {
+  try {
+    const params =
+      new URLSearchParams({
+        query,
+        mode: "artlist",
+        format: "json",
+        maxrecords: "8",
+        sort: "datedesc",
+        timespan: "3d"
+      });
+
+    const response =
+      await fetch(
+        `https://api.gdeltproject.org/api/v2/doc/doc?${params.toString()}`
+      );
+
+    if (!response.ok) {
+      return {
+        provider: "gdelt",
+        ok: false,
+        results: []
+      };
+    }
+
+    const data =
+      await response.json();
+
+    const articles =
+      Array.isArray(data.articles)
+        ? data.articles
+        : [];
+
+    return {
+      provider: "gdelt",
+      ok: true,
+
+      results:
+        articles
+          .slice(0, 8)
+          .map(item => ({
+            title:
+              safeString(
+                item.title,
+                300
+              ),
+
+            url:
+              safeString(
+                item.url,
+                500
+              ),
+
+            content:
+              safeString(
+                item.seendate ||
+                item.domain ||
+                "",
+                500
+              )
+          }))
+          .filter(item => item.url)
+    };
+
+  } catch (error) {
+    console.error(
+      "GDELT ERROR:",
+      error
+    );
+
+    return {
+      provider: "gdelt",
+      ok: false,
+      results: []
+    };
+  }
+}
+
+/* =========================================================
+   WEATHER
+   ========================================================= */
+
+function extractWeatherLocation(message) {
+  const text =
+    String(message || "")
+      .trim();
+
+  const patterns = [
+    /weather\s+(?:in|of|for)\s+(.+)/i,
+    /forecast\s+(?:in|of|for)\s+(.+)/i,
+    /temperature\s+(?:in|of|for)\s+(.+)/i,
+
+    /(.+?)\s+(?:ka|ki|ke)\s+mausam/i,
+    /(.+?)\s+(?:ka|ki|ke)\s+weather/i,
+    /(.+?)\s+(?:mein|me)\s+mausam/i,
+    /mausam\s+(.+)/i
+  ];
+
+  for (const pattern of patterns) {
+    const match =
+      text.match(pattern);
+
+    if (
+      match &&
+      match[1]
+    ) {
+      let location =
+        match[1]
+          .trim()
+          .replace(
+            /[?.!,]+$/,
+            ""
+          );
+
+      if (
+        location.length >= 2 &&
+        location.length <= 100
+      ) {
+        return location;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function geocodeLocation(location) {
+  if (!location) {
+    return null;
+  }
+
+  try {
+    const params =
+      new URLSearchParams({
+        name: location,
+        count: "1",
+        language: "en",
+        format: "json"
+      });
+
+    const response =
+      await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?${params.toString()}`
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data =
+      await response.json();
+
+    if (
+      !data.results ||
+      !data.results.length
+    ) {
+      return null;
+    }
+
+    const result =
+      data.results[0];
+
+    return {
+      name:
+        result.name,
+
+      latitude:
+        result.latitude,
+
+      longitude:
+        result.longitude,
+
+      country:
+        result.country,
+
+      timezone:
+        result.timezone
+    };
+
+  } catch (error) {
+    console.error(
+      "GEOCODING ERROR:",
+      error
+    );
+
+    return null;
+  }
+}
+
+async function getWeather(location) {
+  const geo =
+    await geocodeLocation(
+      location
+    );
+
+  if (!geo) {
+    return {
+      provider: "open-meteo",
+      ok: false,
+      results: []
+    };
+  }
+
+  try {
+    const params =
+      new URLSearchParams({
+        latitude:
+          String(geo.latitude),
+
+        longitude:
+          String(geo.longitude),
+
+        current:
+          "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m",
+
+        daily:
+          "temperature_2m_max,temperature_2m_min,precipitation_probability_max,weather_code",
+
+        timezone:
+          "auto",
+
+        forecast_days:
+          "3"
+      });
+
+    const response =
+      await fetch(
+        `https://api.open-meteo.com/v1/forecast?${params.toString()}`
+      );
+
+    if (!response.ok) {
+      return {
+        provider: "open-meteo",
+        ok: false,
+        results: []
+      };
+    }
+
+    const data =
+      await response.json();
+
+    const current =
+      data.current || {};
+
+    const daily =
+      data.daily || {};
+
+    const weatherText =
+      `
+Location: ${geo.name}, ${geo.country}
+Timezone: ${geo.timezone}
+
+Current temperature:
+${current.temperature_2m ?? "N/A"} °C
+
+Feels like:
+${current.apparent_temperature ?? "N/A"} °C
+
+Humidity:
+${current.relative_humidity_2m ?? "N/A"}%
+
+Precipitation:
+${current.precipitation ?? "N/A"} mm
+
+Wind:
+${current.wind_speed_10m ?? "N/A"} km/h
+
+Forecast:
+${JSON.stringify(
+  daily,
+  null,
+  2
+)}
+`;
+
+    return {
+      provider: "open-meteo",
+      ok: true,
+
+      answer:
+        weatherText,
+
+      results: [
+        {
+          title:
+            `Open-Meteo weather — ${geo.name}`,
+
+          url:
+            "https://open-meteo.com/",
+
+          content:
+            weatherText
+        }
+      ]
+    };
+
+  } catch (error) {
+    console.error(
+      "WEATHER ERROR:",
+      error
+    );
+
+    return {
+      provider: "open-meteo",
+      ok: false,
+      results: []
+    };
+  }
+}
+
+/* =========================================================
+   RESEARCH ROUTER
+   ========================================================= */
+
+async function runResearchRouter(
+  message,
+  languageName,
+  category
+) {
+  const query =
+    buildSearchQuery(
+      message,
+      languageName,
+      category
+    );
+
+  const research = {
+    category,
+    providers: [],
+    results: [],
+    answers: []
+  };
+
+  /*
+    WEATHER:
+    Open-Meteo first because it is structured weather data.
+  */
+
+  if (category === "weather") {
+    const location =
+      extractWeatherLocation(
+        message
+      );
+
+    if (location) {
+      const weather =
+        await getWeather(
+          location
+        );
+
+      if (weather.ok) {
+        research.providers.push(
+          "open-meteo"
+        );
+
+        research.results.push(
+          ...weather.results
+        );
+
+        if (weather.answer) {
+          research.answers.push(
+            weather.answer
+          );
+        }
+      }
+    }
+
+    /*
+      Tavily remains useful for weather
+      questions where a location could not
+      be parsed by Open-Meteo.
+    */
+
+    if (!research.results.length) {
+      const tavily =
+        await searchTavily(
+          query
+        );
+
+      if (tavily.ok) {
+        research.providers.push(
+          "tavily"
+        );
+
+        if (tavily.answer) {
+          research.answers.push(
+            tavily.answer
+          );
+        }
+
+        research.results.push(
+          ...tavily.results
+        );
+      }
+    }
+
+    return research;
+  }
+
+  /*
+    NEWS:
+    Tavily + GDELT.
+  */
+
+  if (category === "news") {
+    const tavily =
+      await searchTavily(
+        query
+      );
+
+    if (tavily.ok) {
+      research.providers.push(
+        "tavily"
+      );
+
+      if (tavily.answer) {
+        research.answers.push(
+          tavily.answer
+        );
+      }
+
+      research.results.push(
+        ...tavily.results
+      );
+    }
+
+    const gdelt =
+      await searchGdelt(
+        query
+      );
+
+    if (gdelt.ok) {
+      research.providers.push(
+        "gdelt"
+      );
+
+      research.results.push(
+        ...gdelt.results
+      );
+    }
+
+    return research;
+  }
+
+  /*
+    MARKET / CRYPTO / SPORTS / CURRENT:
+    Tavily first.
+    GDELT fallback for broader current
+    information.
+  */
+
+  const tavily =
+    await searchTavily(
+      query
+    );
+
+  if (tavily.ok) {
+    research.providers.push(
+      "tavily"
+    );
+
+    if (tavily.answer) {
+      research.answers.push(
+        tavily.answer
+      );
+    }
+
+    research.results.push(
+      ...tavily.results
+    );
+  }
+
+  if (
+    category === "current" ||
+    !research.results.length
+  ) {
+    const gdelt =
+      await searchGdelt(
+        query
+      );
+
+    if (gdelt.ok) {
+      research.providers.push(
+        "gdelt"
+      );
+
+      research.results.push(
+        ...gdelt.results
+      );
+    }
+  }
+
+  return research;
+}
+
+/* =========================================================
+   RESEARCH CONTEXT
+   ========================================================= */
+
+function buildResearchContext(
+  research
+) {
+  if (
+    !research ||
+    !research.results ||
+    !research.results.length
+  ) {
     return "";
   }
 
   const pieces = [];
 
-  if (search.answer) {
+  if (
+    research.answers &&
+    research.answers.length
+  ) {
     pieces.push(
-      `SEARCH SUMMARY:\n${search.answer}`
+      `
+RESEARCH SUMMARIES:
+
+${research.answers
+  .slice(0, 3)
+  .join("\n\n")}
+`
     );
   }
 
-  if (search.results.length) {
-    const results =
-      search.results.map(
+  const sources =
+    research.results
+      .slice(0, 12)
+      .map(
         (item, index) => {
           return `
 SOURCE ${index + 1}
-Title: ${safeString(item.title, 300)}
-URL: ${safeString(item.url, 500)}
-Content: ${safeString(
+Provider: ${safeString(
+            item.provider ||
+            research.providers?.join(", "),
+            100
+          )}
+Title: ${safeString(
+            item.title,
+            300
+          )}
+URL: ${safeString(
+            item.url,
+            500
+          )}
+Content:
+${safeString(
             item.content,
             2500
           )}
@@ -767,44 +1502,79 @@ Content: ${safeString(
         }
       );
 
-    pieces.push(
-      results.join("\n")
-    );
-  }
+  pieces.push(
+    sources.join("\n")
+  );
 
   return `
-LIVE WEB RESEARCH CONTEXT
+LIVE RESEARCH CONTEXT
 
-Use the following web information to answer the user's question.
+Category:
+${research.category}
+
+Providers:
+${research.providers.join(", ")}
+
+IMPORTANT:
+- Use these sources for current information.
+- Do not invent facts not supported by them.
+- If sources conflict, explain the conflict.
+- Do not treat search snippets as absolute truth.
+- Do not invent exact values.
+- If exact live data is unavailable, say so.
 
 ${pieces.join("\n")}
 `;
 }
 
-function buildSources(search) {
+function buildSources(research) {
   if (
-    !search ||
-    !search.ok ||
-    !Array.isArray(search.results)
+    !research ||
+    !Array.isArray(
+      research.results
+    )
   ) {
     return [];
   }
 
-  return search.results
-    .slice(0, 6)
-    .map(item => ({
+  const seen =
+    new Set();
+
+  const sources = [];
+
+  for (
+    const item of research.results
+  ) {
+    const url =
+      safeString(
+        item.url,
+        500
+      );
+
+    if (!url || seen.has(url)) {
+      continue;
+    }
+
+    seen.add(url);
+
+    sources.push({
       title:
         safeString(
           item.title,
           150
         ),
-      url:
-        safeString(
-          item.url,
-          500
-        )
-    }))
-    .filter(item => item.url);
+
+      url
+    });
+
+    if (
+      sources.length >= 8
+    ) {
+      break;
+    }
+  }
+
+  return sources;
 }
 
 /* =========================================================
@@ -824,7 +1594,10 @@ function buildAttachmentContext(body) {
       50000
     );
 
-  if (!description && !text) {
+  if (
+    !description &&
+    !text
+  ) {
     return "";
   }
 
@@ -876,17 +1649,26 @@ async function callGroq(messages) {
       "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
+
         headers: {
           "Content-Type":
             "application/json",
+
           Authorization:
             `Bearer ${GROQ_API_KEY}`
         },
+
         body: JSON.stringify({
-          model: getGroqModel(),
+          model:
+            getGroqModel(),
+
           messages,
-          temperature: 0.35,
-          max_tokens: 4096
+
+          temperature:
+            0.35,
+
+          max_tokens:
+            4096
         })
       }
     );
@@ -929,17 +1711,15 @@ function friendlyError(error) {
   }
 
   if (
-    message.includes(
-      "rate"
-    )
+    message.toLowerCase()
+      .includes("rate")
   ) {
     return "Atharv is temporarily busy. Please try again in a moment.";
   }
 
   if (
-    message.includes(
-      "timeout"
-    )
+    message.toLowerCase()
+      .includes("timeout")
   ) {
     return "The request took too long. Please try again.";
   }
@@ -971,9 +1751,19 @@ async function generateAtharvResponse({
     return {
       answer:
         "Please tell me what you'd like help with.",
-      sources: []
+
+      sources: [],
+
+      category:
+        "general",
+
+      providers: []
     };
   }
+
+  /*
+    MEMORY
+  */
 
   await processMemoryRequest(
     userId,
@@ -981,12 +1771,18 @@ async function generateAtharvResponse({
   );
 
   const memories =
-    await getMemories(userId);
+    await getMemories(
+      userId
+    );
 
   const memoryContext =
     buildMemoryContext(
       memories
     );
+
+  /*
+    LANGUAGE
+  */
 
   const languageContext =
     getLanguageInstruction(
@@ -995,30 +1791,43 @@ async function generateAtharvResponse({
       cleanMessage
     );
 
+  /*
+    DATE / TIME
+  */
+
   const currentDateTime =
     getUserDateTime(
       timeZone
     );
 
-  let search = null;
+  /*
+    INTELLIGENCE ROUTER
+  */
+
+  const category =
+    classifyQuery(
+      cleanMessage
+    );
+
+  let research = null;
 
   if (
     needsLiveSearch(
       cleanMessage
     )
   ) {
-    const query =
-      buildSearchQuery(
+    research =
+      await runResearchRouter(
         cleanMessage,
-        languageName
+        languageName,
+        category
       );
-
-    search =
-      await searchWeb(query);
   }
 
-  const liveContext =
-    buildSearchContext(search);
+  const researchContext =
+    buildResearchContext(
+      research
+    );
 
   const attachmentContext =
     buildAttachmentContext({
@@ -1026,59 +1835,122 @@ async function generateAtharvResponse({
       attachmentText
     });
 
+  /*
+    SYSTEM PROMPT
+  */
+
   const systemPrompt = `
 ${ATHARV_INSTRUCTIONS}
 
 CURRENT USER DATE/TIME:
 ${currentDateTime}
 
+QUERY CATEGORY:
+${category}
+
 ${languageContext}
 
 ${memoryContext}
 
-${liveContext}
+${researchContext}
 
 ${attachmentContext}
 `;
 
-  const cleanHistoryItems =
-    cleanHistory(history);
-
   /*
-    Prevent the current user message from being duplicated
-    when the frontend already included it in history.
+    HISTORY
   */
+
+  const cleanHistoryItems =
+    cleanHistory(
+      history
+    );
+
   const filteredHistory =
     cleanHistoryItems.filter(
       item =>
         !(
           item.role === "user" &&
-          item.content === cleanMessage
+          item.content ===
+            cleanMessage
         )
     );
 
   const messages = [
     {
-      role: "system",
-      content: systemPrompt
+      role:
+        "system",
+
+      content:
+        systemPrompt
     },
 
     ...filteredHistory,
 
     {
-      role: "user",
-      content: cleanMessage
+      role:
+        "user",
+
+      content:
+        cleanMessage
     }
   ];
 
+  /*
+    AI RESPONSE
+  */
+
   const answer =
-    await callGroq(messages);
+    await callGroq(
+      messages
+    );
 
   return {
     answer,
+
     sources:
-      buildSources(search)
+      buildSources(
+        research
+      ),
+
+    category,
+
+    providers:
+      research?.providers || []
   };
+}
+
+/* =========================================================
+   HISTORY
+   ========================================================= */
+
+function cleanHistory(history) {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+
+  return history
+    .slice(-20)
+
+    .map(item => ({
+      role:
+        item.role === "assistant"
+          ? "assistant"
+          : "user",
+
+      content:
+        safeString(
+          item.content ||
+          item.text ||
+          "",
+          6000
+        )
+    }))
+
+    .filter(
+      item =>
+        item.content
+    );
 }
 
 /* =========================================================
@@ -1116,17 +1988,24 @@ app.post(
       const result =
         await generateAtharvResponse({
           message,
+
           history:
             body.history,
+
           userId,
+
           timeZone:
             body.timeZone,
+
           language:
             body.language,
+
           languageName:
             body.languageName,
+
           attachmentDescription:
             body.attachmentDescription,
+
           attachmentText:
             body.attachmentText
         });
@@ -1134,14 +2013,23 @@ app.post(
       return res.json({
         answer:
           result.answer,
+
         sources:
           result.sources,
+
         model:
           getGroqModel(),
+
         language:
           normalizeLanguagePreference(
             body.language
-          )
+          ),
+
+        category:
+          result.category,
+
+        providers:
+          result.providers
       });
 
     } catch (error) {
@@ -1154,14 +2042,16 @@ app.post(
         .status(500)
         .json({
           error:
-            friendlyError(error)
+            friendlyError(
+              error
+            )
         });
     }
   }
 );
 
 /* =========================================================
-   STREAM ENDPOINT
+   STREAM
    ========================================================= */
 
 app.post(
@@ -1195,17 +2085,24 @@ app.post(
       const result =
         await generateAtharvResponse({
           message,
+
           history:
             body.history,
+
           userId,
+
           timeZone:
             body.timeZone,
+
           language:
             body.language,
+
           languageName:
             body.languageName,
+
           attachmentDescription:
             body.attachmentDescription,
+
           attachmentText:
             body.attachmentText
         });
@@ -1227,7 +2124,9 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type: "answer",
+          type:
+            "answer",
+
           answer:
             result.answer
         })}\n\n`
@@ -1235,7 +2134,9 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type: "sources",
+          type:
+            "sources",
+
           sources:
             result.sources
         })}\n\n`
@@ -1243,7 +2144,24 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type: "done"
+          type:
+            "meta",
+
+          category:
+            result.category,
+
+          providers:
+            result.providers,
+
+          model:
+            getGroqModel()
+        })}\n\n`
+      );
+
+      res.write(
+        `data: ${JSON.stringify({
+          type:
+            "done"
         })}\n\n`
       );
 
@@ -1260,15 +2178,21 @@ app.post(
           .status(500)
           .json({
             error:
-              friendlyError(error)
+              friendlyError(
+                error
+              )
           });
       }
 
       res.write(
         `data: ${JSON.stringify({
-          type: "error",
+          type:
+            "error",
+
           error:
-            friendlyError(error)
+            friendlyError(
+              error
+            )
         })}\n\n`
       );
 
@@ -1438,7 +2362,7 @@ app.get(
         "ok",
 
       version:
-        "8.0.0",
+        "9.0.0",
 
       universalLanguage:
         true,
@@ -1447,12 +2371,21 @@ app.get(
         true,
 
       memory:
-        "v4",
+        "v5",
 
-      liveSearch:
+      intelligenceRouter:
+        true,
+
+      tavily:
         Boolean(
           TAVILY_API_KEY
         ),
+
+      gdelt:
+        true,
+
+      weatherProvider:
+        "Open-Meteo",
 
       groq:
         Boolean(
@@ -1474,19 +2407,20 @@ app.get(
    STATIC FRONTEND
    ========================================================= */
 
-// Atharv frontend files are in the repository root,
-// not inside a public folder.
-
-const frontendPath = __dirname;
+const frontendPath =
+  __dirname;
 
 app.use(
-  express.static(frontendPath)
+  express.static(
+    frontendPath
+  )
 );
 
 /*
-  Express 5 compatible catch-all.
-  Sends root index.html for frontend routes.
+  IMPORTANT:
+  Keep frontend catch-all LAST.
 */
+
 app.get(
   "*splat",
   (req, res) => {
@@ -1500,7 +2434,7 @@ app.get(
 );
 
 /* =========================================================
-   START
+   START SERVER
    ========================================================= */
 
 async function startServer() {
@@ -1512,7 +2446,19 @@ async function startServer() {
       "0.0.0.0",
       () => {
         console.log(
-          `Atharv AI running on port ${PORT}`
+          "===================================="
+        );
+
+        console.log(
+          "ATHARV AI SERVER"
+        );
+
+        console.log(
+          "Version: 9.0.0"
+        );
+
+        console.log(
+          `Port: ${PORT}`
         );
 
         console.log(
@@ -1520,7 +2466,7 @@ async function startServer() {
         );
 
         console.log(
-          `Live Search: ${
+          `Tavily: ${
             TAVILY_API_KEY
               ? "enabled"
               : "disabled"
@@ -1528,10 +2474,23 @@ async function startServer() {
         );
 
         console.log(
-          `Memory: enabled`
+          "GDELT: enabled"
+        );
+
+        console.log(
+          "Weather: Open-Meteo"
+        );
+
+        console.log(
+          "Memory: enabled"
+        );
+
+        console.log(
+          "===================================="
         );
       }
     );
+
   } catch (error) {
     console.error(
       "STARTUP ERROR:",
