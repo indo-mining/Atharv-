@@ -1,685 +1,909 @@
-<!DOCTYPE html><html lang="en"><head>  <meta charset="UTF-8"><meta
-name="viewport"
-content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
 
-«»
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+  >
 
-  <!-- PWA -->  <meta name="theme-color" content="#16a34a"><meta
-name="description"
-content="Atharv AI - Your AI. Every Language. Every Question."
+  <meta
+    name="theme-color"
+    content="#16a34a"
+  >
 
-«»
+  <meta
+    name="description"
+    content="Atharv AI - Your AI. Every Language. Every Question."
+  >
 
-  <meta name="mobile-web-app-capable" content="yes"><meta
-name="apple-mobile-web-app-capable"
-content="yes"
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
 
-«»
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  >
 
-<meta
-name="apple-mobile-web-app-status-bar-style"
-content="default"
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="default"
+  >
 
-«»
+  <meta
+    name="apple-mobile-web-app-title"
+    content="Atharv AI"
+  >
 
-<meta
-name="apple-mobile-web-app-title"
-content="Atharv AI"
+  <link rel="manifest" href="/manifest.json">
 
-«»
-
-  <link rel="manifest" href="/manifest.json">  <link
+  <link
     rel="icon"
     href="/atharv-icon-192x192.png"
-  >  <title>Atharv AI</title>  <link
+  >
+
+  <title>Atharv AI</title>
+
+  <link
     rel="stylesheet"
-    href="style.css"
-  ></head><body>  <!-- ========================================
-       HEADER
-  ========================================= -->  <header class="header"><div>
-
-  <h1>ATHARV</h1>
-
-  <p>
-    Your AI. Every Language. Every Question.
-  </p>
-
-</div>
-
-
-<button
-  class="profile"
-  type="button"
-  aria-label="Open Profile"
-  onclick="openProfile && openProfile()"
->
-  👤
-</button>
-
-  </header>  <!-- ========================================
-       CHAT SCREEN
-  ========================================= -->  <main
-    class="container"
-    id="chatScreen"
-  ><!-- WELCOME -->
-
-<section class="welcome">
-
-  <h2>
-    Namaste 👋
-  </h2>
-
-  <p>
-    Ask Atharv anything in your own language.
-  </p>
-
-  <small>
-    🌍 Multilingual AI • 🧠 Memory • 🌐 Live Information
-  </small>
-
-</section>
-
-
-
-<!-- ======================================
-     CHAT BOX
-======================================= -->
-
-<section
-  id="chatBox"
-  class="chat-box"
-  aria-live="polite"
->
-
-  <div
-    class="message ai"
-    data-message-text="Namaste! 🙏 Main Atharv hoon. Aap mujhse kisi bhi language mein sawaal pooch sakte hain."
+    href="/style.css"
   >
+</head>
 
-    Namaste! 🙏<br><br>
+<body>
 
-    Main Atharv hoon. Aap mujhse kisi bhi
-    language mein sawaal pooch sakte hain.
+  <!-- =====================================================
+       APP
+  ====================================================== -->
 
-  </div>
+  <div class="app-shell">
 
-</section>
+    <!-- ===================================================
+         HEADER
+    ==================================================== -->
 
+    <header class="header">
 
+      <div class="brand">
 
-<!-- ======================================
-     QUICK QUESTIONS
-======================================= -->
+        <div class="brand-mark">
+          A
+        </div>
 
-<div class="quick-buttons">
+        <div class="brand-text">
 
-  <button
-    type="button"
-    onclick="quickAsk('Explain this in simple language')"
-  >
-    ✨ Explain
-  </button>
+          <h1>
+            ATHARV
+          </h1>
 
+          <p>
+            Your AI. Every Language. Every Question.
+          </p>
 
-  <button
-    type="button"
-    onclick="quickAsk('What is happening in the world today?')"
-  >
-    🌍 Latest
-  </button>
+        </div>
 
+      </div>
 
-  <button
-    type="button"
-    onclick="quickAsk('Explain stock market for beginners')"
-  >
-    📈 Market
-  </button>
 
+      <button
+        class="profile"
+        type="button"
+        aria-label="Open Profile"
+        onclick="openProfile && openProfile()"
+      >
+        <span>👤</span>
+      </button>
 
-  <button
-    type="button"
-    onclick="quickAsk('Tell me today’s important news in India')"
-  >
-    🇮🇳 India
-  </button>
+    </header>
 
 
-  <button
-    type="button"
-    onclick="quickAsk('What is the latest technology news today?')"
-  >
-    🤖 Tech
-  </button>
+    <!-- ===================================================
+         CHAT SCREEN
+    ==================================================== -->
 
-</div>
-
-
-
-<!-- ======================================
-     ATTACHMENT PREVIEW
-======================================= -->
-
-<div
-  id="attachmentPreview"
-  class="attachment-preview"
-  hidden
->
-
-  <span id="attachmentName"></span>
-
-  <button
-    type="button"
-    id="removeAttachment"
-    aria-label="Remove attachment"
-  >
-    ✕
-  </button>
-
-</div>
-
-
-
-<!-- ======================================
-     MESSAGE INPUT
-====================================== -->
-
-<div class="input-area">
-
-
-  <!-- FILE BUTTON -->
-
-  <button
-    type="button"
-    id="attachButton"
-    class="attach-button"
-    aria-label="Attach image or file"
-    title="Image/File"
-  >
-    📎
-  </button>
-
-
-  <input
-    type="file"
-    id="fileInput"
-    accept="image/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx"
-    hidden
-  >
-
-
-  <textarea
-    id="message"
-    placeholder="Ask Atharv anything..."
-    rows="1"
-    autocomplete="off"
-    aria-label="Message Atharv"
-  ></textarea>
-
-
-  <button
-    type="button"
-    onclick="sendMessage()"
-    class="send"
-    aria-label="Send message"
-  >
-    ➤
-  </button>
-
-</div>
-
-
-
-<!-- ======================================
-     VOICE AREA
-======================================= -->
-
-<div
-  id="atharvVoiceArea"
-  class="atharv-voice-area"
-  aria-label="Atharv voice controls"
->
-
-  <button
-    type="button"
-    id="atharvMicButton"
-    aria-label="Bolkar Atharv se poochhein"
-    title="Bolkar poochhein"
-  >
-    🎙️
-  </button>
-
-
-  <button
-    type="button"
-    id="atharvStopVoiceButton"
-    aria-label="Atharv ki voice rokein"
-    title="Atharv ki voice rokein"
-  >
-    🔇
-  </button>
-
-
-  <span id="atharvVoiceStatus">
-    Voice ready
-  </span>
-
-</div>
-
-
-
-<!-- ======================================
-     VOICE INFORMATION
-======================================= -->
-
-<div class="voice-hint">
-
-  🎙️ Bolkar poochhein •
-  🔊 Atharv ka jawab sunein
-
-</div>
-
-
-
-<!-- ======================================
-     LANGUAGE SELECTOR
-======================================= -->
-
-<div class="language-control">
-
-  <label for="atharvLanguage">
-    🌍 Language
-  </label>
-
-  <select id="atharvLanguage">
-
-    <option value="auto">
-      Auto Detect
-    </option>
-
-    <option value="hi">
-      हिन्दी
-    </option>
-
-    <option value="en">
-      English
-    </option>
-
-    <option value="hinglish">
-      Hinglish
-    </option>
-
-    <option value="bn">
-      বাংলা
-    </option>
-
-    <option value="mr">
-      मराठी
-    </option>
-
-    <option value="gu">
-      ગુજરાતી
-    </option>
-
-    <option value="ta">
-      தமிழ்
-    </option>
-
-    <option value="te">
-      తెలుగు
-    </option>
-
-    <option value="kn">
-      ಕನ್ನಡ
-    </option>
-
-    <option value="ml">
-      മലയാളം
-    </option>
-
-    <option value="pa">
-      ਪੰਜਾਬੀ
-    </option>
-
-    <option value="ur">
-      اردو
-    </option>
-
-    <option value="ar">
-      العربية
-    </option>
-
-    <option value="es">
-      Español
-    </option>
-
-    <option value="fr">
-      Français
-    </option>
-
-    <option value="de">
-      Deutsch
-    </option>
-
-    <option value="pt">
-      Português
-    </option>
-
-    <option value="ru">
-      Русский
-    </option>
-
-    <option value="ja">
-      日本語
-    </option>
-
-    <option value="ko">
-      한국어
-    </option>
-
-    <option value="zh">
-      中文
-    </option>
-
-  </select>
-
-</div>
-
-  </main>  <!-- ========================================
-       PROFILE / MEMORY SCREEN
-  ========================================= -->  <section
-    id="profileScreen"
-    class="profile-screen"
-    hidden
-  ><div class="profile-header">
-
-  <button
-    type="button"
-    id="profileBack"
-    class="back-button"
-    aria-label="Back to Chat"
-  >
-    ←
-  </button>
-
-
-  <div>
-
-    <h2>
-      Your Profile
-    </h2>
-
-    <p>
-      Atharv ki memory control karein
-    </p>
-
-  </div>
-
-</div>
-
-
-
-<div class="profile-card">
-
-  <div class="profile-avatar">
-    👤
-  </div>
-
-
-  <div>
-
-    <h3>
-      Atharv User
-    </h3>
-
-    <p>
-      Your private Atharv preferences
-    </p>
-
-  </div>
-
-</div>
-
-
-
-<!-- MEMORY -->
-
-<div class="memory-section">
-
-  <div class="section-title-row">
-
-    <div>
-
-      <h3>
-        🧠 What Atharv remembers
-      </h3>
-
-      <p>
-        Sirf wahi information jo Atharv ne save ki hai.
-      </p>
-
-    </div>
-
-
-    <button
-      type="button"
-      id="refreshMemory"
-      class="refresh-memory"
-      aria-label="Refresh memories"
+    <main
+      class="container"
+      id="chatScreen"
     >
-      ↻
-    </button>
+
+      <!-- WELCOME -->
+
+      <section class="welcome">
+
+        <div class="welcome-badge">
+          ✨ AI Assistant
+        </div>
+
+        <h2>
+          Namaste 👋
+        </h2>
+
+        <p>
+          Ask Atharv anything in your own language.
+        </p>
+
+        <small>
+          🌍 Multilingual
+          <span>•</span>
+          🧠 Memory
+          <span>•</span>
+          🌐 Live Information
+        </small>
+
+      </section>
+
+
+      <!-- =================================================
+           CHAT AREA
+      ================================================== -->
+
+      <section
+        id="chatBox"
+        class="chat-box"
+        aria-live="polite"
+      >
+
+        <div
+          class="message ai"
+          data-message-text="Namaste! 🙏 Main Atharv hoon. Aap mujhse kisi bhi language mein sawaal pooch sakte hain."
+        >
+
+          <div class="message-avatar">
+            A
+          </div>
+
+          <div class="message-content">
+
+            <strong>
+              Atharv
+            </strong>
+
+            <p>
+              Namaste! 🙏
+              <br><br>
+              Main Atharv hoon. Aap mujhse kisi bhi
+              language mein sawaal pooch sakte hain.
+            </p>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           QUICK QUESTIONS
+      ================================================== -->
+
+      <section class="quick-section">
+
+        <div class="quick-title">
+          <span>⚡</span>
+          Quick Ask
+        </div>
+
+
+        <div class="quick-buttons">
+
+          <button
+            type="button"
+            onclick="quickAsk('Explain this in simple language')"
+          >
+            <span class="quick-icon">✨</span>
+            <span>Explain</span>
+          </button>
+
+
+          <button
+            type="button"
+            onclick="quickAsk('What is happening in the world today?')"
+          >
+            <span class="quick-icon">🌍</span>
+            <span>Latest</span>
+          </button>
+
+
+          <button
+            type="button"
+            onclick="quickAsk('Explain stock market for beginners')"
+          >
+            <span class="quick-icon">📈</span>
+            <span>Market</span>
+          </button>
+
+
+          <button
+            type="button"
+            onclick="quickAsk('Tell me today’s important news in India')"
+          >
+            <span class="quick-icon">🇮🇳</span>
+            <span>India</span>
+          </button>
+
+
+          <button
+            type="button"
+            onclick="quickAsk('What is the latest technology news today?')"
+          >
+            <span class="quick-icon">🤖</span>
+            <span>Tech</span>
+          </button>
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           ATTACHMENT PREVIEW
+      ================================================== -->
+
+      <div
+        id="attachmentPreview"
+        class="attachment-preview"
+        hidden
+      >
+
+        <div class="attachment-info">
+
+          <span class="attachment-icon">
+            📎
+          </span>
+
+          <span id="attachmentName">
+          </span>
+
+        </div>
+
+
+        <button
+          type="button"
+          id="removeAttachment"
+          aria-label="Remove attachment"
+        >
+          ✕
+        </button>
+
+      </div>
+
+
+      <!-- =================================================
+           MESSAGE INPUT
+      ================================================== -->
+
+      <section class="composer">
+
+        <div class="input-area">
+
+          <!-- FILE -->
+
+          <button
+            type="button"
+            id="attachButton"
+            class="attach-button"
+            aria-label="Attach image or file"
+            title="Attach file"
+          >
+            📎
+          </button>
+
+
+          <input
+            type="file"
+            id="fileInput"
+            accept="image/*,.pdf,.txt,.csv,.doc,.docx,.xls,.xlsx"
+            hidden
+          >
+
+
+          <!-- MESSAGE -->
+
+          <textarea
+            id="message"
+            placeholder="Ask Atharv anything..."
+            rows="1"
+            autocomplete="off"
+            aria-label="Message Atharv"
+          ></textarea>
+
+
+          <!-- SEND -->
+
+          <button
+            type="button"
+            onclick="sendMessage()"
+            class="send"
+            aria-label="Send message"
+          >
+            <span>➤</span>
+          </button>
+
+        </div>
+
+
+        <!-- =================================================
+             VOICE
+        ================================================== -->
+
+        <div
+          id="atharvVoiceArea"
+          class="atharv-voice-area"
+          aria-label="Atharv voice controls"
+        >
+
+          <button
+            type="button"
+            id="atharvMicButton"
+            aria-label="Bolkar Atharv se poochhein"
+            title="Bolkar poochhein"
+          >
+            🎙️
+          </button>
+
+
+          <button
+            type="button"
+            id="atharvStopVoiceButton"
+            aria-label="Atharv ki voice rokein"
+            title="Atharv ki voice rokein"
+          >
+            🔇
+          </button>
+
+
+          <span id="atharvVoiceStatus">
+            Voice ready
+          </span>
+
+        </div>
+
+
+        <div class="voice-hint">
+
+          🎙️ Bolkar poochhein
+          <span>•</span>
+          🔊 Atharv ka jawab sunein
+
+        </div>
+
+      </section>
+
+
+      <!-- =================================================
+           LANGUAGE
+      ================================================== -->
+
+      <section class="language-control">
+
+        <div class="language-label">
+
+          <span class="language-globe">
+            🌍
+          </span>
+
+          <div>
+
+            <strong>
+              Language
+            </strong>
+
+            <small>
+              Atharv automatically understands languages
+            </small>
+
+          </div>
+
+        </div>
+
+
+        <select id="atharvLanguage">
+
+          <option value="auto">
+            Auto Detect
+          </option>
+
+          <option value="hi">
+            हिन्दी
+          </option>
+
+          <option value="en">
+            English
+          </option>
+
+          <option value="hinglish">
+            Hinglish
+          </option>
+
+          <option value="bn">
+            বাংলা
+          </option>
+
+          <option value="mr">
+            मराठी
+          </option>
+
+          <option value="gu">
+            ગુજરાતી
+          </option>
+
+          <option value="ta">
+            தமிழ்
+          </option>
+
+          <option value="te">
+            తెలుగు
+          </option>
+
+          <option value="kn">
+            ಕನ್ನಡ
+          </option>
+
+          <option value="ml">
+            മലയാളം
+          </option>
+
+          <option value="pa">
+            ਪੰਜਾਬੀ
+          </option>
+
+          <option value="ur">
+            اردو
+          </option>
+
+          <option value="ar">
+            العربية
+          </option>
+
+          <option value="es">
+            Español
+          </option>
+
+          <option value="fr">
+            Français
+          </option>
+
+          <option value="de">
+            Deutsch
+          </option>
+
+          <option value="pt">
+            Português
+          </option>
+
+          <option value="ru">
+            Русский
+          </option>
+
+          <option value="ja">
+            日本語
+          </option>
+
+          <option value="ko">
+            한국어
+          </option>
+
+          <option value="zh">
+            中文
+          </option>
+
+        </select>
+
+      </section>
+
+    </main>
+
+
+    <!-- ===================================================
+         PROFILE / MEMORY SCREEN
+    ==================================================== -->
+
+    <section
+      id="profileScreen"
+      class="profile-screen"
+      hidden
+    >
+
+      <div class="profile-header">
+
+        <button
+          type="button"
+          id="profileBack"
+          class="back-button"
+          aria-label="Back to Chat"
+        >
+          ←
+        </button>
+
+
+        <div>
+
+          <h2>
+            Your Profile
+          </h2>
+
+          <p>
+            Atharv ki memory control karein
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="profile-card">
+
+        <div class="profile-avatar">
+          👤
+        </div>
+
+
+        <div class="profile-user-info">
+
+          <h3>
+            Atharv User
+          </h3>
+
+          <p>
+            Your private Atharv preferences
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <!-- MEMORY -->
+
+      <div class="memory-section">
+
+        <div class="section-title-row">
+
+          <div>
+
+            <h3>
+              🧠 What Atharv remembers
+            </h3>
+
+            <p>
+              Sirf wahi information jo Atharv ne save ki hai.
+            </p>
+
+          </div>
+
+
+          <button
+            type="button"
+            id="refreshMemory"
+            class="refresh-memory"
+            aria-label="Refresh memories"
+          >
+            ↻
+          </button>
+
+        </div>
+
+
+        <div
+          id="memoryList"
+          class="memory-list"
+        >
+
+          <div class="memory-loading">
+            🧠 Memories load ho rahi hain...
+          </div>
+
+        </div>
+
+
+        <button
+          type="button"
+          id="clearAllMemory"
+          class="clear-memory"
+        >
+          🧹 Forget All Memories
+        </button>
+
+      </div>
+
+
+      <!-- PRIVACY -->
+
+      <div class="privacy-card">
+
+        <div class="privacy-icon">
+          🔐
+        </div>
+
+        <div>
+
+          <strong>
+            Privacy
+          </strong>
+
+          <p>
+            Aap kisi bhi saved memory ko kabhi bhi delete kar sakte hain.
+            Atharv passwords, OTP, API keys aur similar sensitive
+            information ko memory mein save nahi karta.
+          </p>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================
+         MARKET SCREEN
+    ==================================================== -->
+
+    <section
+      id="marketScreen"
+      class="feature-screen"
+      hidden
+    >
+
+      <div class="feature-header">
+
+        <div class="feature-badge">
+          📈 Market AI
+        </div>
+
+        <h2>
+          Market Intelligence
+        </h2>
+
+        <p>
+          Stocks, market news aur analysis Atharv se poochhein.
+        </p>
+
+      </div>
+
+
+      <div class="feature-card">
+
+        <div class="feature-card-icon">
+          🔎
+        </div>
+
+        <div>
+
+          <h3>
+            Ask Atharv
+          </h3>
+
+          <p>
+            Latest market information aur important updates
+            ke baare mein poochhein.
+          </p>
+
+        </div>
+
+
+        <button
+          type="button"
+          onclick="quickAsk('What is the latest Tata Motors stock price and important market news today?')"
+        >
+          Check Market
+          <span>→</span>
+        </button>
+
+      </div>
+
+
+      <div class="feature-card">
+
+        <div class="feature-card-icon">
+          📚
+        </div>
+
+        <div>
+
+          <h3>
+            Market Learning
+          </h3>
+
+          <p>
+            Beginner se advanced level tak stock market
+            step-by-step samjhein.
+          </p>
+
+        </div>
+
+
+        <button
+          type="button"
+          onclick="quickAsk('Teach me stock market from beginner to advanced level step by step')"
+        >
+          Learn Market
+          <span>→</span>
+        </button>
+
+      </div>
+
+
+      <div class="market-warning">
+
+        ⚠️ Market information educational purposes ke liye hai.
+        Investment decisions se pehle verified information
+        aur professional advice consider karein.
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================
+         ALERTS SCREEN
+    ==================================================== -->
+
+    <section
+      id="alertsScreen"
+      class="feature-screen"
+      hidden
+    >
+
+      <div class="feature-header">
+
+        <div class="feature-badge">
+          🔔 Notifications
+        </div>
+
+        <h2>
+          Atharv Alerts
+        </h2>
+
+        <p>
+          Important updates aur future notifications yahan aayenge.
+        </p>
+
+      </div>
+
+
+      <div class="feature-card coming-soon-card">
+
+        <div class="feature-card-icon">
+          🔔
+        </div>
+
+        <div>
+
+          <h3>
+            Coming Soon
+          </h3>
+
+          <p>
+            News alerts, market alerts aur personalised reminders
+            Atharv ke future version mein add kiye jayenge.
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <div class="alert-features">
+
+        <div>
+          📰
+          <span>
+            News Alerts
+          </span>
+        </div>
+
+        <div>
+          📈
+          <span>
+            Market Alerts
+          </span>
+        </div>
+
+        <div>
+          ⏰
+          <span>
+            Reminders
+          </span>
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ===================================================
+         BOTTOM NAVIGATION
+    ==================================================== -->
+
+    <nav
+      class="bottom-nav"
+      aria-label="Main navigation"
+    >
+
+      <button
+        type="button"
+        class="active"
+        data-nav="chat"
+      >
+
+        <span class="nav-icon">
+          💬
+        </span>
+
+        <span class="nav-label">
+          Chat
+        </span>
+
+      </button>
+
+
+      <button
+        type="button"
+        data-nav="market"
+      >
+
+        <span class="nav-icon">
+          📈
+        </span>
+
+        <span class="nav-label">
+          Market
+        </span>
+
+      </button>
+
+
+      <button
+        type="button"
+        data-nav="alerts"
+      >
+
+        <span class="nav-icon">
+          🔔
+        </span>
+
+        <span class="nav-label">
+          Alerts
+        </span>
+
+      </button>
+
+
+      <button
+        type="button"
+        data-nav="profile"
+      >
+
+        <span class="nav-icon">
+          👤
+        </span>
+
+        <span class="nav-label">
+          Profile
+        </span>
+
+      </button>
+
+    </nav>
 
   </div>
 
 
-  <div
-    id="memoryList"
-    class="memory-list"
-  >
+  <!-- =====================================================
+       JAVASCRIPT
+  ====================================================== -->
 
-    <div class="memory-loading">
-      🧠 Memories load ho rahi hain...
-    </div>
-
-  </div>
+  <script src="/app.js"></script>
 
 
-  <button
-    type="button"
-    id="clearAllMemory"
-    class="clear-memory"
-  >
-    🧹 Forget All Memories
-  </button>
+  <!-- =====================================================
+       SERVICE WORKER
+  ====================================================== -->
 
-</div>
-
-
-
-<!-- PRIVACY -->
-
-<div class="privacy-card">
-
-  <strong>
-    🔐 Privacy
-  </strong>
-
-  <p>
-
-    Aap kisi bhi saved memory ko kabhi bhi delete kar sakte hain.
-
-    Atharv passwords, OTP, API keys aur similar sensitive information
-    ko memory mein save nahi karta.
-
-  </p>
-
-</div>
-
-  </section>  <!-- ========================================
-       MARKET SCREEN
-  ========================================= -->  <section
-    id="marketScreen"
-    class="feature-screen"
-    hidden
-  ><div class="feature-header">
-
-  <h2>
-    📈 Market Intelligence
-  </h2>
-
-  <p>
-    Stocks, market news aur analysis Atharv se poochhein.
-  </p>
-
-</div>
-
-
-<div class="feature-card">
-
-  <h3>
-    🔎 Ask Atharv
-  </h3>
-
-  <p>
-    Example: Tata Motors ka latest price kya hai?
-  </p>
-
-  <button
-    type="button"
-    onclick="quickAsk('What is the latest Tata Motors stock price and important market news today?')"
-  >
-    Check Market
-  </button>
-
-</div>
-
-
-<div class="feature-card">
-
-  <h3>
-    📊 Market Learning
-  </h3>
-
-  <p>
-    Beginner se advanced level tak stock market samjhein.
-  </p>
-
-  <button
-    type="button"
-    onclick="quickAsk('Teach me stock market from beginner to advanced level step by step')"
-  >
-    Learn Market
-  </button>
-
-</div>
-
-  </section>  <!-- ========================================
-       ALERTS SCREEN
-  ========================================= -->  <section
-    id="alertsScreen"
-    class="feature-screen"
-    hidden
-  ><div class="feature-header">
-
-  <h2>
-    🔔 Atharv Alerts
-  </h2>
-
-  <p>
-    Important updates aur future notifications yahan aayenge.
-  </p>
-
-</div>
-
-
-<div class="feature-card">
-
-  <h3>
-    Coming Soon
-  </h3>
-
-  <p>
-    News alerts, market alerts aur personalised reminders
-    Atharv ke next version mein add kiye ja sakte hain.
-  </p>
-
-</div>
-
-  </section>  <!-- ========================================
-       BOTTOM NAVIGATION
-  ========================================= -->  <nav
-    class="bottom-nav"
-    aria-label="Main navigation"
-  ><button
-  type="button"
-  class="active"
-  data-nav="chat"
->
-
-  <span class="nav-icon">
-    💬
-  </span>
-
-  <span>
-    Chat
-  </span>
-
-</button>
-
-
-<button
-  type="button"
-  data-nav="market"
->
-
-  <span class="nav-icon">
-    📈
-  </span>
-
-  <span>
-    Market
-  </span>
-
-</button>
-
-
-<button
-  type="button"
-  data-nav="alerts"
->
-
-  <span class="nav-icon">
-    🔔
-  </span>
-
-  <span>
-    Alerts
-  </span>
-
-</button>
-
-
-<button
-  type="button"
-  data-nav="profile"
->
-
-  <span class="nav-icon">
-    👤
-  </span>
-
-  <span>
-    Profile
-  </span>
-
-</button>
-
-  </nav>  <!-- ========================================
-       ATHARV JAVASCRIPT
-  ========================================= -->  <script src="app.js"></script>  <!-- ========================================
-       PWA SERVICE WORKER
-  ========================================= -->  <script>
+  <script>
 
     if ("serviceWorker" in navigator) {
 
@@ -708,4 +932,7 @@ content="Atharv AI"
 
     }
 
-  </script></body></html>
+  </script>
+
+</body>
+</html>
