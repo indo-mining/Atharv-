@@ -1,3089 +1,3028 @@
 /* =========================================================
-   ATHARV AI - FRONTEND CONTROLLER
-   Version 9.0
-   Multilingual • Memory • Voice • Files • Live Sources
-   Market • Alerts • Professional Mobile UX
+   ATHARV AI
+   FRONTEND CONTROLLER
+   Version 10.0.0
+
+   Features
+   ---------------------------------------------------------
+   • Multi-chat history
+   • New / Open / Rename / Delete chat
+   • Automatic chat titles
+   • Markdown rendering
+   • Code blocks + Copy button
+   • Voice input
+   • Text-to-speech
+   • File / image attachments
+   • Multilingual UI
+   • Responsive sidebar
+   • Local chat persistence
+   • Same-origin Render backend
+   • Robust loading / error handling
    ========================================================= */
 
 "use strict";
 
 /* =========================================================
-   BASIC CONFIG
+   CONFIG
    ========================================================= */
 
-const API_BASE = "";
+const ATHARV_VERSION = "10.0.0";
 
-const ATHARV_HISTORY_KEY = "atharv_chat_history";
-const ATHARV_USER_ID_KEY = "atharv_user_id";
-const ATHARV_LANGUAGE_KEY = "atharv_language";
+const API_BASE =
+  window.ATHARV_API_BASE !== undefined
+    ? window.ATHARV_API_BASE
+    : "";
 
-/* =========================================================
-   ELEMENTS
-   ========================================================= */
+const CHAT_ENDPOINT = `${API_BASE}/api/chat`;
 
-const chatBox =
-  document.getElementById("chatBox");
+const STORAGE_KEY = "atharv_chats_v10";
+const ACTIVE_CHAT_KEY = "atharv_active_chat_v10";
+const SETTINGS_KEY = "atharv_settings_v10";
 
-const messageInput =
-  document.getElementById("message");
-
-const sendButton =
-  document.querySelector(".send");
-
-const languageSelect =
-  document.getElementById("atharvLanguage");
-
-const fileInput =
-  document.getElementById("fileInput");
-
-const attachmentButton =
-  document.getElementById("attachmentButton");
-
-const attachmentPreview =
-  document.getElementById("attachmentPreview");
+const MAX_HISTORY_MESSAGES = 100;
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
 
 /* =========================================================
    STATE
    ========================================================= */
 
-let isThinking = false;
-let currentController = null;
+const state = {
+  chats: [],
+  activeChatId: null,
 
-let selectedAttachment = null;
+  isSending: false,
+  isListening: false,
+  isSpeaking: false,
 
-let speechRecognition = null;
-let isListening = false;
+  recognition: null,
+  speechSupported: false,
 
-let isSpeaking = false;
-let currentSpeechUtterance = null;
+  selectedFiles: [],
 
-let selectedVoiceLanguage = "en-IN";
+  settings: {
+    language: "auto",
+    voiceEnabled: true
+  }
+};
 
 /* =========================================================
-   USER ID
+   DOM HELPERS
    ========================================================= */
 
-function getAtharvUserId() {
+const $ = (selector, root = document) =>
+  root.querySelector(selector);
+
+const $$ = (selector, root = document) =>
+  Array.from(root.querySelectorAll(selector));
+
+function firstElement(selectors) {
+  for (const selector of selectors) {
+    const element = $(selector);
+    if (element) return element;
+  }
+
+  return null;
+}
+
+/* =========================================================
+   COMMON ELEMENTS
+   ========================================================= */
+
+let elements = {};
+
+function cacheElements() {
+  elements = {
+    sidebar: firstElement([
+      "#sidebar",
+      ".sidebar",
+      "[data-sidebar]"
+    ]),
+
+    sidebarOverlay: firstElement([
+      "#sidebarOverlay",
+      ".sidebar-overlay",
+      "[data-sidebar-overlay]"
+    ]),
+
+    newChat: firstElement([
+      "#newChat",
+      "#new-chat",
+      "[data-new-chat]"
+    ]),
+
+    chatHistory: firstElement([
+      "#chatHistory",
+      "#chat-history",
+      "[data-chat-history]"
+    ]),
+
+    chatList: firstElement([
+      "#chatList",
+      "#chat-list",
+      "[data-chat-list]"
+    ]),
+
+    messages: firstElement([
+      "#messages",
+      "#chatMessages",
+      "#messageList",
+      ".messages",
+      ".chat-messages",
+      "[data-messages]"
+    ]),
+
+    messageInput: firstElement([
+      "#messageInput",
+      "#chatInput",
+      "#prompt",
+      "#userInput",
+      "textarea[name='message']",
+      "textarea"
+    ]),
+
+    sendButton: firstElement([
+      "#sendButton",
+      "#send-btn",
+      "#sendBtn",
+      "[data-send]"
+    ]),
+
+    attachButton: firstElement([
+      "#attachButton",
+      "#attach-btn",
+      "#fileButton",
+      "[data-attach]"
+    ]),
+
+    fileInput: firstElement([
+      "#fileInput",
+      "#file-input",
+      "input[type='file']"
+    ]),
+
+    attachmentPreview: firstElement([
+      "#attachmentPreview",
+      "#attachments",
+      ".attachment-preview",
+      "[data-attachments]"
+    ]),
+
+    voiceButton: firstElement([
+      "#voiceButton",
+      "#voice-btn",
+      "#micButton",
+      "[data-voice]"
+    ]),
+
+    stopVoiceButton: firstElement([
+      "#stopVoice",
+      "#stop-voice",
+      "[data-stop-voice]"
+    ]),
+
+    menuButton: firstElement([
+      "#menuButton",
+      "#menu-btn",
+      "#sidebarButton",
+      "#hamburger",
+      "[data-menu]"
+    ]),
+
+    chatTitle: firstElement([
+      "#chatTitle",
+      "#chat-title",
+      ".chat-title",
+      "[data-chat-title]"
+    ]),
+
+    welcome: firstElement([
+      "#welcome",
+      ".welcome",
+      "[data-welcome]"
+    ])
+  };
+}
+
+/* =========================================================
+   ID / TEXT HELPERS
+   ========================================================= */
+
+function createId(prefix = "id") {
+  return `${prefix}_${Date.now()}_${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
+}
+
+function escapeHTML(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function cleanText(value) {
+  return String(value ?? "").trim();
+}
+
+function truncate(text, length = 42) {
+  const value = cleanText(text);
+
+  if (value.length <= length) {
+    return value;
+  }
+
+  return `${value.slice(0, length).trim()}…`;
+}
+
+function generateChatTitle(message) {
+  const text = cleanText(message)
+    .replace(/\s+/g, " ");
+
+  if (!text) {
+    return "New Chat";
+  }
+
+  return truncate(text, 42);
+}
+
+function now() {
+  return Date.now();
+}
+
+/* =========================================================
+   LOCAL STORAGE
+   ========================================================= */
+
+function saveState() {
   try {
-    let id = localStorage.getItem(
-      ATHARV_USER_ID_KEY
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(state.chats)
     );
 
-    if (id) {
-      return id;
-    }
-
-    if (
-      window.crypto &&
-      typeof window.crypto.randomUUID ===
-        "function"
-    ) {
-      id = window.crypto.randomUUID();
-    } else {
-      id =
-        "atharv_" +
-        Date.now() +
-        "_" +
-        Math.random()
-          .toString(36)
-          .slice(2, 12);
+    if (state.activeChatId) {
+      localStorage.setItem(
+        ACTIVE_CHAT_KEY,
+        state.activeChatId
+      );
     }
 
     localStorage.setItem(
-      ATHARV_USER_ID_KEY,
-      id
+      SETTINGS_KEY,
+      JSON.stringify(state.settings)
     );
-
-    return id;
   } catch (error) {
-    console.error(
-      "ATHARV USER ID ERROR:",
-      error
-    );
-
-    return (
-      "atharv_" +
-      Date.now() +
-      "_" +
-      Math.random()
-        .toString(36)
-        .slice(2, 12)
-    );
+    console.warn("Atharv storage error:", error);
   }
 }
 
-const ATHARV_USER_ID =
-  getAtharvUserId();
-
-console.log(
-  "ATHARV USER ID:",
-  ATHARV_USER_ID
-);
-
-/* =========================================================
-   LANGUAGE
-   ========================================================= */
-
-const LANGUAGE_MAP = {
-  auto: "Auto Detect",
-  hi: "Hindi",
-  en: "English",
-  hinglish: "Hinglish",
-  bn: "Bengali",
-  mr: "Marathi",
-  gu: "Gujarati",
-  ta: "Tamil",
-  te: "Telugu",
-  kn: "Kannada",
-  ml: "Malayalam",
-  pa: "Punjabi",
-  ur: "Urdu",
-  ar: "Arabic",
-  es: "Spanish",
-  fr: "French",
-  de: "German",
-  pt: "Portuguese",
-  ru: "Russian",
-  ja: "Japanese",
-  ko: "Korean",
-  zh: "Chinese"
-};
-
-let selectedLanguage =
-  localStorage.getItem(
-    ATHARV_LANGUAGE_KEY
-  ) || "auto";
-
-if (languageSelect) {
-  const exists = Array.from(
-    languageSelect.options || []
-  ).some(
-    option =>
-      option.value ===
-      selectedLanguage
-  );
-
-  if (exists) {
-    languageSelect.value =
-      selectedLanguage;
-  }
-
-  languageSelect.addEventListener(
-    "change",
-    function () {
-      selectedLanguage =
-        this.value || "auto";
-
-      localStorage.setItem(
-        ATHARV_LANGUAGE_KEY,
-        selectedLanguage
-      );
-
-      updateVoiceLanguageFromSelection();
-
-      if (speechRecognition) {
-        speechRecognition.lang =
-          selectedVoiceLanguage;
-      }
-
-      console.log(
-        "ATHARV LANGUAGE:",
-        selectedLanguage
-      );
-    }
-  );
-}
-
-/* =========================================================
-   LANGUAGE → VOICE
-   ========================================================= */
-
-function languageToVoiceCode(
-  language
-) {
-  const map = {
-    hi: "hi-IN",
-    en: "en-IN",
-    hinglish: "hi-IN",
-
-    bn: "bn-IN",
-    mr: "mr-IN",
-    gu: "gu-IN",
-    ta: "ta-IN",
-    te: "te-IN",
-    kn: "kn-IN",
-    ml: "ml-IN",
-    pa: "pa-IN",
-    ur: "ur-PK",
-
-    ar: "ar-SA",
-
-    es: "es-ES",
-    fr: "fr-FR",
-    de: "de-DE",
-    pt: "pt-BR",
-    ru: "ru-RU",
-
-    ja: "ja-JP",
-    ko: "ko-KR",
-    zh: "zh-CN"
-  };
-
-  return (
-    map[language] ||
-    "en-IN"
-  );
-}
-
-function updateVoiceLanguageFromSelection() {
-  if (
-    selectedLanguage &&
-    selectedLanguage !== "auto"
-  ) {
-    selectedVoiceLanguage =
-      languageToVoiceCode(
-        selectedLanguage
-      );
-  }
-}
-
-/* =========================================================
-   VOICE LANGUAGE DETECTION
-   ========================================================= */
-
-function detectVoiceLanguage(text) {
-  const value =
-    String(text || "").trim();
-
-  if (!value) {
-    return "en-IN";
-  }
-
-  if (/[\u0900-\u097F]/.test(value))
-    return "hi-IN";
-
-  if (/[\u0980-\u09FF]/.test(value))
-    return "bn-IN";
-
-  if (/[\u0A00-\u0A7F]/.test(value))
-    return "pa-IN";
-
-  if (/[\u0A80-\u0AFF]/.test(value))
-    return "gu-IN";
-
-  if (/[\u0B80-\u0BFF]/.test(value))
-    return "ta-IN";
-
-  if (/[\u0C00-\u0C7F]/.test(value))
-    return "te-IN";
-
-  if (/[\u0C80-\u0CFF]/.test(value))
-    return "kn-IN";
-
-  if (/[\u0D00-\u0D7F]/.test(value))
-    return "ml-IN";
-
-  if (/[\u0600-\u06FF]/.test(value))
-    return "ar-SA";
-
-  if (/[\u0590-\u05FF]/.test(value))
-    return "he-IL";
-
-  if (/[\u0400-\u04FF]/.test(value))
-    return "ru-RU";
-
-  if (/[\u0370-\u03FF]/.test(value))
-    return "el-GR";
-
-  if (/[\u0E00-\u0E7F]/.test(value))
-    return "th-TH";
-
-  if (/[\u3040-\u30FF]/.test(value))
-    return "ja-JP";
-
-  if (/[\uAC00-\uD7AF]/.test(value))
-    return "ko-KR";
-
-  if (/[\u4E00-\u9FFF]/.test(value))
-    return "zh-CN";
-
-  const lower =
-    value.toLowerCase();
-
-  const hindiWords = [
-    "mera",
-    "meri",
-    "mujhe",
-    "mujhse",
-    "aap",
-    "apka",
-    "apki",
-    "kya",
-    "kaise",
-    "kyu",
-    "kyon",
-    "hai",
-    "hain",
-    "ho",
-    "kar",
-    "karo",
-    "batao",
-    "bataiye",
-    "chahiye",
-    "nahi",
-    "nahin",
-    "acha",
-    "accha",
-    "haan",
-    "han",
-    "ka",
-    "ki",
-    "ke",
-    "mein",
-    "me",
-    "se",
-    "ko"
-  ];
-
-  let matches = 0;
-
-  hindiWords.forEach(
-    word => {
-      const regex =
-        new RegExp(
-          "\\b" +
-            word +
-            "\\b",
-          "i"
-        );
-
-      if (regex.test(lower)) {
-        matches++;
-      }
-    }
-  );
-
-  if (matches >= 2) {
-    return "hi-IN";
-  }
-
-  return "en-IN";
-}
-
-/* =========================================================
-   VOICE SUPPORT
-   ========================================================= */
-
-function getSpeechRecognitionClass() {
-  return (
-    window.SpeechRecognition ||
-    window.webkitSpeechRecognition ||
-    null
-  );
-}
-
-function isVoiceInputSupported() {
-  return !!getSpeechRecognitionClass();
-}
-
-function isVoiceOutputSupported() {
-  return (
-    "speechSynthesis" in window &&
-    "SpeechSynthesisUtterance" in
-      window
-  );
-}
-
-/* =========================================================
-   VOICE UI
-   ========================================================= */
-
-function getVoiceControls() {
-  return {
-    area:
-      document.getElementById(
-        "atharvVoiceArea"
-      ),
-
-    micButton:
-      document.getElementById(
-        "atharvMicButton"
-      ),
-
-    stopButton:
-      document.getElementById(
-        "atharvStopVoiceButton"
-      ),
-
-    status:
-      document.getElementById(
-        "atharvVoiceStatus"
-      )
-  };
-}
-
-function updateVoiceStatus(text) {
-  const controls =
-    getVoiceControls();
-
-  if (controls.status) {
-    controls.status.textContent =
-      text;
-  }
-}
-
-/* =========================================================
-   CREATE VOICE CONTROLS
-   ========================================================= */
-
-function createVoiceControls() {
-  if (!messageInput) {
-    return;
-  }
-
-  const controls =
-    getVoiceControls();
-
-  if (controls.micButton) {
-    bindVoiceButtons(
-      controls.micButton,
-      controls.stopButton,
-      controls.status
-    );
-
-    setupSpeechRecognition(
-      controls.micButton,
-      controls.status
-    );
-
-    return;
-  }
-
-  const micButton =
-    document.createElement(
-      "button"
-    );
-
-  micButton.type = "button";
-
-  micButton.id =
-    "atharvMicButton";
-
-  micButton.className =
-    "voice-input-button";
-
-  micButton.textContent =
-    "🎙️";
-
-  micButton.title =
-    "Bolkar poochhein";
-
-  if (
-    sendButton &&
-    sendButton.parentElement
-  ) {
-    sendButton.parentElement.insertBefore(
-      micButton,
-      sendButton
-    );
-  } else if (
-    messageInput.parentElement
-  ) {
-    messageInput.parentElement.appendChild(
-      micButton
-    );
-  }
-
-  let status =
-    document.getElementById(
-      "atharvVoiceStatus"
-    );
-
-  if (!status) {
-    status =
-      document.createElement(
-        "div"
-      );
-
-    status.id =
-      "atharvVoiceStatus";
-
-    status.className =
-      "voice-status";
-
-    status.textContent =
-      "Voice ready";
-
-    if (
-      messageInput.parentElement &&
-      messageInput.parentElement
-        .parentElement
-    ) {
-      messageInput.parentElement.parentElement.appendChild(
-        status
-      );
-    }
-  }
-
-  bindVoiceButtons(
-    micButton,
-    null,
-    status
-  );
-
-  setupSpeechRecognition(
-    micButton,
-    status
-  );
-}
-
-/* =========================================================
-   VOICE BUTTONS
-   ========================================================= */
-
-function bindVoiceButtons(
-  micButton,
-  stopButton,
-  status
-) {
-  if (!micButton || !status) {
-    return;
-  }
-
-  if (
-    micButton.dataset
-      .atharvBound ===
-    "true"
-  ) {
-    return;
-  }
-
-  micButton.dataset.atharvBound =
-    "true";
-
-  micButton.addEventListener(
-    "click",
-    function () {
-      toggleVoiceInput(
-        micButton,
-        status
-      );
-    }
-  );
-
-  if (stopButton) {
-    stopButton.addEventListener(
-      "click",
-      function () {
-        stopVoiceOutput();
-
-        if (
-          isListening &&
-          speechRecognition
-        ) {
-          try {
-            speechRecognition.stop();
-          } catch (error) {
-            console.warn(
-              "VOICE STOP:",
-              error
-            );
-          }
-        }
-
-        updateVoiceStatus(
-          "Voice ready"
-        );
-      }
-    );
-  }
-}
-
-/* =========================================================
-   SPEECH RECOGNITION
-   ========================================================= */
-
-function setupSpeechRecognition(
-  micButton,
-  status
-) {
-  const RecognitionClass =
-    getSpeechRecognitionClass();
-
-  if (!micButton || !status) {
-    return;
-  }
-
-  if (!RecognitionClass) {
-    micButton.disabled = true;
-
-    micButton.style.opacity =
-      "0.4";
-
-    status.textContent =
-      "Is browser mein voice input available nahi hai.";
-
-    return;
-  }
-
-  if (speechRecognition) {
-    return;
-  }
-
-  speechRecognition =
-    new RecognitionClass();
-
-  speechRecognition.continuous =
-    false;
-
-  speechRecognition.interimResults =
-    true;
-
-  speechRecognition.maxAlternatives =
-    1;
-
-  speechRecognition.lang =
-    selectedVoiceLanguage;
-
-  speechRecognition.onstart =
-    function () {
-      isListening = true;
-
-      micButton.textContent =
-        "🛑";
-
-      micButton.title =
-        "Listening...";
-
-      micButton.classList.add(
-        "listening"
-      );
-
-      updateVoiceStatus(
-        "🎙️ Sun raha hoon..."
-      );
-    };
-
-  speechRecognition.onresult =
-    function (event) {
-      let finalText = "";
-      let interimText = "";
-
-      for (
-        let i =
-          event.resultIndex;
-        i <
-        event.results.length;
-        i++
-      ) {
-        const transcript =
-          event.results[i][0]
-            .transcript;
-
-        if (
-          event.results[i]
-            .isFinal
-        ) {
-          finalText +=
-            transcript;
-        } else {
-          interimText +=
-            transcript;
-        }
-      }
-
-      if (interimText) {
-        messageInput.value =
-          interimText;
-      }
-
-      if (
-        finalText.trim()
-      ) {
-        const cleaned =
-          finalText.trim();
-
-        messageInput.value =
-          cleaned;
-
-        if (
-          selectedLanguage ===
-          "auto"
-        ) {
-          selectedVoiceLanguage =
-            detectVoiceLanguage(
-              cleaned
-            );
-        }
-
-        speechRecognition.lang =
-          selectedVoiceLanguage;
-
-        setTimeout(
-          function () {
-            if (
-              messageInput.value.trim() &&
-              !isThinking
-            ) {
-              sendMessage();
-            }
-          },
-          250
-        );
-      }
-    };
-
-  speechRecognition.onerror =
-    function (event) {
-      console.error(
-        "SPEECH RECOGNITION ERROR:",
-        event.error
-      );
-
-      isListening = false;
-
-      micButton.textContent =
-        "🎙️";
-
-      micButton.classList.remove(
-        "listening"
-      );
-
-      if (
-        event.error ===
-        "not-allowed"
-      ) {
-        updateVoiceStatus(
-          "🎙️ Microphone permission allow karein."
-        );
-      } else if (
-        event.error ===
-        "no-speech"
-      ) {
-        updateVoiceStatus(
-          "Kuch sunai nahi diya."
-        );
-      } else if (
-        event.error ===
-        "network"
-      ) {
-        updateVoiceStatus(
-          "Voice network error. Dobara try karein."
-        );
-      } else {
-        updateVoiceStatus(
-          "Voice input error."
-        );
-      }
-    };
-
-  speechRecognition.onend =
-    function () {
-      isListening = false;
-
-      micButton.textContent =
-        "🎙️";
-
-      micButton.title =
-        "Bolkar poochhein";
-
-      micButton.classList.remove(
-        "listening"
-      );
-
-      if (
-        status.textContent.includes(
-          "Sun raha"
-        )
-      ) {
-        updateVoiceStatus(
-          "Voice ready"
-        );
-      }
-    };
-}
-
-/* =========================================================
-   TOGGLE VOICE INPUT
-   ========================================================= */
-
-function toggleVoiceInput(
-  micButton,
-  status
-) {
-  if (!speechRecognition) {
-    updateVoiceStatus(
-      "Is browser mein voice input available nahi hai."
-    );
-
-    return;
-  }
-
-  if (isThinking) {
-    updateVoiceStatus(
-      "Pehle current answer complete hone dein."
-    );
-
-    return;
-  }
-
-  if (isListening) {
-    try {
-      speechRecognition.stop();
-    } catch (error) {
-      console.warn(
-        "STOP LISTENING:",
-        error
-      );
-    }
-
-    return;
-  }
-
-  if (isSpeaking) {
-    stopVoiceOutput();
-  }
-
-  if (
-    selectedLanguage !==
-    "auto"
-  ) {
-    selectedVoiceLanguage =
-      languageToVoiceCode(
-        selectedLanguage
-      );
-  } else {
-    selectedVoiceLanguage =
-      detectVoiceLanguage(
-        messageInput.value
-      );
-  }
-
-  speechRecognition.lang =
-    selectedVoiceLanguage;
-
+function loadState() {
   try {
-    speechRecognition.start();
+    const storedChats =
+      localStorage.getItem(STORAGE_KEY);
+
+    if (storedChats) {
+      const parsed = JSON.parse(storedChats);
+
+      if (Array.isArray(parsed)) {
+        state.chats = parsed;
+      }
+    }
+
+    const active =
+      localStorage.getItem(ACTIVE_CHAT_KEY);
+
+    if (active) {
+      state.activeChatId = active;
+    }
+
+    const settings =
+      localStorage.getItem(SETTINGS_KEY);
+
+    if (settings) {
+      const parsedSettings = JSON.parse(settings);
+
+      if (
+        parsedSettings &&
+        typeof parsedSettings === "object"
+      ) {
+        state.settings = {
+          ...state.settings,
+          ...parsedSettings
+        };
+      }
+    }
   } catch (error) {
-    console.warn(
-      "START LISTENING:",
-      error
-    );
+    console.warn("Atharv load error:", error);
 
-    updateVoiceStatus(
-      "Mic start nahi ho paaya."
-    );
+    state.chats = [];
+    state.activeChatId = null;
   }
 }
 
 /* =========================================================
-   SPEECH OUTPUT
+   CHAT MODEL
    ========================================================= */
 
-function findBestSpeechVoice(
-  language
-) {
-  if (!isVoiceOutputSupported()) {
-    return null;
-  }
+function createChat() {
+  return {
+    id: createId("chat"),
+    title: "New Chat",
 
-  const voices =
-    window.speechSynthesis.getVoices();
+    createdAt: now(),
+    updatedAt: now(),
 
-  if (
-    !voices ||
-    !voices.length
-  ) {
-    return null;
-  }
+    messages: [],
 
-  const target =
-    String(
-      language || "en-IN"
-    ).toLowerCase();
+    responseId: null
+  };
+}
 
-  const base =
-    target.split("-")[0];
-
-  let voice =
-    voices.find(
-      item =>
-        item.lang &&
-        item.lang.toLowerCase() ===
-          target
-    );
-
-  if (voice) {
-    return voice;
-  }
-
-  voice =
-    voices.find(
-      item =>
-        item.lang &&
-        item.lang
-          .toLowerCase()
-          .startsWith(
-            base + "-"
-          )
-    );
-
-  if (voice) {
-    return voice;
-  }
-
-  return (
-    voices.find(
-      item =>
-        item.lang &&
-        item.lang
-          .toLowerCase()
-          .startsWith(base)
-    ) || null
+function getActiveChat() {
+  return state.chats.find(
+    chat => chat.id === state.activeChatId
   );
 }
 
-function speakText(
-  text,
-  button = null
-) {
-  if (!isVoiceOutputSupported()) {
-    return;
+function ensureChat() {
+  let chat = getActiveChat();
+
+  if (!chat) {
+    chat = createChat();
+
+    state.chats.unshift(chat);
+    state.activeChatId = chat.id;
+
+    saveState();
   }
 
-  const cleanText =
-    String(text || "").trim();
-
-  if (!cleanText) {
-    return;
-  }
-
-  stopVoiceOutput();
-
-  let language;
-
-  if (
-    selectedLanguage !==
-    "auto"
-  ) {
-    language =
-      languageToVoiceCode(
-        selectedLanguage
-      );
-  } else {
-    language =
-      detectVoiceLanguage(
-        cleanText
-      );
-  }
-
-  selectedVoiceLanguage =
-    language;
-
-  const utterance =
-    new SpeechSynthesisUtterance(
-      cleanText
-    );
-
-  utterance.lang =
-    language;
-
-  utterance.rate =
-    0.95;
-
-  utterance.pitch =
-    1;
-
-  utterance.volume =
-    1;
-
-  const voice =
-    findBestSpeechVoice(
-      language
-    );
-
-  if (voice) {
-    utterance.voice =
-      voice;
-  }
-
-  utterance.onstart =
-    function () {
-      isSpeaking = true;
-
-      if (button) {
-        button.textContent =
-          "⏹️";
-
-        button.classList.add(
-          "speaking"
-        );
-      }
-    };
-
-  utterance.onend =
-    function () {
-      isSpeaking = false;
-
-      currentSpeechUtterance =
-        null;
-
-      if (button) {
-        button.textContent =
-          "🔊";
-
-        button.classList.remove(
-          "speaking"
-        );
-      }
-    };
-
-  utterance.onerror =
-    function (event) {
-      console.error(
-        "SPEECH OUTPUT ERROR:",
-        event.error
-      );
-
-      isSpeaking = false;
-
-      currentSpeechUtterance =
-        null;
-
-      if (button) {
-        button.textContent =
-          "🔊";
-
-        button.classList.remove(
-          "speaking"
-        );
-      }
-    };
-
-  currentSpeechUtterance =
-    utterance;
-
-  window.speechSynthesis.speak(
-    utterance
-  );
+  return chat;
 }
 
-function stopVoiceOutput() {
-  if (isVoiceOutputSupported()) {
-    try {
-      window.speechSynthesis.cancel();
-    } catch (error) {
-      console.warn(
-        "SPEECH CANCEL:",
-        error
-      );
+/* =========================================================
+   NEW CHAT
+   ========================================================= */
+
+function createNewChat(openImmediately = true) {
+  stopSpeaking();
+
+  const chat = createChat();
+
+  state.chats.unshift(chat);
+  state.activeChatId = chat.id;
+
+  state.selectedFiles = [];
+
+  saveState();
+
+  renderHistory();
+  renderActiveChat();
+
+  if (openImmediately) {
+    closeSidebar();
+  }
+
+  focusInput();
+
+  return chat;
+}
+
+/* =========================================================
+   OPEN CHAT
+   ========================================================= */
+
+function openChat(chatId) {
+  const chat = state.chats.find(
+    item => item.id === chatId
+  );
+
+  if (!chat) return;
+
+  stopSpeaking();
+
+  state.activeChatId = chatId;
+  state.selectedFiles = [];
+
+  saveState();
+
+  renderHistory();
+  renderActiveChat();
+
+  closeSidebar();
+  focusInput();
+}
+
+/* =========================================================
+   RENAME CHAT
+   ========================================================= */
+
+function renameChat(chatId) {
+  const chat = state.chats.find(
+    item => item.id === chatId
+  );
+
+  if (!chat) return;
+
+  const newTitle = window.prompt(
+    "Rename chat",
+    chat.title || "New Chat"
+  );
+
+  if (newTitle === null) {
+    return;
+  }
+
+  const title = cleanText(newTitle);
+
+  if (!title) {
+    return;
+  }
+
+  chat.title = truncate(title, 80);
+  chat.updatedAt = now();
+
+  saveState();
+
+  renderHistory();
+  updateChatHeader();
+}
+
+/* =========================================================
+   DELETE CHAT
+   ========================================================= */
+
+function deleteChat(chatId) {
+  const chat = state.chats.find(
+    item => item.id === chatId
+  );
+
+  if (!chat) return;
+
+  const confirmed = window.confirm(
+    `Delete "${chat.title || "New Chat"}"?`
+  );
+
+  if (!confirmed) return;
+
+  const wasActive =
+    state.activeChatId === chatId;
+
+  state.chats = state.chats.filter(
+    item => item.id !== chatId
+  );
+
+  if (wasActive) {
+    const nextChat = state.chats[0];
+
+    if (nextChat) {
+      state.activeChatId = nextChat.id;
+    } else {
+      const fresh = createChat();
+
+      state.chats = [fresh];
+      state.activeChatId = fresh.id;
     }
   }
 
-  isSpeaking = false;
+  saveState();
 
-  currentSpeechUtterance =
-    null;
+  renderHistory();
+  renderActiveChat();
+}
 
-  document
-    .querySelectorAll(
-      ".atharv-message-voice"
-    )
-    .forEach(button => {
-      button.textContent =
-        "🔊";
+/* =========================================================
+   SORT CHATS
+   ========================================================= */
 
-      button.classList.remove(
-        "speaking"
-      );
+function sortChats() {
+  state.chats.sort(
+    (a, b) =>
+      (b.updatedAt || b.createdAt || 0) -
+      (a.updatedAt || a.createdAt || 0)
+  );
+}
+
+/* =========================================================
+   HISTORY RENDER
+   ========================================================= */
+
+function renderHistory() {
+  sortChats();
+
+  const container =
+    elements.chatList ||
+    elements.chatHistory;
+
+  if (!container) return;
+
+  if (!state.chats.length) {
+    container.innerHTML = `
+      <div class="atharv-empty-history">
+        No chats yet
+      </div>
+    `;
+
+    return;
+  }
+
+  container.innerHTML = state.chats
+    .map(chat => {
+      const active =
+        chat.id === state.activeChatId;
+
+      return `
+        <div
+          class="atharv-chat-item ${active ? "active" : ""}"
+          data-chat-id="${escapeHTML(chat.id)}"
+        >
+          <button
+            type="button"
+            class="atharv-chat-open"
+            data-action="open-chat"
+            data-chat-id="${escapeHTML(chat.id)}"
+          >
+            <span class="atharv-chat-icon">💬</span>
+
+            <span class="atharv-chat-info">
+              <span class="atharv-chat-name">
+                ${escapeHTML(chat.title || "New Chat")}
+              </span>
+
+              <span class="atharv-chat-date">
+                ${formatChatDate(chat.updatedAt)}
+              </span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            class="atharv-chat-more"
+            data-action="chat-menu"
+            data-chat-id="${escapeHTML(chat.id)}"
+            aria-label="Chat options"
+          >
+            ⋯
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function formatChatDate(timestamp) {
+  if (!timestamp) return "";
+
+  const date = new Date(timestamp);
+
+  const today = new Date();
+
+  const sameDay =
+    date.toDateString() === today.toDateString();
+
+  if (sameDay) {
+    return date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit"
     });
+  }
+
+  return date.toLocaleDateString([], {
+    day: "numeric",
+    month: "short"
+  });
 }
 
 /* =========================================================
-   MESSAGE VOICE BUTTON
+   CHAT MENU
    ========================================================= */
 
-function addVoiceButtonToMessage(
-  messageElement,
-  text
-) {
+function showChatMenu(chatId, anchor) {
+  closeChatMenus();
+
+  const menu = document.createElement("div");
+
+  menu.className = "atharv-chat-menu";
+
+  menu.innerHTML = `
+    <button
+      type="button"
+      data-action="rename-chat"
+      data-chat-id="${escapeHTML(chatId)}"
+    >
+      ✏️ Rename
+    </button>
+
+    <button
+      type="button"
+      data-action="delete-chat"
+      data-chat-id="${escapeHTML(chatId)}"
+    >
+      🗑️ Delete
+    </button>
+  `;
+
+  document.body.appendChild(menu);
+
+  const rect = anchor.getBoundingClientRect();
+
+  menu.style.position = "fixed";
+  menu.style.top =
+    `${Math.min(rect.bottom + 4, window.innerHeight - 100)}px`;
+
+  menu.style.left =
+    `${Math.max(8, rect.right - 150)}px`;
+
+  setTimeout(() => {
+    document.addEventListener(
+      "click",
+      handleOutsideChatMenu,
+      { once: true }
+    );
+  }, 0);
+}
+
+function handleOutsideChatMenu(event) {
   if (
-    !messageElement ||
-    !isVoiceOutputSupported()
+    !event.target.closest(".atharv-chat-menu")
   ) {
+    closeChatMenus();
+  }
+}
+
+function closeChatMenus() {
+  $$(".atharv-chat-menu").forEach(
+    element => element.remove()
+  );
+}
+
+/* =========================================================
+   ACTIVE CHAT RENDER
+   ========================================================= */
+
+function renderActiveChat() {
+  const chat = ensureChat();
+
+  updateChatHeader();
+
+  if (!elements.messages) return;
+
+  if (!chat.messages.length) {
+    renderWelcome();
     return;
   }
 
-  const voiceButton =
-    document.createElement(
-      "button"
-    );
+  elements.messages.innerHTML =
+    chat.messages
+      .map(message => renderMessage(message))
+      .join("");
 
-  voiceButton.type =
-    "button";
+  scrollMessagesToBottom();
+}
 
-  voiceButton.className =
-    "atharv-message-voice";
+function updateChatHeader() {
+  const chat = getActiveChat();
 
-  voiceButton.textContent =
-    "🔊";
+  if (!chat) return;
 
-  voiceButton.title =
-    "Atharv ka jawab sunen";
+  if (elements.chatTitle) {
+    elements.chatTitle.textContent =
+      chat.title || "Atharv AI";
+  }
 
-  voiceButton.addEventListener(
-    "click",
-    function () {
-      if (isSpeaking) {
-        stopVoiceOutput();
-      } else {
-        speakText(
-          text,
-          voiceButton
-        );
-      }
-    }
-  );
+  document.title =
+    chat.title && chat.title !== "New Chat"
+      ? `${chat.title} — Atharv AI`
+      : "Atharv AI";
+}
 
-  messageElement.appendChild(
-    voiceButton
-  );
+/* =========================================================
+   WELCOME
+   ========================================================= */
+
+function renderWelcome() {
+  if (!elements.messages) return;
+
+  elements.messages.innerHTML = `
+    <div class="atharv-welcome-message">
+      <div class="atharv-welcome-logo">A</div>
+
+      <h1>Namaste 👋</h1>
+
+      <p>
+        Main Atharv hoon. Aap mujhse
+        kisi bhi language mein sawaal pooch sakte hain.
+      </p>
+
+      <p class="atharv-welcome-subtitle">
+        Your AI. Every Language. Every Question.
+      </p>
+    </div>
+  `;
+
+  if (elements.welcome) {
+    elements.welcome.style.display = "";
+  }
 }
 
 /* =========================================================
    MESSAGE RENDER
    ========================================================= */
 
-function addMessage(
-  text,
-  type,
-  options = {}
-) {
-  if (!chatBox) {
-    return null;
-  }
+function renderMessage(message) {
+  const role =
+    message.role === "user"
+      ? "user"
+      : "assistant";
 
-  const cleanText =
-    String(text || "");
+  const text = message.content || "";
 
-  const message =
-    document.createElement(
-      "div"
-    );
+  const attachmentHTML =
+    Array.isArray(message.attachments)
+      ? renderAttachments(
+          message.attachments,
+          true
+        )
+      : "";
 
-  message.className =
-    "message " + type;
+  return `
+    <article
+      class="atharv-message atharv-message-${role}"
+      data-message-id="${escapeHTML(message.id || "")}"
+    >
+      <div class="atharv-message-avatar">
+        ${
+          role === "user"
+            ? "👤"
+            : "A"
+        }
+      </div>
 
-  message.dataset.messageText =
-    cleanText;
+      <div class="atharv-message-content">
+        <div class="atharv-message-name">
+          ${
+            role === "user"
+              ? "You"
+              : "Atharv"
+          }
+        </div>
 
-  message.textContent =
-    cleanText;
+        ${
+          attachmentHTML
+        }
 
-  chatBox.appendChild(
-    message
+        <div class="atharv-message-text">
+          ${
+            role === "assistant"
+              ? renderMarkdown(text)
+              : escapeHTML(text).replace(
+                  /\n/g,
+                  "<br>"
+                )
+          }
+        </div>
+
+        ${
+          role === "assistant"
+            ? `
+              <div class="atharv-message-actions">
+                <button
+                  type="button"
+                  data-action="copy-message"
+                  data-message-id="${escapeHTML(message.id || "")}"
+                  title="Copy"
+                >
+                  📋
+                </button>
+
+                <button
+                  type="button"
+                  data-action="speak-message"
+                  data-message-id="${escapeHTML(message.id || "")}"
+                  title="Read aloud"
+                >
+                  🔊
+                </button>
+              </div>
+            `
+            : ""
+        }
+      </div>
+    </article>
+  `;
+}
+
+/* =========================================================
+   MARKDOWN RENDERER
+   ========================================================= */
+
+function renderMarkdown(input) {
+  let text = String(input ?? "");
+
+  if (!text) return "";
+
+  /*
+   * Protect fenced code blocks first.
+   */
+
+  const codeBlocks = [];
+
+  text = text.replace(
+    /```([\w+-]*)\n?([\s\S]*?)```/g,
+    (_, language, code) => {
+      const id =
+        `ATHARV_CODE_${codeBlocks.length}`;
+
+      codeBlocks.push({
+        id,
+        language: language || "",
+        code: code.replace(/\n$/, "")
+      });
+
+      return `\n${id}\n`;
+    }
   );
 
-  if (
-    type === "ai" &&
-    options.voice !== false
-  ) {
-    addVoiceButtonToMessage(
-      message,
-      cleanText
+  /*
+   * Escape HTML.
+   */
+
+  text = escapeHTML(text);
+
+  /*
+   * Inline code.
+   */
+
+  text = text.replace(
+    /`([^`\n]+)`/g,
+    "<code>$1</code>"
+  );
+
+  /*
+   * Headings.
+   */
+
+  text = text.replace(
+    /^###### (.+)$/gm,
+    "<h6>$1</h6>"
+  );
+
+  text = text.replace(
+    /^##### (.+)$/gm,
+    "<h5>$1</h5>"
+  );
+
+  text = text.replace(
+    /^#### (.+)$/gm,
+    "<h4>$1</h4>"
+  );
+
+  text = text.replace(
+    /^### (.+)$/gm,
+    "<h3>$1</h3>"
+  );
+
+  text = text.replace(
+    /^## (.+)$/gm,
+    "<h2>$1</h2>"
+  );
+
+  text = text.replace(
+    /^# (.+)$/gm,
+    "<h1>$1</h1>"
+  );
+
+  /*
+   * Bold / italic.
+   */
+
+  text = text.replace(
+    /\*\*(.+?)\*\*/g,
+    "<strong>$1</strong>"
+  );
+
+  text = text.replace(
+    /__(.+?)__/g,
+    "<strong>$1</strong>"
+  );
+
+  text = text.replace(
+    /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
+    "<em>$1</em>"
+  );
+
+  /*
+   * Links.
+   */
+
+  text = text.replace(
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+
+  /*
+   * Blockquotes.
+   */
+
+  text = text.replace(
+    /^&gt; (.+)$/gm,
+    "<blockquote>$1</blockquote>"
+  );
+
+  /*
+   * Unordered lists.
+   */
+
+  text = text.replace(
+    /^(?:[-*]) (.+)$/gm,
+    "<li>$1</li>"
+  );
+
+  text = text.replace(
+    /(<li>.*<\/li>\n?)+/g,
+    match => `<ul>${match}</ul>`
+  );
+
+  /*
+   * Ordered lists.
+   */
+
+  text = text.replace(
+    /^\d+\.\s(.+)$/gm,
+    "<li>$1</li>"
+  );
+
+  /*
+   * Line breaks.
+   */
+
+  text = text.replace(
+    /\n{2,}/g,
+    "</p><p>"
+  );
+
+  text = text.replace(
+    /\n/g,
+    "<br>"
+  );
+
+  text = `<p>${text}</p>`;
+
+  /*
+   * Restore code blocks.
+   */
+
+  codeBlocks.forEach(block => {
+    const safeCode =
+      escapeHTML(block.code);
+
+    const language =
+      escapeHTML(block.language);
+
+    const html = `
+      <div class="atharv-code-block">
+        <div class="atharv-code-header">
+          <span>
+            ${language || "code"}
+          </span>
+
+          <button
+            type="button"
+            data-action="copy-code"
+            data-code="${escapeHTML(block.code)}"
+          >
+            Copy
+          </button>
+        </div>
+
+        <pre><code>${safeCode}</code></pre>
+      </div>
+    `;
+
+    text = text.replace(
+      `<p>${block.id}</p>`,
+      html
     );
+
+    text = text.replace(
+      block.id,
+      html
+    );
+  });
+
+  return text;
+}
+
+/* =========================================================
+   ADD MESSAGE
+   ========================================================= */
+
+function addMessage(
+  role,
+  content,
+  attachments = []
+) {
+  const chat = ensureChat();
+
+  const message = {
+    id: createId("msg"),
+    role,
+    content: String(content ?? ""),
+    attachments: attachments || [],
+    createdAt: now()
+  };
+
+  chat.messages.push(message);
+
+  if (
+    chat.messages.length >
+    MAX_HISTORY_MESSAGES
+  ) {
+    chat.messages =
+      chat.messages.slice(
+        -MAX_HISTORY_MESSAGES
+      );
   }
 
-  message.scrollIntoView({
-    behavior: "smooth",
-    block: "end"
-  });
+  if (
+    role === "user" &&
+    chat.messages.filter(
+      item => item.role === "user"
+    ).length === 1
+  ) {
+    chat.title =
+      generateChatTitle(content);
+  }
+
+  chat.updatedAt = now();
+
+  saveState();
 
   return message;
 }
 
 /* =========================================================
-   SOURCES
+   UPDATE MESSAGE
    ========================================================= */
 
-function renderSources(
-  sources
-) {
-  if (
-    !Array.isArray(sources) ||
-    !sources.length ||
-    !chatBox
-  ) {
-    return;
-  }
+function updateMessage(messageId, content) {
+  const chat = getActiveChat();
 
-  const wrapper =
-    document.createElement(
-      "div"
-    );
+  if (!chat) return;
 
-  wrapper.className =
-    "atharv-sources";
-
-  const title =
-    document.createElement(
-      "div"
-    );
-
-  title.textContent =
-    "🌐 Verified Sources";
-
-  title.className =
-    "atharv-sources-title";
-
-  wrapper.appendChild(
-    title
+  const message = chat.messages.find(
+    item => item.id === messageId
   );
 
-  sources
-    .slice(0, 6)
-    .forEach(source => {
-      if (!source) {
-        return;
-      }
+  if (!message) return;
 
-      const url =
-        typeof source.url ===
-        "string"
-          ? source.url
-          : "";
+  message.content =
+    String(content ?? "");
 
-      if (!url) {
-        return;
-      }
+  message.updatedAt = now();
 
-      const link =
-        document.createElement(
-          "a"
-        );
+  chat.updatedAt = now();
 
-      link.target =
-        "_blank";
-
-      link.rel =
-        "noopener noreferrer";
-
-      link.href =
-        url;
-
-      link.textContent =
-        source.title ||
-        source.name ||
-        url;
-
-      wrapper.appendChild(
-        link
-      );
-    });
-
-  if (
-    wrapper.children.length <=
-    1
-  ) {
-    return;
-  }
-
-  chatBox.appendChild(
-    wrapper
-  );
-
-  wrapper.scrollIntoView({
-    behavior: "smooth",
-    block: "end"
-  });
+  saveState();
 }
 
 /* =========================================================
-   HISTORY
+   TYPING INDICATOR
    ========================================================= */
 
-function saveChatHistory() {
-  try {
-    if (!chatBox) {
-      return;
-    }
+function showTyping() {
+  removeTyping();
 
-    const messages = [];
+  if (!elements.messages) return;
 
-    chatBox
-      .querySelectorAll(
-        ".message"
-      )
-      .forEach(message => {
-        if (
-          message.id ===
-          "thinkingMessage"
-        ) {
-          return;
-        }
+  const typing =
+    document.createElement("div");
 
-        const text =
-          message.dataset
-            .messageText ||
-          message.textContent ||
-          "";
+  typing.className =
+    "atharv-message atharv-message-assistant atharv-typing";
 
-        if (!text.trim()) {
-          return;
-        }
+  typing.innerHTML = `
+    <div class="atharv-message-avatar">
+      A
+    </div>
 
-        messages.push({
-          text,
-          type:
-            message.classList.contains(
-              "user"
-            )
-              ? "user"
-              : "ai"
-        });
-      });
-
-    localStorage.setItem(
-      ATHARV_HISTORY_KEY,
-      JSON.stringify(
-        messages.slice(-100)
-      )
-    );
-  } catch (error) {
-    console.error(
-      "HISTORY SAVE ERROR:",
-      error
-    );
-  }
-}
-
-function getChatHistory() {
-  try {
-    const saved =
-      localStorage.getItem(
-        ATHARV_HISTORY_KEY
-      );
-
-    if (!saved) {
-      return [];
-    }
-
-    const messages =
-      JSON.parse(saved);
-
-    return Array.isArray(messages)
-      ? messages
-      : [];
-  } catch (error) {
-    console.error(
-      "HISTORY READ ERROR:",
-      error
-    );
-
-    return [];
-  }
-}
-
-function loadChatHistory() {
-  if (!chatBox) {
-    return;
-  }
-
-  const messages =
-    getChatHistory();
-
-  if (!messages.length) {
-    return;
-  }
-
-  chatBox.innerHTML = "";
-
-  messages.forEach(item => {
-    if (
-      item &&
-      typeof item.text ===
-        "string" &&
-      (
-        item.type === "user" ||
-        item.type === "ai"
-      )
-    ) {
-      addMessage(
-        item.text,
-        item.type
-      );
-    }
-  });
-}
-
-function clearChatHistory() {
-  stopVoiceOutput();
-
-  localStorage.removeItem(
-    ATHARV_HISTORY_KEY
-  );
-
-  if (chatBox) {
-    chatBox.innerHTML = "";
-  }
-}
-
-/* =========================================================
-   THINKING UI
-   ========================================================= */
-
-function showThinking() {
-  removeThinking();
-
-  if (!chatBox) {
-    return;
-  }
-
-  const message =
-    document.createElement(
-      "div"
-    );
-
-  message.className =
-    "message ai thinking";
-
-  message.id =
-    "thinkingMessage";
-
-  message.innerHTML =
-    `
-      <span class="atharv-thinking-label">
+    <div class="atharv-message-content">
+      <div class="atharv-message-name">
         Atharv
-      </span>
-      <span class="atharv-dots">
-        <span>●</span>
-        <span>●</span>
-        <span>●</span>
-      </span>
-    `;
+      </div>
 
-  chatBox.appendChild(
-    message
+      <div class="atharv-typing-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+  `;
+
+  elements.messages.appendChild(typing);
+
+  scrollMessagesToBottom();
+}
+
+function removeTyping() {
+  $$(".atharv-typing").forEach(
+    element => element.remove()
   );
-
-  message.scrollIntoView({
-    behavior: "smooth",
-    block: "end"
-  });
-}
-
-function removeThinking() {
-  const item =
-    document.getElementById(
-      "thinkingMessage"
-    );
-
-  if (item) {
-    item.remove();
-  }
-}
-
-/* =========================================================
-   SERVER ANSWER
-   ========================================================= */
-
-function getServerAnswer(data) {
-  if (
-    !data ||
-    typeof data !== "object"
-  ) {
-    return "";
-  }
-
-  const possible = [
-    data.answer,
-    data.response,
-    data.reply,
-    data.text,
-    data.content
-  ];
-
-  for (const value of possible) {
-    if (
-      typeof value ===
-        "string" &&
-      value.trim()
-    ) {
-      return value.trim();
-    }
-  }
-
-  return "";
-}
-
-/* =========================================================
-   ATTACHMENTS
-   ========================================================= */
-
-function clearAttachment() {
-  selectedAttachment =
-    null;
-
-  if (fileInput) {
-    fileInput.value =
-      "";
-  }
-
-  if (attachmentPreview) {
-    attachmentPreview.innerHTML =
-      "";
-
-    attachmentPreview.hidden =
-      true;
-  }
-}
-
-function renderAttachmentPreview(
-  file
-) {
-  if (!attachmentPreview) {
-    return;
-  }
-
-  attachmentPreview.innerHTML =
-    "";
-
-  const wrapper =
-    document.createElement(
-      "div"
-    );
-
-  wrapper.className =
-    "attachment-item";
-
-  const name =
-    document.createElement(
-      "span"
-    );
-
-  const sizeKB =
-    Math.max(
-      1,
-      Math.round(
-        file.size / 1024
-      )
-    );
-
-  name.textContent =
-    "📎 " +
-    file.name +
-    " (" +
-    sizeKB +
-    " KB)";
-
-  const remove =
-    document.createElement(
-      "button"
-    );
-
-  remove.type =
-    "button";
-
-  remove.textContent =
-    "✕";
-
-  remove.title =
-    "Remove attachment";
-
-  remove.addEventListener(
-    "click",
-    clearAttachment
-  );
-
-  wrapper.appendChild(
-    name
-  );
-
-  wrapper.appendChild(
-    remove
-  );
-
-  attachmentPreview.appendChild(
-    wrapper
-  );
-
-  attachmentPreview.hidden =
-    false;
-}
-
-if (
-  attachmentButton &&
-  fileInput
-) {
-  attachmentButton.addEventListener(
-    "click",
-    function () {
-      fileInput.click();
-    }
-  );
-}
-
-if (fileInput) {
-  fileInput.addEventListener(
-    "change",
-    function () {
-      const file =
-        this.files &&
-        this.files[0];
-
-      if (!file) {
-        return;
-      }
-
-      const maxSize =
-        10 * 1024 * 1024;
-
-      if (file.size > maxSize) {
-        alert(
-          "File 10 MB se chhoti honi chahiye."
-        );
-
-        clearAttachment();
-        return;
-      }
-
-      selectedAttachment =
-        file;
-
-      renderAttachmentPreview(
-        file
-      );
-    }
-  );
-}
-
-/* =========================================================
-   TEXT FILE READER
-   ========================================================= */
-
-async function readTextFile(
-  file
-) {
-  const type =
-    file.type || "";
-
-  const name =
-    file.name.toLowerCase();
-
-  const isText =
-    type.startsWith(
-      "text/"
-    ) ||
-    name.endsWith(".txt") ||
-    name.endsWith(".csv") ||
-    name.endsWith(".md") ||
-    name.endsWith(".json") ||
-    name.endsWith(".xml") ||
-    name.endsWith(".log");
-
-  if (!isText) {
-    return null;
-  }
-
-  try {
-    const text =
-      await file.text();
-
-    return text.slice(
-      0,
-      50000
-    );
-  } catch (error) {
-    console.error(
-      "FILE READ ERROR:",
-      error
-    );
-
-    return null;
-  }
-}
-
-/* =========================================================
-   ATTACHMENT DESCRIPTION
-   ========================================================= */
-
-function getAttachmentDescription(
-  file
-) {
-  if (!file) {
-    return "";
-  }
-
-  const type =
-    file.type || "";
-
-  const name =
-    file.name.toLowerCase();
-
-  if (
-    type.startsWith(
-      "image/"
-    )
-  ) {
-    return (
-      "User attached an image named " +
-      file.name +
-      ". Visual image analysis is requested."
-    );
-  }
-
-  if (
-    type ===
-      "application/pdf" ||
-    name.endsWith(".pdf")
-  ) {
-    return (
-      "User attached a PDF named " +
-      file.name +
-      ". PDF/document analysis is requested."
-    );
-  }
-
-  return (
-    "User attached file: " +
-    file.name
-  );
-}
-
-/* =========================================================
-   BUILD REQUEST BODY
-   ========================================================= */
-
-async function buildChatRequest(
-  message,
-  attachment
-) {
-  const fullHistory =
-    getChatHistory();
-
-  const recentHistory =
-    fullHistory.slice(
-      -12
-    );
-
-  const timeZone =
-    Intl.DateTimeFormat()
-      .resolvedOptions()
-      .timeZone ||
-    "Asia/Kolkata";
-
-  const body = {
-    message,
-
-    history:
-      recentHistory,
-
-    timeZone,
-
-    userId:
-      ATHARV_USER_ID,
-
-    language:
-      selectedLanguage,
-
-    languageName:
-      LANGUAGE_MAP[
-        selectedLanguage
-      ] ||
-      "Auto Detect"
-  };
-
-  if (attachment) {
-    body.attachment = {
-      name:
-        attachment.name,
-
-      type:
-        attachment.type,
-
-      size:
-        attachment.size
-    };
-
-    body.attachmentDescription =
-      getAttachmentDescription(
-        attachment
-      );
-
-    const attachmentText =
-      await readTextFile(
-        attachment
-      );
-
-    if (attachmentText) {
-      body.attachmentText =
-        attachmentText;
-    }
-  }
-
-  return body;
 }
 
 /* =========================================================
    SEND MESSAGE
    ========================================================= */
 
-async function sendMessage() {
-  if (!messageInput) {
+async function sendMessage(customText = null) {
+  if (state.isSending) {
     return;
   }
 
-  const message =
-    messageInput.value.trim();
+  const input =
+    elements.messageInput;
 
-  if (
-    !message ||
-    isThinking
-  ) {
+  const text =
+    customText !== null
+      ? cleanText(customText)
+      : cleanText(input?.value);
+
+  const hasFiles =
+    state.selectedFiles.length > 0;
+
+  if (!text && !hasFiles) {
+    focusInput();
     return;
   }
 
-  stopVoiceOutput();
+  state.isSending = true;
 
-  const attachment =
-    selectedAttachment;
+  updateSendState();
+
+  const files =
+    [...state.selectedFiles];
+
+  const attachments =
+    await prepareAttachments(files);
 
   addMessage(
-    message,
-    "user"
+    "user",
+    text,
+    attachments
   );
 
-  saveChatHistory();
-
-  messageInput.value =
-    "";
-
-  messageInput.style.height =
-    "auto";
-
-  isThinking =
-    true;
-
-  if (sendButton) {
-    sendButton.disabled =
-      true;
-
-    sendButton.style.opacity =
-      "0.5";
-
-    sendButton.setAttribute(
-      "aria-disabled",
-      "true"
-    );
+  if (input && customText === null) {
+    input.value = "";
+    autoResizeInput();
   }
 
-  showThinking();
+  state.selectedFiles = [];
 
-  currentController =
-    new AbortController();
+  renderAttachmentsPreview();
 
-  const timeoutId =
-    setTimeout(
-      function () {
-        if (
-          currentController
-        ) {
-          currentController.abort();
-        }
-      },
-      90000
-    );
+  renderActiveChat();
+
+  showTyping();
 
   try {
-    const body =
-      await buildChatRequest(
-        message,
-        attachment
+    const payload =
+      await buildChatPayload(
+        text,
+        files
       );
 
     const response =
-      await fetch(
-        API_BASE +
-          "/api/chat",
-        {
-          method:
-            "POST",
+      await fetch(CHAT_ENDPOINT, {
+        method: "POST",
 
-          headers: {
-            "Content-Type":
-              "application/json",
+        headers: {
+          "Content-Type": "application/json"
+        },
 
-            Accept:
-              "application/json"
-          },
+        body: JSON.stringify(payload)
+      });
 
-          body:
-            JSON.stringify(
-              body
-            ),
-
-          signal:
-            currentController.signal
-        }
-      );
-
-    const responseText =
-      await response.text();
-
-    let data = {};
-
-    try {
-      data =
-        responseText
-          ? JSON.parse(
-              responseText
-            )
-          : {};
-    } catch (error) {
-      throw new Error(
-        "Server ne valid JSON response nahi diya."
-      );
-    }
+    const data =
+      await parseResponse(response);
 
     if (!response.ok) {
       throw new Error(
-        data.error ||
-          data.message ||
-          "Server error (" +
-            response.status +
-            ")"
+        data?.error ||
+        data?.message ||
+        `Server error (${response.status})`
       );
     }
 
-    const reply =
-      getServerAnswer(data);
+    removeTyping();
 
-    if (!reply) {
+    const answer =
+      extractAssistantResponse(data);
+
+    if (!answer) {
       throw new Error(
-        "Atharv server ne empty response diya."
+        "Atharv returned an empty response."
       );
     }
 
-    removeThinking();
+    const assistantMessage =
+      addMessage(
+        "assistant",
+        answer
+      );
 
-    addMessage(
-      reply,
-      "ai"
-    );
+    /*
+     * Keep server conversation id if backend provides it.
+     */
+
+    const chat = getActiveChat();
+
+    if (chat) {
+      chat.responseId =
+        data.responseId ||
+        data.response_id ||
+        data.conversationId ||
+        data.conversation_id ||
+        chat.responseId ||
+        null;
+
+      chat.updatedAt = now();
+
+      saveState();
+    }
+
+    renderActiveChat();
 
     if (
-      Array.isArray(
-        data.sources
-      ) &&
-      data.sources.length
+      state.settings.voiceEnabled &&
+      shouldAutoSpeak()
     ) {
-      renderSources(
-        data.sources
-      );
+      speakText(answer);
     }
 
-    saveChatHistory();
-
-    clearAttachment();
+    return assistantMessage;
   } catch (error) {
-    removeThinking();
-
     console.error(
-      "ATHARV ERROR:",
+      "ATHARV CHAT ERROR:",
       error
     );
 
-    let errorMessage =
-      "⚠️ Atharv response nahi la paaya.";
+    removeTyping();
 
-    if (
-      error.name ===
-      "AbortError"
-    ) {
-      errorMessage +=
-        "\n\n⏳ Response mein zyada time lag raha hai. Please dobara try karein.";
-    } else {
-      errorMessage +=
-        "\n\n" +
-        (
-          error.message ||
-          "Unknown error"
-        );
-    }
+    const errorText =
+      getFriendlyError(error);
 
     addMessage(
-      errorMessage,
-      "ai"
+      "assistant",
+      errorText
     );
 
-    saveChatHistory();
+    renderActiveChat();
   } finally {
-    clearTimeout(
-      timeoutId
-    );
+    state.isSending = false;
 
-    currentController =
-      null;
+    updateSendState();
 
-    isThinking =
-      false;
-
-    if (sendButton) {
-      sendButton.disabled =
-        false;
-
-      sendButton.style.opacity =
-        "1";
-
-      sendButton.removeAttribute(
-        "aria-disabled"
-      );
-    }
-
-    if (messageInput) {
-      messageInput.focus();
-    }
+    focusInput();
   }
 }
 
 /* =========================================================
-   CANCEL CURRENT REQUEST
+   BUILD API PAYLOAD
    ========================================================= */
 
-function cancelCurrentRequest() {
+async function buildChatPayload(
+  text,
+  files
+) {
+  const chat = ensureChat();
+
+  /*
+   * Only send useful recent history.
+   * The backend remains responsible for
+   * model-specific conversation handling.
+   */
+
+  const history =
+    chat.messages
+      .slice(-20)
+      .map(message => ({
+        role: message.role,
+        content: message.content
+      }));
+
+  const payload = {
+    message: text,
+
+    prompt: text,
+
+    language:
+      detectLanguage(text),
+
+    userLanguage:
+      detectLanguage(text),
+
+    chatId:
+      chat.id,
+
+    conversationId:
+      chat.responseId || null,
+
+    history,
+
+    attachments: []
+  };
+
+  if (files.length) {
+    payload.attachments =
+      await prepareAPIFileData(files);
+  }
+
+  return payload;
+}
+
+/* =========================================================
+   RESPONSE PARSER
+   ========================================================= */
+
+async function parseResponse(response) {
+  const contentType =
+    response.headers.get(
+      "content-type"
+    ) || "";
+
   if (
-    currentController
+    contentType.includes(
+      "application/json"
+    )
   ) {
+    return await response.json();
+  }
+
+  const text =
+    await response.text();
+
+  return {
+    response: text,
+    message: text
+  };
+}
+
+function extractAssistantResponse(data) {
+  if (!data) return "";
+
+  if (typeof data === "string") {
+    return data.trim();
+  }
+
+  const candidates = [
+    data.reply,
+    data.response,
+    data.answer,
+    data.message,
+    data.output,
+    data.text,
+    data.content
+  ];
+
+  for (const candidate of candidates) {
+    if (
+      typeof candidate === "string" &&
+      candidate.trim()
+    ) {
+      return candidate.trim();
+    }
+  }
+
+  /*
+   * Some APIs return:
+   * { output: [{ content: ... }] }
+   */
+
+  if (Array.isArray(data.output)) {
+    const text = data.output
+      .map(item => {
+        if (typeof item === "string") {
+          return item;
+        }
+
+        return (
+          item?.content ||
+          item?.text ||
+          ""
+        );
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    if (text.trim()) {
+      return text.trim();
+    }
+  }
+
+  /*
+   * OpenAI-style output.
+   */
+
+  if (Array.isArray(data.output_text)) {
+    return data.output_text
+      .join("\n")
+      .trim();
+  }
+
+  if (
+    typeof data.output_text === "string"
+  ) {
+    return data.output_text.trim();
+  }
+
+  return "";
+}
+
+/* =========================================================
+   FRIENDLY ERROR
+   ========================================================= */
+
+function getFriendlyError(error) {
+  const message =
+    String(
+      error?.message || error || ""
+    );
+
+  if (
+    message.includes(
+      "Failed to fetch"
+    )
+  ) {
+    return (
+      "⚠️ Atharv server se connection nahi ho paaya. " +
+      "Internet connection check karke dobara try karein."
+    );
+  }
+
+  if (
+    message.includes("401") ||
+    message.includes("403")
+  ) {
+    return (
+      "⚠️ Atharv API authorization problem aa rahi hai. " +
+      "Server configuration check karni hogi."
+    );
+  }
+
+  if (
+    message.includes("429")
+  ) {
+    return (
+      "⚠️ Abhi requests zyada aa rahi hain. " +
+      "Thodi der baad dobara try karein."
+    );
+  }
+
+  if (
+    message.includes("500") ||
+    message.includes("502") ||
+    message.includes("503")
+  ) {
+    return (
+      "⚠️ Atharv server abhi available nahi hai. " +
+      "Kuch seconds baad dobara try karein."
+    );
+  }
+
+  return (
+    "⚠️ Atharv se response nahi mil paaya.\n\n" +
+    `Details: ${message}`
+  );
+}
+
+/* =========================================================
+   LANGUAGE DETECTION
+   ========================================================= */
+
+function detectLanguage(text) {
+  const value =
+    String(text || "").trim();
+
+  if (!value) {
+    return state.settings.language || "auto";
+  }
+
+  if (
+    /[\u0900-\u097F]/.test(value)
+  ) {
+    return "hi";
+  }
+
+  if (
+    /[\u0980-\u09FF]/.test(value)
+  ) {
+    return "bn";
+  }
+
+  if (
+    /[\u0A00-\u0A7F]/.test(value)
+  ) {
+    return "pa";
+  }
+
+  if (
+    /[\u0B80-\u0BFF]/.test(value)
+  ) {
+    return "ta";
+  }
+
+  if (
+    /[\u0C00-\u0C7F]/.test(value)
+  ) {
+    return "te";
+  }
+
+  if (
+    /[\u0C80-\u0CFF]/.test(value)
+  ) {
+    return "kn";
+  }
+
+  if (
+    /[\u0D00-\u0D7F]/.test(value)
+  ) {
+    return "ml";
+  }
+
+  if (
+    /[\u0600-\u06FF]/.test(value)
+  ) {
+    return "ar";
+  }
+
+  if (
+    /[\u4E00-\u9FFF]/.test(value)
+  ) {
+    return "zh";
+  }
+
+  if (
+    /[\u3040-\u30FF]/.test(value)
+  ) {
+    return "ja";
+  }
+
+  if (
+    /[\uAC00-\uD7AF]/.test(value)
+  ) {
+    return "ko";
+  }
+
+  return "en";
+}
+
+/* =========================================================
+   AUTO SPEAK
+   ========================================================= */
+
+function shouldAutoSpeak() {
+  /*
+   * Default false.
+   * User can explicitly press the speaker button.
+   */
+
+  return false;
+}
+
+/* =========================================================
+   TEXT TO SPEECH
+   ========================================================= */
+
+function speakText(text) {
+  if (
+    !("speechSynthesis" in window)
+  ) {
+    return;
+  }
+
+  const value =
+    cleanText(text);
+
+  if (!value) return;
+
+  stopSpeaking();
+
+  const utterance =
+    new SpeechSynthesisUtterance(value);
+
+  const language =
+    detectLanguage(value);
+
+  utterance.lang =
+    languageToSpeechLocale(language);
+
+  utterance.rate = 1;
+  utterance.pitch = 1;
+  utterance.volume = 1;
+
+  utterance.onstart = () => {
+    state.isSpeaking = true;
+    updateVoiceUI();
+  };
+
+  utterance.onend = () => {
+    state.isSpeaking = false;
+    updateVoiceUI();
+  };
+
+  utterance.onerror = () => {
+    state.isSpeaking = false;
+    updateVoiceUI();
+  };
+
+  window.speechSynthesis.speak(
+    utterance
+  );
+}
+
+function stopSpeaking() {
+  if (
+    "speechSynthesis" in window
+  ) {
+    window.speechSynthesis.cancel();
+  }
+
+  state.isSpeaking = false;
+
+  updateVoiceUI();
+}
+
+function languageToSpeechLocale(language) {
+  const locales = {
+    hi: "hi-IN",
+    en: "en-IN",
+    bn: "bn-IN",
+    pa: "pa-IN",
+    ta: "ta-IN",
+    te: "te-IN",
+    kn: "kn-IN",
+    ml: "ml-IN",
+    ar: "ar-SA",
+    zh: "zh-CN",
+    ja: "ja-JP",
+    ko: "ko-KR"
+  };
+
+  return locales[language] || "en-IN";
+}
+
+/* =========================================================
+   VOICE INPUT
+   ========================================================= */
+
+function setupSpeechRecognition() {
+  const SpeechRecognition =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    state.speechSupported = false;
+
+    if (elements.voiceButton) {
+      elements.voiceButton.disabled = true;
+      elements.voiceButton.title =
+        "Voice input is not supported in this browser";
+    }
+
+    return;
+  }
+
+  state.speechSupported = true;
+
+  const recognition =
+    new SpeechRecognition();
+
+  recognition.continuous = false;
+  recognition.interimResults = true;
+  recognition.maxAlternatives = 1;
+
+  recognition.lang =
+    getRecognitionLanguage();
+
+  recognition.onstart = () => {
+    state.isListening = true;
+    updateVoiceUI();
+  };
+
+  recognition.onresult = event => {
+    let transcript = "";
+
+    for (
+      let i = event.resultIndex;
+      i < event.results.length;
+      i++
+    ) {
+      transcript +=
+        event.results[i][0].transcript;
+    }
+
+    if (elements.messageInput) {
+      elements.messageInput.value =
+        transcript.trim();
+
+      autoResizeInput();
+    }
+  };
+
+  recognition.onerror = event => {
+    console.warn(
+      "Speech recognition:",
+      event.error
+    );
+
+    state.isListening = false;
+
+    updateVoiceUI();
+  };
+
+  recognition.onend = () => {
+    state.isListening = false;
+    updateVoiceUI();
+  };
+
+  state.recognition = recognition;
+}
+
+function getRecognitionLanguage() {
+  const language =
+    state.settings.language;
+
+  if (language === "hi") {
+    return "hi-IN";
+  }
+
+  if (language === "en") {
+    return "en-IN";
+  }
+
+  return "hi-IN";
+}
+
+function toggleVoiceInput() {
+  if (!state.speechSupported) {
+    alert(
+      "Voice input is not supported in this browser."
+    );
+
+    return;
+  }
+
+  if (state.isListening) {
+    stopVoiceInput();
+  } else {
+    startVoiceInput();
+  }
+}
+
+function startVoiceInput() {
+  if (!state.recognition) {
+    setupSpeechRecognition();
+  }
+
+  if (!state.recognition) return;
+
+  try {
+    state.recognition.lang =
+      getRecognitionLanguage();
+
+    state.recognition.start();
+  } catch (error) {
+    console.warn(
+      "Voice start error:",
+      error
+    );
+  }
+}
+
+function stopVoiceInput() {
+  if (!state.recognition) return;
+
+  try {
+    state.recognition.stop();
+  } catch {
+    // Already stopped.
+  }
+
+  state.isListening = false;
+
+  updateVoiceUI();
+}
+
+function updateVoiceUI() {
+  if (!elements.voiceButton) {
+    return;
+  }
+
+  if (state.isListening) {
+    elements.voiceButton.classList.add(
+      "active"
+    );
+
+    elements.voiceButton.setAttribute(
+      "aria-label",
+      "Stop voice input"
+    );
+
+    elements.voiceButton.title =
+      "Stop listening";
+
+    elements.voiceButton.textContent =
+      "⏹️";
+  } else {
+    elements.voiceButton.classList.remove(
+      "active"
+    );
+
+    elements.voiceButton.setAttribute(
+      "aria-label",
+      "Voice input"
+    );
+
+    elements.voiceButton.title =
+      "Voice input";
+
+    elements.voiceButton.textContent =
+      "🎤";
+  }
+}
+
+/* =========================================================
+   FILE / ATTACHMENTS
+   ========================================================= */
+
+function setupFileInput() {
+  if (!elements.fileInput) return;
+
+  elements.fileInput.addEventListener(
+    "change",
+    event => {
+      const files =
+        Array.from(
+          event.target.files || []
+        );
+
+      addFiles(files);
+
+      /*
+       * Reset input so selecting the same
+       * file again triggers change.
+       */
+
+      event.target.value = "";
+    }
+  );
+}
+
+function addFiles(files) {
+  for (const file of files) {
+    if (
+      file.size >
+      MAX_ATTACHMENT_SIZE
+    ) {
+      alert(
+        `${file.name} is larger than 10 MB.`
+      );
+
+      continue;
+    }
+
+    const exists =
+      state.selectedFiles.some(
+        item =>
+          item.name === file.name &&
+          item.size === file.size &&
+          item.lastModified ===
+            file.lastModified
+      );
+
+    if (exists) continue;
+
+    state.selectedFiles.push(file);
+  }
+
+  renderAttachmentsPreview();
+}
+
+function removeSelectedFile(index) {
+  state.selectedFiles.splice(
+    index,
+    1
+  );
+
+  renderAttachmentsPreview();
+}
+
+function renderAttachmentsPreview() {
+  const container =
+    elements.attachmentPreview;
+
+  if (!container) return;
+
+  if (!state.selectedFiles.length) {
+    container.innerHTML = "";
+    container.hidden = true;
+    return;
+  }
+
+  container.hidden = false;
+
+  container.innerHTML =
+    state.selectedFiles
+      .map((file, index) => {
+        const isImage =
+          file.type.startsWith("image/");
+
+        const url =
+          isImage
+            ? URL.createObjectURL(file)
+            : "";
+
+        return `
+          <div class="atharv-attachment-item">
+
+            ${
+              isImage
+                ? `
+                  <img
+                    src="${url}"
+                    alt="${escapeHTML(file.name)}"
+                  >
+                `
+                : `
+                  <div class="atharv-file-icon">
+                    📄
+                  </div>
+                `
+            }
+
+            <div class="atharv-attachment-name">
+              ${escapeHTML(file.name)}
+            </div>
+
+            <button
+              type="button"
+              data-action="remove-file"
+              data-file-index="${index}"
+              aria-label="Remove file"
+            >
+              ×
+            </button>
+
+          </div>
+        `;
+      })
+      .join("");
+}
+
+/* =========================================================
+   ATTACHMENT DATA
+   ========================================================= */
+
+async function prepareAttachments(files) {
+  return files.map(file => ({
+    name: file.name,
+    type: file.type,
+    size: file.size
+  }));
+}
+
+async function prepareAPIFileData(files) {
+  /*
+   * Convert small files to base64.
+   *
+   * This keeps the frontend ready for a backend
+   * that accepts attachment data.
+   *
+   * The server should validate file type/size.
+   */
+
+  const result = [];
+
+  for (const file of files) {
     try {
-      currentController.abort();
+      const base64 =
+        await fileToBase64(file);
+
+      result.push({
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        data: base64
+      });
     } catch (error) {
       console.warn(
-        "REQUEST CANCEL ERROR:",
+        "Attachment conversion failed:",
         error
       );
     }
   }
 
-  removeThinking();
+  return result;
+}
 
-  isThinking =
-    false;
+function fileToBase64(file) {
+  return new Promise(
+    (resolve, reject) => {
+      const reader =
+        new FileReader();
 
-  if (sendButton) {
-    sendButton.disabled =
-      false;
+      reader.onload = () => {
+        resolve(
+          reader.result
+        );
+      };
 
-    sendButton.style.opacity =
-      "1";
+      reader.onerror =
+        reject;
+
+      reader.readAsDataURL(file);
+    }
+  );
+}
+
+function renderAttachments(
+  attachments,
+  readonly = false
+) {
+  if (!Array.isArray(attachments)) {
+    return "";
   }
+
+  return `
+    <div class="atharv-message-attachments">
+      ${attachments
+        .map(item => {
+          if (
+            item.type &&
+            item.type.startsWith("image/") &&
+            item.data
+          ) {
+            return `
+              <img
+                class="atharv-message-image"
+                src="${escapeHTML(item.data)}"
+                alt="${escapeHTML(item.name || "image")}"
+              >
+            `;
+          }
+
+          return `
+            <div class="atharv-message-file">
+              📎 ${escapeHTML(
+                item.name || "Attachment"
+              )}
+            </div>
+          `;
+        })
+        .join("")}
+    </div>
+  `;
 }
 
 /* =========================================================
-   QUICK ASK
+   COPY
    ========================================================= */
 
-function quickAsk(text) {
-  if (
-    isThinking ||
-    !messageInput
-  ) {
-    return;
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(
+      text
+    );
+
+    showToast("Copied");
+  } catch {
+    /*
+     * Fallback
+     */
+
+    const textarea =
+      document.createElement(
+        "textarea"
+      );
+
+    textarea.value = text;
+
+    textarea.style.position =
+      "fixed";
+
+    textarea.style.opacity = "0";
+
+    document.body.appendChild(
+      textarea
+    );
+
+    textarea.select();
+
+    try {
+      document.execCommand(
+        "copy"
+      );
+
+      showToast("Copied");
+    } catch {
+      showToast(
+        "Copy failed"
+      );
+    }
+
+    textarea.remove();
+  }
+}
+
+function copyMessage(messageId) {
+  const chat =
+    getActiveChat();
+
+  if (!chat) return;
+
+  const message =
+    chat.messages.find(
+      item =>
+        item.id === messageId
+    );
+
+  if (!message) return;
+
+  copyText(message.content);
+}
+
+function copyCode(code) {
+  copyText(code);
+}
+
+/* =========================================================
+   TOAST
+   ========================================================= */
+
+let toastTimer = null;
+
+function showToast(message) {
+  let toast =
+    $("#atharvToast");
+
+  if (!toast) {
+    toast =
+      document.createElement(
+        "div"
+      );
+
+    toast.id =
+      "atharvToast";
+
+    toast.className =
+      "atharv-toast";
+
+    document.body.appendChild(
+      toast
+    );
   }
 
-  const question =
-    String(text || "").trim();
+  toast.textContent =
+    message;
 
-  if (!question) {
-    return;
-  }
-
-  showChatScreen();
-
-  messageInput.value =
-    question;
-
-  messageInput.dispatchEvent(
-    new Event("input")
+  toast.classList.add(
+    "show"
   );
 
-  sendMessage();
+  clearTimeout(
+    toastTimer
+  );
+
+  toastTimer =
+    setTimeout(() => {
+      toast.classList.remove(
+        "show"
+      );
+    }, 1800);
 }
 
 /* =========================================================
    INPUT
    ========================================================= */
 
-if (messageInput) {
-  messageInput.addEventListener(
-    "keydown",
-    function (event) {
-      if (
-        event.key ===
-          "Enter" &&
-        !event.shiftKey
-      ) {
-        event.preventDefault();
+function focusInput() {
+  if (!elements.messageInput) {
+    return;
+  }
 
-        sendMessage();
-      }
-    }
+  setTimeout(() => {
+    elements.messageInput.focus();
+  }, 50);
+}
+
+function autoResizeInput() {
+  const input =
+    elements.messageInput;
+
+  if (!input) return;
+
+  input.style.height = "auto";
+
+  const maxHeight = 180;
+
+  input.style.height =
+    `${Math.min(
+      input.scrollHeight,
+      maxHeight
+    )}px`;
+}
+
+function handleInputKeydown(event) {
+  if (
+    event.key === "Enter" &&
+    !event.shiftKey
+  ) {
+    event.preventDefault();
+
+    sendMessage();
+  }
+}
+
+function updateSendState() {
+  if (!elements.sendButton) {
+    return;
+  }
+
+  elements.sendButton.disabled =
+    state.isSending;
+
+  if (state.isSending) {
+    elements.sendButton.classList.add(
+      "loading"
+    );
+  } else {
+    elements.sendButton.classList.remove(
+      "loading"
+    );
+  }
+}
+
+/* =========================================================
+   SCROLL
+   ========================================================= */
+
+function scrollMessagesToBottom() {
+  if (!elements.messages) return;
+
+  requestAnimationFrame(() => {
+    elements.messages.scrollTop =
+      elements.messages.scrollHeight;
+  });
+}
+
+/* =========================================================
+   SIDEBAR
+   ========================================================= */
+
+function openSidebar() {
+  if (!elements.sidebar) return;
+
+  elements.sidebar.classList.add(
+    "open"
   );
 
-  messageInput.addEventListener(
-    "input",
-    function () {
-      this.style.height =
-        "auto";
+  if (elements.sidebarOverlay) {
+    elements.sidebarOverlay.classList.add(
+      "show"
+    );
+  }
 
-      this.style.height =
-        Math.min(
-          this.scrollHeight,
-          140
-        ) + "px";
+  document.body.classList.add(
+    "sidebar-open"
+  );
+}
+
+function closeSidebar() {
+  if (!elements.sidebar) return;
+
+  elements.sidebar.classList.remove(
+    "open"
+  );
+
+  if (elements.sidebarOverlay) {
+    elements.sidebarOverlay.classList.remove(
+      "show"
+    );
+  }
+
+  document.body.classList.remove(
+    "sidebar-open"
+  );
+}
+
+function toggleSidebar() {
+  if (
+    elements.sidebar?.classList.contains(
+      "open"
+    )
+  ) {
+    closeSidebar();
+  } else {
+    openSidebar();
+  }
+}
+
+/* =========================================================
+   QUICK PROMPTS
+   ========================================================= */
+
+function setupQuickPrompts() {
+  document.addEventListener(
+    "click",
+    event => {
+      const button =
+        event.target.closest(
+          "[data-prompt]"
+        );
+
+      if (!button) return;
+
+      const prompt =
+        button.dataset.prompt;
+
+      if (!prompt) return;
+
+      sendMessage(prompt);
     }
   );
 }
 
 /* =========================================================
-   PROFILE / MEMORY
+   EVENT DELEGATION
    ========================================================= */
 
-const profileButton =
-  document.querySelector(
-    ".profile"
+function setupGlobalEvents() {
+  document.addEventListener(
+    "click",
+    event => {
+      const target =
+        event.target.closest(
+          "[data-action]"
+        );
+
+      if (!target) return;
+
+      const action =
+        target.dataset.action;
+
+      const chatId =
+        target.dataset.chatId;
+
+      switch (action) {
+        case "open-chat":
+          openChat(chatId);
+          break;
+
+        case "rename-chat":
+          renameChat(chatId);
+          closeChatMenus();
+          break;
+
+        case "delete-chat":
+          deleteChat(chatId);
+          closeChatMenus();
+          break;
+
+        case "chat-menu":
+          event.stopPropagation();
+
+          showChatMenu(
+            chatId,
+            target
+          );
+
+          break;
+
+        case "copy-message":
+          copyMessage(
+            target.dataset.messageId
+          );
+
+          break;
+
+        case "speak-message":
+          speakMessage(
+            target.dataset.messageId
+          );
+
+          break;
+
+        case "copy-code":
+          copyCode(
+            target.dataset.code || ""
+          );
+
+          break;
+
+        case "remove-file":
+          removeSelectedFile(
+            Number(
+              target.dataset.fileIndex
+            )
+          );
+
+          break;
+
+        default:
+          break;
+      }
+    }
+  );
+}
+
+/* =========================================================
+   SPEAK MESSAGE
+   ========================================================= */
+
+function speakMessage(messageId) {
+  const chat =
+    getActiveChat();
+
+  if (!chat) return;
+
+  const message =
+    chat.messages.find(
+      item =>
+        item.id === messageId
+    );
+
+  if (!message) return;
+
+  if (state.isSpeaking) {
+    stopSpeaking();
+    return;
+  }
+
+  speakText(
+    message.content
+  );
+}
+
+/* =========================================================
+   SETTINGS
+   ========================================================= */
+
+function setLanguage(language) {
+  state.settings.language =
+    language || "auto";
+
+  saveState();
+
+  if (state.recognition) {
+    state.recognition.lang =
+      getRecognitionLanguage();
+  }
+}
+
+function toggleVoiceEnabled() {
+  state.settings.voiceEnabled =
+    !state.settings.voiceEnabled;
+
+  if (
+    !state.settings.voiceEnabled
+  ) {
+    stopSpeaking();
+  }
+
+  saveState();
+}
+
+/* =========================================================
+   INIT DEFAULT CHAT
+   ========================================================= */
+
+function initializeChats() {
+  if (!state.chats.length) {
+    createNewChat(false);
+
+    return;
+  }
+
+  if (
+    !state.activeChatId ||
+    !state.chats.some(
+      chat =>
+        chat.id ===
+        state.activeChatId
+    )
+  ) {
+    state.activeChatId =
+      state.chats[0].id;
+  }
+
+  saveState();
+}
+
+/* =========================================================
+   BIND UI
+   ========================================================= */
+
+function bindUI() {
+  /*
+   * New Chat
+   */
+
+  if (elements.newChat) {
+    elements.newChat.addEventListener(
+      "click",
+      () => createNewChat()
+    );
+  }
+
+  /*
+   * Send
+   */
+
+  if (elements.sendButton) {
+    elements.sendButton.addEventListener(
+      "click",
+      () => sendMessage()
+    );
+  }
+
+  /*
+   * Input
+   */
+
+  if (elements.messageInput) {
+    elements.messageInput.addEventListener(
+      "keydown",
+      handleInputKeydown
+    );
+
+    elements.messageInput.addEventListener(
+      "input",
+      autoResizeInput
+    );
+  }
+
+  /*
+   * Attach
+   */
+
+  if (elements.attachButton) {
+    elements.attachButton.addEventListener(
+      "click",
+      () => {
+        elements.fileInput?.click();
+      }
+    );
+  }
+
+  /*
+   * Voice
+   */
+
+  if (elements.voiceButton) {
+    elements.voiceButton.addEventListener(
+      "click",
+      toggleVoiceInput
+    );
+  }
+
+  /*
+   * Stop voice / speech
+   */
+
+  if (elements.stopVoiceButton) {
+    elements.stopVoiceButton.addEventListener(
+      "click",
+      () => {
+        stopVoiceInput();
+        stopSpeaking();
+      }
+    );
+  }
+
+  /*
+   * Mobile menu
+   */
+
+  if (elements.menuButton) {
+    elements.menuButton.addEventListener(
+      "click",
+      toggleSidebar
+    );
+  }
+
+  if (elements.sidebarOverlay) {
+    elements.sidebarOverlay.addEventListener(
+      "click",
+      closeSidebar
+    );
+  }
+
+  /*
+   * Escape
+   */
+
+  document.addEventListener(
+    "keydown",
+    event => {
+      if (
+        event.key === "Escape"
+      ) {
+        closeSidebar();
+        closeChatMenus();
+      }
+    }
+  );
+}
+
+/* =========================================================
+   PWA / INSTALL SUPPORT
+   ========================================================= */
+
+let deferredInstallPrompt = null;
+
+function setupInstallPrompt() {
+  window.addEventListener(
+    "beforeinstallprompt",
+    event => {
+      event.preventDefault();
+
+      deferredInstallPrompt =
+        event;
+
+      showInstallButton();
+    }
   );
 
-const profileScreen =
-  document.getElementById(
-    "profileScreen"
+  window.addEventListener(
+    "appinstalled",
+    () => {
+      deferredInstallPrompt =
+        null;
+
+      hideInstallButton();
+
+      showToast(
+        "Atharv AI installed"
+      );
+    }
+  );
+}
+
+function showInstallButton() {
+  const buttons =
+    $$(
+      "[data-install], #installApp, #installButton"
+    );
+
+  buttons.forEach(button => {
+    button.hidden = false;
+
+    button.onclick =
+      installApp;
+  });
+}
+
+function hideInstallButton() {
+  const buttons =
+    $$(
+      "[data-install], #installApp, #installButton"
+    );
+
+  buttons.forEach(button => {
+    button.hidden = true;
+  });
+}
+
+async function installApp() {
+  if (!deferredInstallPrompt) {
+    showToast(
+      "Install option browser menu se available ho sakta hai."
+    );
+
+    return;
+  }
+
+  deferredInstallPrompt.prompt();
+
+  await deferredInstallPrompt.userChoice;
+
+  deferredInstallPrompt =
+    null;
+
+  hideInstallButton();
+}
+
+/* =========================================================
+   SERVICE WORKER
+   ========================================================= */
+
+function setupServiceWorker() {
+  if (
+    "serviceWorker" in navigator &&
+    location.protocol === "https:"
+  ) {
+    navigator.serviceWorker
+      .register(
+        "/service-worker.js"
+      )
+      .catch(error => {
+        console.warn(
+          "Service worker:",
+          error
+        );
+      });
+  }
+}
+
+/* =========================================================
+   CONNECTION STATUS
+   ========================================================= */
+
+function setupConnectionStatus() {
+  window.addEventListener(
+    "online",
+    () => {
+      showToast(
+        "Internet connected"
+      );
+    }
   );
 
-const chatScreen =
-  document.getElementById(
-    "chatScreen"
+  window.addEventListener(
+    "offline",
+    () => {
+      showToast(
+        "Internet connection lost"
+      );
+    }
   );
+}
 
-const marketScreen =
-  document.getElementById(
-    "marketScreen"
+/* =========================================================
+   PAGE VISIBILITY
+   ========================================================= */
+
+function setupVisibilityHandling() {
+  document.addEventListener(
+    "visibilitychange",
+    () => {
+      if (
+        document.hidden
+      ) {
+        /*
+         * Don't destroy chat state.
+         * Just persist current state.
+         */
+
+        saveState();
+      }
+    }
   );
+}
 
-const alertsScreen =
-  document.getElementById(
-    "alertsScreen"
-  );
+/* =========================================================
+   CLEAN OLD STORAGE
+   ========================================================= */
 
-const profileBack =
-  document.getElementById(
-    "profileBack"
-  );
+function migrateOldHistory() {
+  /*
+   * Previous Atharv versions may have stored:
+   * atharv_chat_history
+   *
+   * We do a safe one-time migration.
+   */
 
-const memoryList =
-  document.getElementById(
-    "memoryList"
-  );
+  if (
+    localStorage.getItem(
+      STORAGE_KEY
+    )
+  ) {
+    return;
+  }
 
-const refreshMemory =
-  document.getElementById(
-    "refreshMemory"
-  );
+  const oldHistory =
+    localStorage.getItem(
+      "atharv_chat_history"
+    );
 
-const clearAllMemory =
-  document.getElementById(
-    "clearAllMemory"
-  );
+  if (!oldHistory) {
+    return;
+  }
 
-const memoryLabels = {
-  name:
-    "Name",
+  try {
+    const old =
+      JSON.parse(oldHistory);
 
-  language_preference:
-    "Language Preference",
+    if (!Array.isArray(old)) {
+      return;
+    }
 
-  response_style:
-    "Response Style",
+    const chat =
+      createChat();
 
-  answer_length:
-    "Answer Length",
+    chat.title =
+      "Previous Chat";
 
-  teaching_style:
-    "Teaching Style",
+    chat.messages =
+      old
+        .filter(
+          item =>
+            item &&
+            (
+              item.role === "user" ||
+              item.role === "assistant"
+            )
+        )
+        .map(item => ({
+          id: createId("msg"),
+          role: item.role,
+          content:
+            item.content ||
+            item.text ||
+            "",
+          attachments: [],
+          createdAt: now()
+        }));
 
-  learning_goal:
-    "Learning Goal",
+    chat.updatedAt =
+      now();
 
-  user_note:
-    "Personal Note"
+    state.chats = [chat];
+
+    state.activeChatId =
+      chat.id;
+
+    saveState();
+
+    console.info(
+      "Atharv: old chat history migrated."
+    );
+  } catch (error) {
+    console.warn(
+      "Old history migration failed:",
+      error
+    );
+  }
+}
+
+/* =========================================================
+   SECURITY HELPERS
+   ========================================================= */
+
+function sanitizeURL(url) {
+  try {
+    const parsed =
+      new URL(
+        url,
+        window.location.origin
+      );
+
+    if (
+      parsed.protocol === "http:" ||
+      parsed.protocol === "https:"
+    ) {
+      return parsed.href;
+    }
+
+    return "#";
+  } catch {
+    return "#";
+  }
+}
+
+/* =========================================================
+   DEBUG API
+   ========================================================= */
+
+window.Atharv = {
+  version:
+    ATHARV_VERSION,
+
+  state,
+
+  newChat:
+    createNewChat,
+
+  openChat,
+
+  renameChat,
+
+  deleteChat,
+
+  send:
+    sendMessage,
+
+  speak:
+    speakText,
+
+  stopSpeaking,
+
+  listen:
+    startVoiceInput,
+
+  stopListening:
+    stopVoiceInput,
+
+  clearHistory() {
+    const confirmed =
+      window.confirm(
+        "Delete all Atharv chat history?"
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    localStorage.removeItem(
+      STORAGE_KEY
+    );
+
+    localStorage.removeItem(
+      ACTIVE_CHAT_KEY
+    );
+
+    state.chats = [];
+
+    state.activeChatId =
+      null;
+
+    initializeChats();
+
+    renderHistory();
+
+    renderActiveChat();
+
+    showToast(
+      "Chat history cleared"
+    );
+  }
 };
 
 /* =========================================================
-   SCREEN MANAGEMENT
+   APPLICATION INIT
    ========================================================= */
 
-function hideAllScreens() {
-  if (chatScreen) {
-    chatScreen.hidden =
-      true;
-  }
-
-  if (profileScreen) {
-    profileScreen.hidden =
-      true;
-  }
-
-  if (marketScreen) {
-    marketScreen.hidden =
-      true;
-  }
-
-  if (alertsScreen) {
-    alertsScreen.hidden =
-      true;
-  }
-}
-
-function showChatScreen() {
-  hideAllScreens();
-
-  if (chatScreen) {
-    chatScreen.hidden =
-      false;
-  }
-
-  updateNavActive(
-    "chat"
-  );
-}
-
-function showProfileScreen() {
-  hideAllScreens();
-
-  if (profileScreen) {
-    profileScreen.hidden =
-      false;
-  }
-
-  updateNavActive(
-    "profile"
+function initAtharv() {
+  console.log(
+    `Atharv AI v${ATHARV_VERSION} starting...`
   );
 
-  loadMemories();
-}
+  cacheElements();
 
-function updateNavActive(
-  name
-) {
-  document
-    .querySelectorAll(
-      ".bottom-nav button"
-    )
-    .forEach(button => {
-      button.classList.remove(
-        "active"
-      );
+  migrateOldHistory();
 
-      if (
-        button.dataset.nav ===
-        name
-      ) {
-        button.classList.add(
-          "active"
-        );
-      }
-    });
-}
+  loadState();
 
-/* =========================================================
-   MEMORY RENDER
-   ========================================================= */
+  initializeChats();
 
-function renderMemories(
-  memories
-) {
-  if (!memoryList) {
-    return;
-  }
+  renderHistory();
 
-  memoryList.innerHTML =
-    "";
+  renderActiveChat();
 
-  if (
-    !Array.isArray(
-      memories
-    ) ||
-    memories.length === 0
-  ) {
-    const empty =
-      document.createElement(
-        "div"
-      );
+  bindUI();
 
-    empty.className =
-      "memory-empty";
+  setupGlobalEvents();
 
-    empty.textContent =
-      "🧠 Abhi Atharv ke paas koi saved memory nahi hai.";
+  setupQuickPrompts();
 
-    memoryList.appendChild(
-      empty
-    );
+  setupFileInput();
 
-    return;
-  }
+  setupSpeechRecognition();
 
-  memories.forEach(
-    memory => {
-      if (
-        !memory ||
-        typeof memory !==
-          "object"
-      ) {
-        return;
-      }
+  setupInstallPrompt();
 
-      const item =
-        document.createElement(
-          "div"
-        );
+  setupServiceWorker();
 
-      item.className =
-        "memory-item";
+  setupConnectionStatus();
 
-      const content =
-        document.createElement(
-          "div"
-        );
+  setupVisibilityHandling();
 
-      content.className =
-        "memory-content";
+  updateVoiceUI();
 
-      const label =
-        document.createElement(
-          "div"
-        );
+  updateSendState();
 
-      label.className =
-        "memory-label";
+  renderAttachmentsPreview();
 
-      label.textContent =
-        memoryLabels[
-          memory.memory_key
-        ] ||
-        memory.memory_key ||
-        "Memory";
-
-      const value =
-        document.createElement(
-          "div"
-        );
-
-      value.className =
-        "memory-value";
-
-      value.textContent =
-        memory.memory_value ||
-        "";
-
-      content.appendChild(
-        label
-      );
-
-      content.appendChild(
-        value
-      );
-
-      const deleteButton =
-        document.createElement(
-          "button"
-        );
-
-      deleteButton.type =
-        "button";
-
-      deleteButton.className =
-        "memory-delete";
-
-      deleteButton.textContent =
-        "Forget";
-
-      deleteButton.addEventListener(
-        "click",
-        function () {
-          deleteSingleMemory(
-            memory.memory_key
-          );
-        }
-      );
-
-      item.appendChild(
-        content
-      );
-
-      item.appendChild(
-        deleteButton
-      );
-
-      memoryList.appendChild(
-        item
-      );
-    }
-  );
-}
-
-/* =========================================================
-   LOAD MEMORY
-   ========================================================= */
-
-async function loadMemories() {
-  if (!memoryList) {
-    return;
-  }
-
-  memoryList.innerHTML =
-    '<div class="memory-loading">🧠 Memories load ho rahi hain...</div>';
-
-  try {
-    const response =
-      await fetch(
-        API_BASE +
-          "/api/memory?userId=" +
-          encodeURIComponent(
-            ATHARV_USER_ID
-          ),
-        {
-          method:
-            "GET",
-
-          headers: {
-            Accept:
-              "application/json"
-          }
-        }
-      );
-
-    const data =
-      await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-          "Memory load failed."
-      );
-    }
-
-    renderMemories(
-      data.memories ||
-        []
-    );
-  } catch (error) {
-    console.error(
-      "MEMORY LOAD ERROR:",
-      error
-    );
-
-    memoryList.innerHTML =
-      '<div class="memory-error">⚠️ Memory load nahi ho paayi.<br><br>' +
-      (
-        error.message ||
-        "Unknown error"
-      ) +
-      "</div>";
-  }
-}
-
-/* =========================================================
-   DELETE MEMORY
-   ========================================================= */
-
-async function deleteSingleMemory(
-  key
-) {
-  const label =
-    memoryLabels[key] ||
-    key;
-
-  if (
-    !window.confirm(
-      `Kya aap "${label}" memory ko bhoolna chahte hain?`
-    )
-  ) {
-    return;
-  }
-
-  try {
-    const response =
-      await fetch(
-        API_BASE +
-          "/api/memory/delete",
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            Accept:
-              "application/json"
-          },
-
-          body:
-            JSON.stringify({
-              userId:
-                ATHARV_USER_ID,
-
-              key
-            })
-        }
-      );
-
-    const data =
-      await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-          "Memory delete failed."
-      );
-    }
-
-    renderMemories(
-      data.memories ||
-        []
-    );
-  } catch (error) {
-    console.error(
-      "MEMORY DELETE ERROR:",
-      error
-    );
-
-    alert(
-      "Memory delete nahi ho paayi.\n\n" +
-        (
-          error.message ||
-          "Unknown error"
-        )
-    );
-  }
-}
-
-/* =========================================================
-   DELETE ALL MEMORY
-   ========================================================= */
-
-async function deleteAllMemories() {
-  if (
-    !window.confirm(
-      "Kya aap Atharv ki SAARI memories delete karna chahte hain?\n\nYe action undo nahi kiya ja sakta."
-    )
-  ) {
-    return;
-  }
-
-  try {
-    if (clearAllMemory) {
-      clearAllMemory.disabled =
-        true;
-
-      clearAllMemory.textContent =
-        "Deleting...";
-    }
-
-    const response =
-      await fetch(
-        API_BASE +
-          "/api/memory/clear",
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-
-            Accept:
-              "application/json"
-          },
-
-          body:
-            JSON.stringify({
-              userId:
-                ATHARV_USER_ID
-            })
-        }
-      );
-
-    const data =
-      await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        data.error ||
-          "Memory clear failed."
-      );
-    }
-
-    renderMemories([]);
-  } catch (error) {
-    console.error(
-      "MEMORY CLEAR ERROR:",
-      error
-    );
-
-    alert(
-      "All memories delete nahi ho paayi.\n\n" +
-        (
-          error.message ||
-          "Unknown error"
-        )
-    );
-  } finally {
-    if (clearAllMemory) {
-      clearAllMemory.disabled =
-        false;
-
-      clearAllMemory.textContent =
-        "🧹 Forget All Memories";
-    }
-  }
-}
-
-/* =========================================================
-   PROFILE EVENTS
-   ========================================================= */
-
-if (profileButton) {
-  profileButton.addEventListener(
-    "click",
-    showProfileScreen
-  );
-}
-
-if (profileBack) {
-  profileBack.addEventListener(
-    "click",
-    showChatScreen
-  );
-}
-
-if (refreshMemory) {
-  refreshMemory.addEventListener(
-    "click",
-    loadMemories
-  );
-}
-
-if (clearAllMemory) {
-  clearAllMemory.addEventListener(
-    "click",
-    deleteAllMemories
-  );
-}
-
-/* =========================================================
-   MARKET
-   ========================================================= */
-
-function showMarketScreen() {
-  if (!marketScreen) {
-    quickAsk(
-      "Give me the latest Indian stock market update including NIFTY, SENSEX, major gainers, losers, sectors and important market news. Use current verified information and mention the exact date and time."
-    );
-
-    return;
-  }
-
-  hideAllScreens();
-
-  marketScreen.hidden =
-    false;
-
-  updateNavActive(
-    "market"
-  );
-}
-
-function askMarketUpdate() {
-  quickAsk(
-    "Give me the latest Indian stock market update. Include NIFTY, SENSEX, major market-moving news, sectors, important stocks, gainers and losers. Use current verified information and clearly mention the date and time of the data. Do not guess any price."
-  );
-}
-
-/* =========================================================
-   ALERTS
-   ========================================================= */
-
-function showAlertsScreen() {
-  if (!alertsScreen) {
-    quickAsk(
-      "What are the most important breaking news and major developments in India and the world right now? Use current verified information and provide sources."
-    );
-
-    return;
-  }
-
-  hideAllScreens();
-
-  alertsScreen.hidden =
-    false;
-
-  updateNavActive(
-    "alerts"
-  );
-}
-
-function askLatestAlerts() {
-  quickAsk(
-    "What are the most important breaking news, alerts and major developments in India and the world right now? Use current verified live information. Do not invent anything and provide sources."
-  );
-}
-
-/* =========================================================
-   BOTTOM NAV
-   ========================================================= */
-
-document
-  .querySelectorAll(
-    ".bottom-nav button"
-  )
-  .forEach(button => {
-    if (
-      button.dataset
-        .atharvBound ===
-      "true"
-    ) {
-      return;
-    }
-
-    button.dataset.atharvBound =
-      "true";
-
-    button.addEventListener(
-      "click",
-      function () {
-        const nav =
-          button.dataset.nav;
-
-        if (nav === "chat") {
-          showChatScreen();
-          return;
-        }
-
-        if (
-          nav ===
-          "profile"
-        ) {
-          showProfileScreen();
-          return;
-        }
-
-        if (
-          nav ===
-          "market"
-        ) {
-          showMarketScreen();
-          return;
-        }
-
-        if (
-          nav ===
-          "alerts"
-        ) {
-          showAlertsScreen();
-          return;
-        }
-      }
-    );
-  });
-
-/* =========================================================
-   QUICK BUTTONS
-   ========================================================= */
-
-document
-  .querySelectorAll(
-    "[data-quick]"
-  )
-  .forEach(button => {
-    if (
-      button.dataset
-        .atharvQuickBound ===
-      "true"
-    ) {
-      return;
-    }
-
-    button.dataset
-      .atharvQuickBound =
-      "true";
-
-    button.addEventListener(
-      "click",
-      function () {
-        const text =
-          button.dataset
-            .quick;
-
-        if (text) {
-          quickAsk(text);
-        }
-      }
-    );
-  });
-
-/* =========================================================
-   EXTRA ACTION BUTTONS
-   ========================================================= */
-
-document
-  .querySelectorAll(
-    "[data-action]"
-  )
-  .forEach(button => {
-    if (
-      button.dataset
-        .atharvActionBound ===
-      "true"
-    ) {
-      return;
-    }
-
-    button.dataset
-      .atharvActionBound =
-      "true";
-
-    button.addEventListener(
-      "click",
-      function () {
-        const action =
-          button.dataset
-            .action;
-
-        if (
-          action ===
-          "market"
-        ) {
-          askMarketUpdate();
-        }
-
-        if (
-          action ===
-          "alerts"
-        ) {
-          askLatestAlerts();
-        }
-
-        if (
-          action ===
-          "chat"
-        ) {
-          showChatScreen();
-        }
-      }
-    );
-  });
-
-/* =========================================================
-   VOICE INITIALIZATION
-   ========================================================= */
-
-function initializeAtharvVoice() {
-  updateVoiceLanguageFromSelection();
-
-  createVoiceControls();
-
-  if (
-    isVoiceOutputSupported()
-  ) {
-    window.speechSynthesis.onvoiceschanged =
-      function () {
-        console.log(
-          "ATHARV SPEECH VOICES:",
-          window.speechSynthesis
-            .getVoices()
-            .length
-        );
-      };
-  }
+  autoResizeInput();
 
   console.log(
-    "Voice input:",
-    isVoiceInputSupported()
-  );
-
-  console.log(
-    "Voice output:",
-    isVoiceOutputSupported()
+    `Atharv AI v${ATHARV_VERSION} ready.`
   );
 }
 
 /* =========================================================
-   PWA / SERVICE WORKER
+   DOM READY
    ========================================================= */
 
-function initializeServiceWorker() {
-  if (
-    "serviceWorker" in
-    navigator
-  ) {
-    window.addEventListener(
-      "load",
-      function () {
-        navigator.serviceWorker
-          .register(
-            "/service-worker.js"
-          )
-          .then(
-            registration => {
-              console.log(
-                "ATHARV SERVICE WORKER REGISTERED:",
-                registration.scope
-              );
-            }
-          )
-          .catch(error => {
-            console.warn(
-              "SERVICE WORKER ERROR:",
-              error
-            );
-          });
-      }
-    );
-  }
+if (
+  document.readyState ===
+  "loading"
+) {
+  document.addEventListener(
+    "DOMContentLoaded",
+    initAtharv
+  );
+} else {
+  initAtharv();
 }
-
-/* =========================================================
-   VISIBILITY / VOICE SAFETY
-   ========================================================= */
-
-document.addEventListener(
-  "visibilitychange",
-  function () {
-    if (
-      document.hidden &&
-      isSpeaking
-    ) {
-      stopVoiceOutput();
-    }
-  }
-);
-
-/* =========================================================
-   GLOBAL FUNCTIONS
-   ========================================================= */
-
-window.sendMessage =
-  sendMessage;
-
-window.quickAsk =
-  quickAsk;
-
-window.clearChatHistory =
-  clearChatHistory;
-
-window.speakText =
-  speakText;
-
-window.stopVoiceOutput =
-  stopVoiceOutput;
-
-window.cancelCurrentRequest =
-  cancelCurrentRequest;
-
-window.showProfileScreen =
-  showProfileScreen;
-
-window.showChatScreen =
-  showChatScreen;
-
-window.showMarketScreen =
-  showMarketScreen;
-
-window.showAlertsScreen =
-  showAlertsScreen;
-
-window.loadMemories =
-  loadMemories;
-
-window.askMarketUpdate =
-  askMarketUpdate;
-
-window.askLatestAlerts =
-  askLatestAlerts;
-
-window.clearAttachment =
-  clearAttachment;
-
-/* =========================================================
-   STARTUP
-   ========================================================= */
-
-console.log(
-  "========================================"
-);
-
-console.log(
-  "ATHARV AI FRONTEND 9.0 LOADED 🤖"
-);
-
-console.log(
-  "Permanent User ID: ENABLED"
-);
-
-console.log(
-  "Chat History: ENABLED"
-);
-
-console.log(
-  "Permanent Memory: ENABLED"
-);
-
-console.log(
-  "Multilingual: ENABLED"
-);
-
-console.log(
-  "Voice Input: ENABLED"
-);
-
-console.log(
-  "Voice Output: ENABLED"
-);
-
-console.log(
-  "Text File Reading: ENABLED"
-);
-
-console.log(
-  "Attachment Context: ENABLED"
-);
-
-console.log(
-  "Live Sources UI: ENABLED"
-);
-
-console.log(
-  "Market UI: ENABLED"
-);
-
-console.log(
-  "Alerts UI: ENABLED"
-);
-
-console.log(
-  "PWA Service Worker: ENABLED"
-);
-
-console.log(
-  "========================================"
-);
-
-/* =========================================================
-   INITIAL LOAD
-   ========================================================= */
-
-loadChatHistory();
-
-initializeAtharvVoice();
-
-initializeServiceWorker();
