@@ -1,9 +1,12 @@
 /* =========================================================
    ATHARV AI
    FRONTEND CONTROLLER
-   Version 10.0.0
+   Version 10.1.0
 
-   Features
+   Backend compatible with:
+   Atharv AI Server v10.1.0
+
+   Existing features preserved:
    ---------------------------------------------------------
    • Multi-chat history
    • New / Open / Rename / Delete chat
@@ -18,6 +21,9 @@
    • Local chat persistence
    • Same-origin Render backend
    • Robust loading / error handling
+   • Memory / conversation compatibility
+   • Timeout protection
+   • PWA / install support
    ========================================================= */
 
 "use strict";
@@ -26,7 +32,7 @@
    CONFIG
    ========================================================= */
 
-const ATHARV_VERSION = "10.0.0";
+const ATHARV_VERSION = "10.1.0";
 
 const API_BASE =
   window.ATHARV_API_BASE !== undefined
@@ -40,7 +46,14 @@ const ACTIVE_CHAT_KEY = "atharv_active_chat_v10";
 const SETTINGS_KEY = "atharv_settings_v10";
 
 const MAX_HISTORY_MESSAGES = 100;
+const MAX_SEND_HISTORY = 20;
 const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+
+/*
+ * Frontend request timeout.
+ * Server itself also has timeout protection.
+ */
+const REQUEST_TIMEOUT = 45000;
 
 /* =========================================================
    STATE
@@ -78,7 +91,10 @@ const $$ = (selector, root = document) =>
 function firstElement(selectors) {
   for (const selector of selectors) {
     const element = $(selector);
-    if (element) return element;
+
+    if (element) {
+      return element;
+    }
   }
 
   return null;
@@ -274,7 +290,10 @@ function saveState() {
       JSON.stringify(state.settings)
     );
   } catch (error) {
-    console.warn("Atharv storage error:", error);
+    console.warn(
+      "Atharv storage error:",
+      error
+    );
   }
 }
 
@@ -302,7 +321,8 @@ function loadState() {
       localStorage.getItem(SETTINGS_KEY);
 
     if (settings) {
-      const parsedSettings = JSON.parse(settings);
+      const parsedSettings =
+        JSON.parse(settings);
 
       if (
         parsedSettings &&
@@ -315,7 +335,10 @@ function loadState() {
       }
     }
   } catch (error) {
-    console.warn("Atharv load error:", error);
+    console.warn(
+      "Atharv load error:",
+      error
+    );
 
     state.chats = [];
     state.activeChatId = null;
@@ -336,7 +359,11 @@ function createChat() {
 
     messages: [],
 
-    responseId: null
+    /*
+     * Kept for backend conversation compatibility.
+     */
+    responseId: null,
+    conversationId: null
   };
 }
 
@@ -398,7 +425,9 @@ function openChat(chatId) {
     item => item.id === chatId
   );
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   stopSpeaking();
 
@@ -423,7 +452,9 @@ function renameChat(chatId) {
     item => item.id === chatId
   );
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   const newTitle = window.prompt(
     "Rename chat",
@@ -458,13 +489,17 @@ function deleteChat(chatId) {
     item => item.id === chatId
   );
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   const confirmed = window.confirm(
     `Delete "${chat.title || "New Chat"}"?`
   );
 
-  if (!confirmed) return;
+  if (!confirmed) {
+    return;
+  }
 
   const wasActive =
     state.activeChatId === chatId;
@@ -477,12 +512,14 @@ function deleteChat(chatId) {
     const nextChat = state.chats[0];
 
     if (nextChat) {
-      state.activeChatId = nextChat.id;
+      state.activeChatId =
+        nextChat.id;
     } else {
       const fresh = createChat();
 
       state.chats = [fresh];
-      state.activeChatId = fresh.id;
+      state.activeChatId =
+        fresh.id;
     }
   }
 
@@ -515,7 +552,9 @@ function renderHistory() {
     elements.chatList ||
     elements.chatHistory;
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   if (!state.chats.length) {
     container.innerHTML = `
@@ -527,71 +566,86 @@ function renderHistory() {
     return;
   }
 
-  container.innerHTML = state.chats
-    .map(chat => {
-      const active =
-        chat.id === state.activeChatId;
+  container.innerHTML =
+    state.chats
+      .map(chat => {
+        const active =
+          chat.id === state.activeChatId;
 
-      return `
-        <div
-          class="atharv-chat-item ${active ? "active" : ""}"
-          data-chat-id="${escapeHTML(chat.id)}"
-        >
-          <button
-            type="button"
-            class="atharv-chat-open"
-            data-action="open-chat"
+        return `
+          <div
+            class="atharv-chat-item ${active ? "active" : ""}"
             data-chat-id="${escapeHTML(chat.id)}"
           >
-            <span class="atharv-chat-icon">💬</span>
-
-            <span class="atharv-chat-info">
-              <span class="atharv-chat-name">
-                ${escapeHTML(chat.title || "New Chat")}
+            <button
+              type="button"
+              class="atharv-chat-open"
+              data-action="open-chat"
+              data-chat-id="${escapeHTML(chat.id)}"
+            >
+              <span class="atharv-chat-icon">
+                💬
               </span>
 
-              <span class="atharv-chat-date">
-                ${formatChatDate(chat.updatedAt)}
-              </span>
-            </span>
-          </button>
+              <span class="atharv-chat-info">
+                <span class="atharv-chat-name">
+                  ${escapeHTML(
+                    chat.title || "New Chat"
+                  )}
+                </span>
 
-          <button
-            type="button"
-            class="atharv-chat-more"
-            data-action="chat-menu"
-            data-chat-id="${escapeHTML(chat.id)}"
-            aria-label="Chat options"
-          >
-            ⋯
-          </button>
-        </div>
-      `;
-    })
-    .join("");
+                <span class="atharv-chat-date">
+                  ${formatChatDate(
+                    chat.updatedAt
+                  )}
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="atharv-chat-more"
+              data-action="chat-menu"
+              data-chat-id="${escapeHTML(chat.id)}"
+              aria-label="Chat options"
+            >
+              ⋯
+            </button>
+          </div>
+        `;
+      })
+      .join("");
 }
 
 function formatChatDate(timestamp) {
-  if (!timestamp) return "";
+  if (!timestamp) {
+    return "";
+  }
 
   const date = new Date(timestamp);
-
   const today = new Date();
 
   const sameDay =
-    date.toDateString() === today.toDateString();
+    date.toDateString() ===
+    today.toDateString();
 
   if (sameDay) {
-    return date.toLocaleTimeString([], {
-      hour: "numeric",
-      minute: "2-digit"
-    });
+    return date.toLocaleTimeString(
+      [],
+      {
+        hour: "numeric",
+        minute: "2-digit"
+      }
+    );
   }
 
-  return date.toLocaleDateString([], {
-    day: "numeric",
-    month: "short"
-  });
+  return date.toLocaleDateString(
+    [],
+    {
+      day: "numeric",
+      month: "short"
+    }
+  );
 }
 
 /* =========================================================
@@ -601,9 +655,11 @@ function formatChatDate(timestamp) {
 function showChatMenu(chatId, anchor) {
   closeChatMenus();
 
-  const menu = document.createElement("div");
+  const menu =
+    document.createElement("div");
 
-  menu.className = "atharv-chat-menu";
+  menu.className =
+    "atharv-chat-menu";
 
   menu.innerHTML = `
     <button
@@ -625,14 +681,22 @@ function showChatMenu(chatId, anchor) {
 
   document.body.appendChild(menu);
 
-  const rect = anchor.getBoundingClientRect();
+  const rect =
+    anchor.getBoundingClientRect();
 
   menu.style.position = "fixed";
+
   menu.style.top =
-    `${Math.min(rect.bottom + 4, window.innerHeight - 100)}px`;
+    `${Math.min(
+      rect.bottom + 4,
+      window.innerHeight - 100
+    )}px`;
 
   menu.style.left =
-    `${Math.max(8, rect.right - 150)}px`;
+    `${Math.max(
+      8,
+      rect.right - 150
+    )}px`;
 
   setTimeout(() => {
     document.addEventListener(
@@ -645,7 +709,9 @@ function showChatMenu(chatId, anchor) {
 
 function handleOutsideChatMenu(event) {
   if (
-    !event.target.closest(".atharv-chat-menu")
+    !event.target.closest(
+      ".atharv-chat-menu"
+    )
   ) {
     closeChatMenus();
   }
@@ -666,7 +732,9 @@ function renderActiveChat() {
 
   updateChatHeader();
 
-  if (!elements.messages) return;
+  if (!elements.messages) {
+    return;
+  }
 
   if (!chat.messages.length) {
     renderWelcome();
@@ -675,16 +743,21 @@ function renderActiveChat() {
 
   elements.messages.innerHTML =
     chat.messages
-      .map(message => renderMessage(message))
+      .map(message =>
+        renderMessage(message)
+      )
       .join("");
 
   scrollMessagesToBottom();
 }
 
 function updateChatHeader() {
-  const chat = getActiveChat();
+  const chat =
+    getActiveChat();
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   if (elements.chatTitle) {
     elements.chatTitle.textContent =
@@ -692,7 +765,8 @@ function updateChatHeader() {
   }
 
   document.title =
-    chat.title && chat.title !== "New Chat"
+    chat.title &&
+    chat.title !== "New Chat"
       ? `${chat.title} — Atharv AI`
       : "Atharv AI";
 }
@@ -702,11 +776,15 @@ function updateChatHeader() {
    ========================================================= */
 
 function renderWelcome() {
-  if (!elements.messages) return;
+  if (!elements.messages) {
+    return;
+  }
 
   elements.messages.innerHTML = `
     <div class="atharv-welcome-message">
-      <div class="atharv-welcome-logo">A</div>
+      <div class="atharv-welcome-logo">
+        A
+      </div>
 
       <h1>Namaste 👋</h1>
 
@@ -736,10 +814,13 @@ function renderMessage(message) {
       ? "user"
       : "assistant";
 
-  const text = message.content || "";
+  const text =
+    message.content || "";
 
   const attachmentHTML =
-    Array.isArray(message.attachments)
+    Array.isArray(
+      message.attachments
+    )
       ? renderAttachments(
           message.attachments,
           true
@@ -749,7 +830,9 @@ function renderMessage(message) {
   return `
     <article
       class="atharv-message atharv-message-${role}"
-      data-message-id="${escapeHTML(message.id || "")}"
+      data-message-id="${escapeHTML(
+        message.id || ""
+      )}"
     >
       <div class="atharv-message-avatar">
         ${
@@ -768,9 +851,7 @@ function renderMessage(message) {
           }
         </div>
 
-        ${
-          attachmentHTML
-        }
+        ${attachmentHTML}
 
         <div class="atharv-message-text">
           ${
@@ -790,7 +871,9 @@ function renderMessage(message) {
                 <button
                   type="button"
                   data-action="copy-message"
-                  data-message-id="${escapeHTML(message.id || "")}"
+                  data-message-id="${escapeHTML(
+                    message.id || ""
+                  )}"
                   title="Copy"
                 >
                   📋
@@ -799,7 +882,9 @@ function renderMessage(message) {
                 <button
                   type="button"
                   data-action="speak-message"
-                  data-message-id="${escapeHTML(message.id || "")}"
+                  data-message-id="${escapeHTML(
+                    message.id || ""
+                  )}"
                   title="Read aloud"
                 >
                   🔊
@@ -820,11 +905,9 @@ function renderMessage(message) {
 function renderMarkdown(input) {
   let text = String(input ?? "");
 
-  if (!text) return "";
-
-  /*
-   * Protect fenced code blocks first.
-   */
+  if (!text) {
+    return "";
+  }
 
   const codeBlocks = [];
 
@@ -836,32 +919,22 @@ function renderMarkdown(input) {
 
       codeBlocks.push({
         id,
-        language: language || "",
-        code: code.replace(/\n$/, "")
+        language:
+          language || "",
+        code:
+          code.replace(/\n$/, "")
       });
 
       return `\n${id}\n`;
     }
   );
 
-  /*
-   * Escape HTML.
-   */
-
   text = escapeHTML(text);
-
-  /*
-   * Inline code.
-   */
 
   text = text.replace(
     /`([^`\n]+)`/g,
     "<code>$1</code>"
   );
-
-  /*
-   * Headings.
-   */
 
   text = text.replace(
     /^###### (.+)$/gm,
@@ -893,10 +966,6 @@ function renderMarkdown(input) {
     "<h1>$1</h1>"
   );
 
-  /*
-   * Bold / italic.
-   */
-
   text = text.replace(
     /\*\*(.+?)\*\*/g,
     "<strong>$1</strong>"
@@ -913,26 +982,30 @@ function renderMarkdown(input) {
   );
 
   /*
-   * Links.
+   * Only allow http/https links.
    */
-
   text = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
+    (_, label, url) => {
+      const safeURL =
+        sanitizeURL(url);
 
-  /*
-   * Blockquotes.
-   */
+      return `
+        <a
+          href="${escapeHTML(safeURL)}"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          ${label}
+        </a>
+      `;
+    }
+  );
 
   text = text.replace(
     /^&gt; (.+)$/gm,
     "<blockquote>$1</blockquote>"
   );
-
-  /*
-   * Unordered lists.
-   */
 
   text = text.replace(
     /^(?:[-*]) (.+)$/gm,
@@ -941,21 +1014,14 @@ function renderMarkdown(input) {
 
   text = text.replace(
     /(<li>.*<\/li>\n?)+/g,
-    match => `<ul>${match}</ul>`
+    match =>
+      `<ul>${match}</ul>`
   );
-
-  /*
-   * Ordered lists.
-   */
 
   text = text.replace(
     /^\d+\.\s(.+)$/gm,
     "<li>$1</li>"
   );
-
-  /*
-   * Line breaks.
-   */
 
   text = text.replace(
     /\n{2,}/g,
@@ -968,10 +1034,6 @@ function renderMarkdown(input) {
   );
 
   text = `<p>${text}</p>`;
-
-  /*
-   * Restore code blocks.
-   */
 
   codeBlocks.forEach(block => {
     const safeCode =
@@ -990,7 +1052,9 @@ function renderMarkdown(input) {
           <button
             type="button"
             data-action="copy-code"
-            data-code="${escapeHTML(block.code)}"
+            data-code="${escapeHTML(
+              block.code
+            )}"
           >
             Copy
           </button>
@@ -1023,13 +1087,22 @@ function addMessage(
   content,
   attachments = []
 ) {
-  const chat = ensureChat();
+  const chat =
+    ensureChat();
 
   const message = {
     id: createId("msg"),
+
     role,
-    content: String(content ?? ""),
-    attachments: attachments || [],
+
+    content:
+      String(content ?? ""),
+
+    attachments:
+      Array.isArray(attachments)
+        ? attachments
+        : [],
+
     createdAt: now()
   };
 
@@ -1048,7 +1121,8 @@ function addMessage(
   if (
     role === "user" &&
     chat.messages.filter(
-      item => item.role === "user"
+      item =>
+        item.role === "user"
     ).length === 1
   ) {
     chat.title =
@@ -1066,23 +1140,35 @@ function addMessage(
    UPDATE MESSAGE
    ========================================================= */
 
-function updateMessage(messageId, content) {
-  const chat = getActiveChat();
+function updateMessage(
+  messageId,
+  content
+) {
+  const chat =
+    getActiveChat();
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
-  const message = chat.messages.find(
-    item => item.id === messageId
-  );
+  const message =
+    chat.messages.find(
+      item =>
+        item.id === messageId
+    );
 
-  if (!message) return;
+  if (!message) {
+    return;
+  }
 
   message.content =
     String(content ?? "");
 
-  message.updatedAt = now();
+  message.updatedAt =
+    now();
 
-  chat.updatedAt = now();
+  chat.updatedAt =
+    now();
 
   saveState();
 }
@@ -1094,10 +1180,14 @@ function updateMessage(messageId, content) {
 function showTyping() {
   removeTyping();
 
-  if (!elements.messages) return;
+  if (!elements.messages) {
+    return;
+  }
 
   const typing =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   typing.className =
     "atharv-message atharv-message-assistant atharv-typing";
@@ -1120,22 +1210,70 @@ function showTyping() {
     </div>
   `;
 
-  elements.messages.appendChild(typing);
+  elements.messages.appendChild(
+    typing
+  );
 
   scrollMessagesToBottom();
 }
 
 function removeTyping() {
   $$(".atharv-typing").forEach(
-    element => element.remove()
+    element =>
+      element.remove()
   );
+}
+
+/* =========================================================
+   FETCH WITH FRONTEND TIMEOUT
+   ========================================================= */
+
+async function fetchWithTimeout(
+  url,
+  options = {},
+  timeout = REQUEST_TIMEOUT
+) {
+  const controller =
+    new AbortController();
+
+  const timer =
+    setTimeout(
+      () => controller.abort(),
+      timeout
+    );
+
+  try {
+    return await fetch(
+      url,
+      {
+        ...options,
+        signal:
+          controller.signal
+      }
+    );
+  } catch (error) {
+    if (
+      error?.name ===
+      "AbortError"
+    ) {
+      throw new Error(
+        "REQUEST_TIMEOUT"
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* =========================================================
    SEND MESSAGE
    ========================================================= */
 
-async function sendMessage(customText = null) {
+async function sendMessage(
+  customText = null
+) {
   if (state.isSending) {
     return;
   }
@@ -1163,16 +1301,25 @@ async function sendMessage(customText = null) {
   const files =
     [...state.selectedFiles];
 
+  /*
+   * Save attachment metadata locally.
+   */
   const attachments =
     await prepareAttachments(files);
 
+  /*
+   * Add user message before request.
+   */
   addMessage(
     "user",
     text,
     attachments
   );
 
-  if (input && customText === null) {
+  if (
+    input &&
+    customText === null
+  ) {
     input.value = "";
     autoResizeInput();
   }
@@ -1193,18 +1340,27 @@ async function sendMessage(customText = null) {
       );
 
     const response =
-      await fetch(CHAT_ENDPOINT, {
-        method: "POST",
+      await fetchWithTimeout(
+        CHAT_ENDPOINT,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+          headers: {
+            "Content-Type":
+              "application/json",
+            "Accept":
+              "application/json"
+          },
 
-        body: JSON.stringify(payload)
-      });
+          body:
+            JSON.stringify(payload)
+        }
+      );
 
     const data =
-      await parseResponse(response);
+      await parseResponse(
+        response
+      );
 
     if (!response.ok) {
       throw new Error(
@@ -1217,7 +1373,9 @@ async function sendMessage(customText = null) {
     removeTyping();
 
     const answer =
-      extractAssistantResponse(data);
+      extractAssistantResponse(
+        data
+      );
 
     if (!answer) {
       throw new Error(
@@ -1232,27 +1390,64 @@ async function sendMessage(customText = null) {
       );
 
     /*
-     * Keep server conversation id if backend provides it.
+     * Keep any conversation identifiers
+     * supplied by backend.
      */
-
-    const chat = getActiveChat();
+    const chat =
+      getActiveChat();
 
     if (chat) {
-      chat.responseId =
+      const responseId =
         data.responseId ||
         data.response_id ||
-        data.conversationId ||
-        data.conversation_id ||
-        chat.responseId ||
         null;
 
-      chat.updatedAt = now();
+      const conversationId =
+        data.conversationId ||
+        data.conversation_id ||
+        null;
+
+      if (responseId) {
+        chat.responseId =
+          responseId;
+      }
+
+      if (conversationId) {
+        chat.conversationId =
+          conversationId;
+      }
+
+      /*
+       * Some backends use one identifier
+       * for both concepts.
+       */
+      if (
+        !chat.conversationId &&
+        chat.responseId
+      ) {
+        chat.conversationId =
+          chat.responseId;
+      }
+
+      if (
+        !chat.responseId &&
+        chat.conversationId
+      ) {
+        chat.responseId =
+          chat.conversationId;
+      }
+
+      chat.updatedAt =
+        now();
 
       saveState();
     }
 
     renderActiveChat();
 
+    /*
+     * Auto-speak remains disabled by default.
+     */
     if (
       state.settings.voiceEnabled &&
       shouldAutoSpeak()
@@ -1295,21 +1490,28 @@ async function buildChatPayload(
   text,
   files
 ) {
-  const chat = ensureChat();
+  const chat =
+    ensureChat();
 
   /*
-   * Only send useful recent history.
-   * The backend remains responsible for
-   * model-specific conversation handling.
+   * Do not send the current user message
+   * twice in history.
+   *
+   * Backend receives "message" separately.
    */
-
-  const history =
+  const previousHistory =
     chat.messages
-      .slice(-20)
+      .slice(0, -1)
+      .slice(-MAX_SEND_HISTORY)
       .map(message => ({
-        role: message.role,
-        content: message.content
+        role:
+          message.role,
+        content:
+          message.content
       }));
+
+  const detectedLanguage =
+    detectLanguage(text);
 
   const payload = {
     message: text,
@@ -1317,25 +1519,30 @@ async function buildChatPayload(
     prompt: text,
 
     language:
-      detectLanguage(text),
+      detectedLanguage,
 
     userLanguage:
-      detectLanguage(text),
+      detectedLanguage,
 
     chatId:
       chat.id,
 
     conversationId:
-      chat.responseId || null,
+      chat.conversationId ||
+      chat.responseId ||
+      null,
 
-    history,
+    history:
+      previousHistory,
 
     attachments: []
   };
 
   if (files.length) {
     payload.attachments =
-      await prepareAPIFileData(files);
+      await prepareAPIFileData(
+        files
+      );
   }
 
   return payload;
@@ -1345,7 +1552,9 @@ async function buildChatPayload(
    RESPONSE PARSER
    ========================================================= */
 
-async function parseResponse(response) {
+async function parseResponse(
+  response
+) {
   const contentType =
     response.headers.get(
       "content-type"
@@ -1368,8 +1577,12 @@ async function parseResponse(response) {
   };
 }
 
-function extractAssistantResponse(data) {
-  if (!data) return "";
+function extractAssistantResponse(
+  data
+) {
+  if (!data) {
+    return "";
+  }
 
   if (typeof data === "string") {
     return data.trim();
@@ -1385,7 +1598,9 @@ function extractAssistantResponse(data) {
     data.content
   ];
 
-  for (const candidate of candidates) {
+  for (
+    const candidate of candidates
+  ) {
     if (
       typeof candidate === "string" &&
       candidate.trim()
@@ -1395,25 +1610,30 @@ function extractAssistantResponse(data) {
   }
 
   /*
-   * Some APIs return:
-   * { output: [{ content: ... }] }
+   * Array output.
    */
+  if (
+    Array.isArray(
+      data.output
+    )
+  ) {
+    const text =
+      data.output
+        .map(item => {
+          if (
+            typeof item === "string"
+          ) {
+            return item;
+          }
 
-  if (Array.isArray(data.output)) {
-    const text = data.output
-      .map(item => {
-        if (typeof item === "string") {
-          return item;
-        }
-
-        return (
-          item?.content ||
-          item?.text ||
-          ""
-        );
-      })
-      .filter(Boolean)
-      .join("\n");
+          return (
+            item?.content ||
+            item?.text ||
+            ""
+          );
+        })
+        .filter(Boolean)
+        .join("\n");
 
     if (text.trim()) {
       return text.trim();
@@ -1421,19 +1641,36 @@ function extractAssistantResponse(data) {
   }
 
   /*
-   * OpenAI-style output.
+   * OpenAI-style output_text.
    */
-
-  if (Array.isArray(data.output_text)) {
+  if (
+    Array.isArray(
+      data.output_text
+    )
+  ) {
     return data.output_text
       .join("\n")
       .trim();
   }
 
   if (
-    typeof data.output_text === "string"
+    typeof data.output_text ===
+    "string"
   ) {
     return data.output_text.trim();
+  }
+
+  /*
+   * Some APIs wrap the response.
+   */
+  if (
+    data.data &&
+    typeof data.data ===
+      "object"
+  ) {
+    return extractAssistantResponse(
+      data.data
+    );
   }
 
   return "";
@@ -1443,15 +1680,33 @@ function extractAssistantResponse(data) {
    FRIENDLY ERROR
    ========================================================= */
 
-function getFriendlyError(error) {
+function getFriendlyError(
+  error
+) {
   const message =
     String(
-      error?.message || error || ""
+      error?.message ||
+      error ||
+      ""
     );
+
+  if (
+    message ===
+    "REQUEST_TIMEOUT"
+  ) {
+    return (
+      "⏱️ Atharv ko response dene mein " +
+      "thoda zyada time lag raha hai. " +
+      "Please dobara try karein."
+    );
+  }
 
   if (
     message.includes(
       "Failed to fetch"
+    ) ||
+    message.includes(
+      "NetworkError"
     )
   ) {
     return (
@@ -1505,75 +1760,200 @@ function detectLanguage(text) {
     String(text || "").trim();
 
   if (!value) {
-    return state.settings.language || "auto";
+    return (
+      state.settings.language ||
+      "auto"
+    );
   }
 
+  /*
+   * Devanagari
+   */
   if (
     /[\u0900-\u097F]/.test(value)
   ) {
     return "hi";
   }
 
+  /*
+   * Bengali / Assamese
+   */
   if (
     /[\u0980-\u09FF]/.test(value)
   ) {
     return "bn";
   }
 
+  /*
+   * Gurmukhi
+   */
   if (
     /[\u0A00-\u0A7F]/.test(value)
   ) {
     return "pa";
   }
 
+  /*
+   * Gujarati
+   */
+  if (
+    /[\u0A80-\u0AFF]/.test(value)
+  ) {
+    return "gu";
+  }
+
+  /*
+   * Odia
+   */
+  if (
+    /[\u0B00-\u0B7F]/.test(value)
+  ) {
+    return "or";
+  }
+
+  /*
+   * Tamil
+   */
   if (
     /[\u0B80-\u0BFF]/.test(value)
   ) {
     return "ta";
   }
 
+  /*
+   * Telugu
+   */
   if (
     /[\u0C00-\u0C7F]/.test(value)
   ) {
     return "te";
   }
 
+  /*
+   * Kannada
+   */
   if (
     /[\u0C80-\u0CFF]/.test(value)
   ) {
     return "kn";
   }
 
+  /*
+   * Malayalam
+   */
   if (
     /[\u0D00-\u0D7F]/.test(value)
   ) {
     return "ml";
   }
 
+  /*
+   * Sinhala
+   */
+  if (
+    /[\u0D80-\u0DFF]/.test(value)
+  ) {
+    return "si";
+  }
+
+  /*
+   * Thai
+   */
+  if (
+    /[\u0E00-\u0E7F]/.test(value)
+  ) {
+    return "th";
+  }
+
+  /*
+   * Arabic
+   */
   if (
     /[\u0600-\u06FF]/.test(value)
   ) {
     return "ar";
   }
 
+  /*
+   * Hebrew
+   */
+  if (
+    /[\u0590-\u05FF]/.test(value)
+  ) {
+    return "he";
+  }
+
+  /*
+   * Chinese
+   */
   if (
     /[\u4E00-\u9FFF]/.test(value)
   ) {
     return "zh";
   }
 
+  /*
+   * Japanese
+   */
   if (
     /[\u3040-\u30FF]/.test(value)
   ) {
     return "ja";
   }
 
+  /*
+   * Korean
+   */
   if (
     /[\uAC00-\uD7AF]/.test(value)
   ) {
     return "ko";
   }
 
+  /*
+   * Greek
+   */
+  if (
+    /[\u0370-\u03FF]/.test(value)
+  ) {
+    return "el";
+  }
+
+  /*
+   * Cyrillic — Russian/Ukrainian/Bulgarian etc.
+   */
+  if (
+    /[\u0400-\u04FF]/.test(value)
+  ) {
+    return "ru";
+  }
+
+  /*
+   * Georgian
+   */
+  if (
+    /[\u10A0-\u10FF]/.test(value)
+  ) {
+    return "ka";
+  }
+
+  /*
+   * Armenian
+   */
+  if (
+    /[\u0530-\u058F]/.test(value)
+  ) {
+    return "hy";
+  }
+
+  /*
+   * Latin-script languages.
+   *
+   * Without a full language-identification
+   * library, English is the safe default.
+   * Backend/model still receives the original
+   * text and can answer in the user's language.
+   */
   return "en";
 }
 
@@ -1583,10 +1963,9 @@ function detectLanguage(text) {
 
 function shouldAutoSpeak() {
   /*
-   * Default false.
-   * User can explicitly press the speaker button.
+   * Intentionally false.
+   * User presses 🔊 when desired.
    */
-
   return false;
 }
 
@@ -1604,18 +1983,24 @@ function speakText(text) {
   const value =
     cleanText(text);
 
-  if (!value) return;
+  if (!value) {
+    return;
+  }
 
   stopSpeaking();
 
   const utterance =
-    new SpeechSynthesisUtterance(value);
+    new SpeechSynthesisUtterance(
+      value
+    );
 
   const language =
     detectLanguage(value);
 
   utterance.lang =
-    languageToSpeechLocale(language);
+    languageToSpeechLocale(
+      language
+    );
 
   utterance.rate = 1;
   utterance.pitch = 1;
@@ -1653,23 +2038,37 @@ function stopSpeaking() {
   updateVoiceUI();
 }
 
-function languageToSpeechLocale(language) {
+function languageToSpeechLocale(
+  language
+) {
   const locales = {
     hi: "hi-IN",
     en: "en-IN",
     bn: "bn-IN",
     pa: "pa-IN",
+    gu: "gu-IN",
+    or: "or-IN",
     ta: "ta-IN",
     te: "te-IN",
     kn: "kn-IN",
     ml: "ml-IN",
+    si: "si-LK",
     ar: "ar-SA",
+    he: "he-IL",
     zh: "zh-CN",
     ja: "ja-JP",
-    ko: "ko-KR"
+    ko: "ko-KR",
+    th: "th-TH",
+    el: "el-GR",
+    ru: "ru-RU",
+    ka: "ka-GE",
+    hy: "hy-AM"
   };
 
-  return locales[language] || "en-IN";
+  return (
+    locales[language] ||
+    "en-IN"
+  );
 }
 
 /* =========================================================
@@ -1682,10 +2081,13 @@ function setupSpeechRecognition() {
     window.webkitSpeechRecognition;
 
   if (!SpeechRecognition) {
-    state.speechSupported = false;
+    state.speechSupported =
+      false;
 
     if (elements.voiceButton) {
-      elements.voiceButton.disabled = true;
+      elements.voiceButton.disabled =
+        true;
+
       elements.voiceButton.title =
         "Voice input is not supported in this browser";
     }
@@ -1693,14 +2095,20 @@ function setupSpeechRecognition() {
     return;
   }
 
-  state.speechSupported = true;
+  state.speechSupported =
+    true;
 
   const recognition =
     new SpeechRecognition();
 
-  recognition.continuous = false;
-  recognition.interimResults = true;
-  recognition.maxAlternatives = 1;
+  recognition.continuous =
+    false;
+
+  recognition.interimResults =
+    true;
+
+  recognition.maxAlternatives =
+    1;
 
   recognition.lang =
     getRecognitionLanguage();
@@ -1710,43 +2118,54 @@ function setupSpeechRecognition() {
     updateVoiceUI();
   };
 
-  recognition.onresult = event => {
-    let transcript = "";
+  recognition.onresult =
+    event => {
+      let transcript = "";
 
-    for (
-      let i = event.resultIndex;
-      i < event.results.length;
-      i++
-    ) {
-      transcript +=
-        event.results[i][0].transcript;
-    }
+      for (
+        let i =
+          event.resultIndex;
+        i <
+        event.results.length;
+        i++
+      ) {
+        transcript +=
+          event.results[i][0]
+            .transcript;
+      }
 
-    if (elements.messageInput) {
-      elements.messageInput.value =
-        transcript.trim();
+      if (
+        elements.messageInput
+      ) {
+        elements.messageInput.value =
+          transcript.trim();
 
-      autoResizeInput();
-    }
-  };
+        autoResizeInput();
+      }
+    };
 
-  recognition.onerror = event => {
-    console.warn(
-      "Speech recognition:",
-      event.error
-    );
+  recognition.onerror =
+    event => {
+      console.warn(
+        "Speech recognition:",
+        event.error
+      );
 
-    state.isListening = false;
+      state.isListening =
+        false;
 
-    updateVoiceUI();
-  };
+      updateVoiceUI();
+    };
 
   recognition.onend = () => {
-    state.isListening = false;
+    state.isListening =
+      false;
+
     updateVoiceUI();
   };
 
-  state.recognition = recognition;
+  state.recognition =
+    recognition;
 }
 
 function getRecognitionLanguage() {
@@ -1759,6 +2178,22 @@ function getRecognitionLanguage() {
 
   if (language === "en") {
     return "en-IN";
+  }
+
+  if (language === "bn") {
+    return "bn-IN";
+  }
+
+  if (language === "ta") {
+    return "ta-IN";
+  }
+
+  if (language === "te") {
+    return "te-IN";
+  }
+
+  if (language === "mr") {
+    return "mr-IN";
   }
 
   return "hi-IN";
@@ -1785,7 +2220,9 @@ function startVoiceInput() {
     setupSpeechRecognition();
   }
 
-  if (!state.recognition) return;
+  if (!state.recognition) {
+    return;
+  }
 
   try {
     state.recognition.lang =
@@ -1801,15 +2238,20 @@ function startVoiceInput() {
 }
 
 function stopVoiceInput() {
-  if (!state.recognition) return;
+  if (!state.recognition) {
+    return;
+  }
 
   try {
     state.recognition.stop();
   } catch {
-    // Already stopped.
+    /*
+     * Already stopped.
+     */
   }
 
-  state.isListening = false;
+  state.isListening =
+    false;
 
   updateVoiceUI();
 }
@@ -1857,7 +2299,9 @@ function updateVoiceUI() {
    ========================================================= */
 
 function setupFileInput() {
-  if (!elements.fileInput) return;
+  if (!elements.fileInput) {
+    return;
+  }
 
   elements.fileInput.addEventListener(
     "change",
@@ -1868,11 +2312,6 @@ function setupFileInput() {
         );
 
       addFiles(files);
-
-      /*
-       * Reset input so selecting the same
-       * file again triggers change.
-       */
 
       event.target.value = "";
     }
@@ -1895,21 +2334,29 @@ function addFiles(files) {
     const exists =
       state.selectedFiles.some(
         item =>
-          item.name === file.name &&
-          item.size === file.size &&
+          item.name ===
+            file.name &&
+          item.size ===
+            file.size &&
           item.lastModified ===
             file.lastModified
       );
 
-    if (exists) continue;
+    if (exists) {
+      continue;
+    }
 
-    state.selectedFiles.push(file);
+    state.selectedFiles.push(
+      file
+    );
   }
 
   renderAttachmentsPreview();
 }
 
-function removeSelectedFile(index) {
+function removeSelectedFile(
+  index
+) {
   state.selectedFiles.splice(
     index,
     1
@@ -1922,11 +2369,14 @@ function renderAttachmentsPreview() {
   const container =
     elements.attachmentPreview;
 
-  if (!container) return;
+  if (!container) {
+    return;
+  }
 
   if (!state.selectedFiles.length) {
     container.innerHTML = "";
     container.hidden = true;
+
     return;
   }
 
@@ -1936,11 +2386,15 @@ function renderAttachmentsPreview() {
     state.selectedFiles
       .map((file, index) => {
         const isImage =
-          file.type.startsWith("image/");
+          file.type.startsWith(
+            "image/"
+          );
 
         const url =
           isImage
-            ? URL.createObjectURL(file)
+            ? URL.createObjectURL(
+                file
+              )
             : "";
 
         return `
@@ -1951,7 +2405,9 @@ function renderAttachmentsPreview() {
                 ? `
                   <img
                     src="${url}"
-                    alt="${escapeHTML(file.name)}"
+                    alt="${escapeHTML(
+                      file.name
+                    )}"
                   >
                 `
                 : `
@@ -1962,7 +2418,9 @@ function renderAttachmentsPreview() {
             }
 
             <div class="atharv-attachment-name">
-              ${escapeHTML(file.name)}
+              ${escapeHTML(
+                file.name
+              )}
             </div>
 
             <button
@@ -1984,7 +2442,9 @@ function renderAttachmentsPreview() {
    ATTACHMENT DATA
    ========================================================= */
 
-async function prepareAttachments(files) {
+async function prepareAttachments(
+  files
+) {
   return files.map(file => ({
     name: file.name,
     type: file.type,
@@ -1992,22 +2452,26 @@ async function prepareAttachments(files) {
   }));
 }
 
-async function prepareAPIFileData(files) {
+async function prepareAPIFileData(
+  files
+) {
   /*
-   * Convert small files to base64.
+   * Keep current attachment behavior.
    *
-   * This keeps the frontend ready for a backend
-   * that accepts attachment data.
+   * Backend v10.1.0 primarily uses
+   * attachment metadata/text fields.
    *
-   * The server should validate file type/size.
+   * Base64 is retained for compatibility
+   * with future attachment processing.
    */
-
   const result = [];
 
   for (const file of files) {
     try {
       const base64 =
-        await fileToBase64(file);
+        await fileToBase64(
+          file
+        );
 
       result.push({
         name: file.name,
@@ -2041,7 +2505,9 @@ function fileToBase64(file) {
       reader.onerror =
         reject;
 
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(
+        file
+      );
     }
   );
 }
@@ -2050,7 +2516,11 @@ function renderAttachments(
   attachments,
   readonly = false
 ) {
-  if (!Array.isArray(attachments)) {
+  if (
+    !Array.isArray(
+      attachments
+    )
+  ) {
     return "";
   }
 
@@ -2060,14 +2530,21 @@ function renderAttachments(
         .map(item => {
           if (
             item.type &&
-            item.type.startsWith("image/") &&
+            item.type.startsWith(
+              "image/"
+            ) &&
             item.data
           ) {
             return `
               <img
                 class="atharv-message-image"
-                src="${escapeHTML(item.data)}"
-                alt="${escapeHTML(item.name || "image")}"
+                src="${escapeHTML(
+                  item.data
+                )}"
+                alt="${escapeHTML(
+                  item.name ||
+                    "image"
+                )}"
               >
             `;
           }
@@ -2075,7 +2552,8 @@ function renderAttachments(
           return `
             <div class="atharv-message-file">
               📎 ${escapeHTML(
-                item.name || "Attachment"
+                item.name ||
+                  "Attachment"
               )}
             </div>
           `;
@@ -2091,27 +2569,36 @@ function renderAttachments(
 
 async function copyText(text) {
   try {
-    await navigator.clipboard.writeText(
-      text
+    if (
+      navigator.clipboard &&
+      window.isSecureContext
+    ) {
+      await navigator.clipboard.writeText(
+        text
+      );
+
+      showToast("Copied");
+
+      return;
+    }
+
+    throw new Error(
+      "Clipboard unavailable"
     );
-
-    showToast("Copied");
   } catch {
-    /*
-     * Fallback
-     */
-
     const textarea =
       document.createElement(
         "textarea"
       );
 
-    textarea.value = text;
+    textarea.value =
+      text;
 
     textarea.style.position =
       "fixed";
 
-    textarea.style.opacity = "0";
+    textarea.style.opacity =
+      "0";
 
     document.body.appendChild(
       textarea
@@ -2135,11 +2622,15 @@ async function copyText(text) {
   }
 }
 
-function copyMessage(messageId) {
+function copyMessage(
+  messageId
+) {
   const chat =
     getActiveChat();
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   const message =
     chat.messages.find(
@@ -2147,9 +2638,13 @@ function copyMessage(messageId) {
         item.id === messageId
     );
 
-  if (!message) return;
+  if (!message) {
+    return;
+  }
 
-  copyText(message.content);
+  copyText(
+    message.content
+  );
 }
 
 function copyCode(code) {
@@ -2220,9 +2715,12 @@ function autoResizeInput() {
   const input =
     elements.messageInput;
 
-  if (!input) return;
+  if (!input) {
+    return;
+  }
 
-  input.style.height = "auto";
+  input.style.height =
+    "auto";
 
   const maxHeight = 180;
 
@@ -2233,7 +2731,9 @@ function autoResizeInput() {
     )}px`;
 }
 
-function handleInputKeydown(event) {
+function handleInputKeydown(
+  event
+) {
   if (
     event.key === "Enter" &&
     !event.shiftKey
@@ -2268,7 +2768,9 @@ function updateSendState() {
    ========================================================= */
 
 function scrollMessagesToBottom() {
-  if (!elements.messages) return;
+  if (!elements.messages) {
+    return;
+  }
 
   requestAnimationFrame(() => {
     elements.messages.scrollTop =
@@ -2281,13 +2783,17 @@ function scrollMessagesToBottom() {
    ========================================================= */
 
 function openSidebar() {
-  if (!elements.sidebar) return;
+  if (!elements.sidebar) {
+    return;
+  }
 
   elements.sidebar.classList.add(
     "open"
   );
 
-  if (elements.sidebarOverlay) {
+  if (
+    elements.sidebarOverlay
+  ) {
     elements.sidebarOverlay.classList.add(
       "show"
     );
@@ -2299,13 +2805,17 @@ function openSidebar() {
 }
 
 function closeSidebar() {
-  if (!elements.sidebar) return;
+  if (!elements.sidebar) {
+    return;
+  }
 
   elements.sidebar.classList.remove(
     "open"
   );
 
-  if (elements.sidebarOverlay) {
+  if (
+    elements.sidebarOverlay
+  ) {
     elements.sidebarOverlay.classList.remove(
       "show"
     );
@@ -2341,12 +2851,16 @@ function setupQuickPrompts() {
           "[data-prompt]"
         );
 
-      if (!button) return;
+      if (!button) {
+        return;
+      }
 
       const prompt =
         button.dataset.prompt;
 
-      if (!prompt) return;
+      if (!prompt) {
+        return;
+      }
 
       sendMessage(prompt);
     }
@@ -2366,7 +2880,9 @@ function setupGlobalEvents() {
           "[data-action]"
         );
 
-      if (!target) return;
+      if (!target) {
+        return;
+      }
 
       const action =
         target.dataset.action;
@@ -2401,21 +2917,24 @@ function setupGlobalEvents() {
 
         case "copy-message":
           copyMessage(
-            target.dataset.messageId
+            target.dataset
+              .messageId
           );
 
           break;
 
         case "speak-message":
           speakMessage(
-            target.dataset.messageId
+            target.dataset
+              .messageId
           );
 
           break;
 
         case "copy-code":
           copyCode(
-            target.dataset.code || ""
+            target.dataset.code ||
+              ""
           );
 
           break;
@@ -2423,7 +2942,8 @@ function setupGlobalEvents() {
         case "remove-file":
           removeSelectedFile(
             Number(
-              target.dataset.fileIndex
+              target.dataset
+                .fileIndex
             )
           );
 
@@ -2440,11 +2960,15 @@ function setupGlobalEvents() {
    SPEAK MESSAGE
    ========================================================= */
 
-function speakMessage(messageId) {
+function speakMessage(
+  messageId
+) {
   const chat =
     getActiveChat();
 
-  if (!chat) return;
+  if (!chat) {
+    return;
+  }
 
   const message =
     chat.messages.find(
@@ -2452,10 +2976,13 @@ function speakMessage(messageId) {
         item.id === messageId
     );
 
-  if (!message) return;
+  if (!message) {
+    return;
+  }
 
   if (state.isSpeaking) {
     stopSpeaking();
+
     return;
   }
 
@@ -2516,6 +3043,37 @@ function initializeChats() {
       state.chats[0].id;
   }
 
+  /*
+   * Normalize older chat objects.
+   */
+  state.chats.forEach(
+    chat => {
+      if (
+        !Array.isArray(
+          chat.messages
+        )
+      ) {
+        chat.messages = [];
+      }
+
+      if (
+        chat.responseId ===
+        undefined
+      ) {
+        chat.responseId =
+          null;
+      }
+
+      if (
+        chat.conversationId ===
+        undefined
+      ) {
+        chat.conversationId =
+          null;
+      }
+    }
+  );
+
   saveState();
 }
 
@@ -2527,29 +3085,28 @@ function bindUI() {
   /*
    * New Chat
    */
-
   if (elements.newChat) {
     elements.newChat.addEventListener(
       "click",
-      () => createNewChat()
+      () =>
+        createNewChat()
     );
   }
 
   /*
    * Send
    */
-
   if (elements.sendButton) {
     elements.sendButton.addEventListener(
       "click",
-      () => sendMessage()
+      () =>
+        sendMessage()
     );
   }
 
   /*
    * Input
    */
-
   if (elements.messageInput) {
     elements.messageInput.addEventListener(
       "keydown",
@@ -2565,7 +3122,6 @@ function bindUI() {
   /*
    * Attach
    */
-
   if (elements.attachButton) {
     elements.attachButton.addEventListener(
       "click",
@@ -2578,7 +3134,6 @@ function bindUI() {
   /*
    * Voice
    */
-
   if (elements.voiceButton) {
     elements.voiceButton.addEventListener(
       "click",
@@ -2589,7 +3144,6 @@ function bindUI() {
   /*
    * Stop voice / speech
    */
-
   if (elements.stopVoiceButton) {
     elements.stopVoiceButton.addEventListener(
       "click",
@@ -2603,7 +3157,6 @@ function bindUI() {
   /*
    * Mobile menu
    */
-
   if (elements.menuButton) {
     elements.menuButton.addEventListener(
       "click",
@@ -2611,7 +3164,9 @@ function bindUI() {
     );
   }
 
-  if (elements.sidebarOverlay) {
+  if (
+    elements.sidebarOverlay
+  ) {
     elements.sidebarOverlay.addEventListener(
       "click",
       closeSidebar
@@ -2621,7 +3176,6 @@ function bindUI() {
   /*
    * Escape
    */
-
   document.addEventListener(
     "keydown",
     event => {
@@ -2639,7 +3193,8 @@ function bindUI() {
    PWA / INSTALL SUPPORT
    ========================================================= */
 
-let deferredInstallPrompt = null;
+let deferredInstallPrompt =
+  null;
 
 function setupInstallPrompt() {
   window.addEventListener(
@@ -2675,12 +3230,15 @@ function showInstallButton() {
       "[data-install], #installApp, #installButton"
     );
 
-  buttons.forEach(button => {
-    button.hidden = false;
+  buttons.forEach(
+    button => {
+      button.hidden =
+        false;
 
-    button.onclick =
-      installApp;
-  });
+      button.onclick =
+        installApp;
+    }
+  );
 }
 
 function hideInstallButton() {
@@ -2689,9 +3247,12 @@ function hideInstallButton() {
       "[data-install], #installApp, #installButton"
     );
 
-  buttons.forEach(button => {
-    button.hidden = true;
-  });
+  buttons.forEach(
+    button => {
+      button.hidden =
+        true;
+    }
+  );
 }
 
 async function installApp() {
@@ -2705,7 +3266,14 @@ async function installApp() {
 
   deferredInstallPrompt.prompt();
 
-  await deferredInstallPrompt.userChoice;
+  try {
+    await deferredInstallPrompt.userChoice;
+  } catch {
+    /*
+     * User cancelled or browser closed
+     * the prompt.
+     */
+  }
 
   deferredInstallPrompt =
     null;
@@ -2719,8 +3287,10 @@ async function installApp() {
 
 function setupServiceWorker() {
   if (
-    "serviceWorker" in navigator &&
-    location.protocol === "https:"
+    "serviceWorker" in
+      navigator &&
+    location.protocol ===
+      "https:"
   ) {
     navigator.serviceWorker
       .register(
@@ -2770,11 +3340,6 @@ function setupVisibilityHandling() {
       if (
         document.hidden
       ) {
-        /*
-         * Don't destroy chat state.
-         * Just persist current state.
-         */
-
         saveState();
       }
     }
@@ -2786,13 +3351,6 @@ function setupVisibilityHandling() {
    ========================================================= */
 
 function migrateOldHistory() {
-  /*
-   * Previous Atharv versions may have stored:
-   * atharv_chat_history
-   *
-   * We do a safe one-time migration.
-   */
-
   if (
     localStorage.getItem(
       STORAGE_KEY
@@ -2812,7 +3370,9 @@ function migrateOldHistory() {
 
   try {
     const old =
-      JSON.parse(oldHistory);
+      JSON.parse(
+        oldHistory
+      );
 
     if (!Array.isArray(old)) {
       return;
@@ -2830,25 +3390,35 @@ function migrateOldHistory() {
           item =>
             item &&
             (
-              item.role === "user" ||
-              item.role === "assistant"
+              item.role ===
+                "user" ||
+              item.role ===
+                "assistant"
             )
         )
         .map(item => ({
-          id: createId("msg"),
-          role: item.role,
+          id:
+            createId("msg"),
+
+          role:
+            item.role,
+
           content:
             item.content ||
             item.text ||
             "",
+
           attachments: [],
-          createdAt: now()
+
+          createdAt:
+            now()
         }));
 
     chat.updatedAt =
       now();
 
-    state.chats = [chat];
+    state.chats =
+      [chat];
 
     state.activeChatId =
       chat.id;
@@ -2879,8 +3449,10 @@ function sanitizeURL(url) {
       );
 
     if (
-      parsed.protocol === "http:" ||
-      parsed.protocol === "https:"
+      parsed.protocol ===
+        "http:" ||
+      parsed.protocol ===
+        "https:"
     ) {
       return parsed.href;
     }
