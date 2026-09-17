@@ -1,4 +1,4 @@
-const CACHE_NAME = "atharv-ai-v1";
+const CACHE_NAME = "atharv-ai-v2";
 
 const APP_FILES = [
   "/",
@@ -8,9 +8,13 @@ const APP_FILES = [
   "/manifest.json"
 ];
 
-self.addEventListener("install", function (event) {
+/* =========================================================
+   INSTALL
+========================================================= */
+
+self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(function (cache) {
+    caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(APP_FILES);
     })
   );
@@ -18,46 +22,98 @@ self.addEventListener("install", function (event) {
   self.skipWaiting();
 });
 
-self.addEventListener("activate", function (event) {
+
+/* =========================================================
+   ACTIVATE
+========================================================= */
+
+self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then(function (keys) {
+    caches.keys().then((keys) => {
       return Promise.all(
-        keys.map(function (key) {
+        keys.map((key) => {
           if (key !== CACHE_NAME) {
             return caches.delete(key);
           }
+
+          return null;
         })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
-
-  self.clients.claim();
 });
 
-self.addEventListener("fetch", function (event) {
+
+/* =========================================================
+   FETCH
+========================================================= */
+
+self.addEventListener("fetch", (event) => {
+
   if (event.request.method !== "GET") {
     return;
   }
 
-  const url = new URL(event.request.url);
+  const requestURL = new URL(event.request.url);
 
-  if (url.origin !== self.location.origin) {
+  /* Only handle Atharv's own files */
+  if (requestURL.origin !== self.location.origin) {
     return;
   }
 
+  /* Never cache API requests */
+  if (requestURL.pathname.startsWith("/api/")) {
+    return;
+  }
+
+  /*
+    Network first:
+    - fresh files when internet is available
+    - cached files when offline
+  */
+
   event.respondWith(
     fetch(event.request)
-      .then(function (response) {
-        const copy = response.clone();
+      .then((response) => {
 
-        caches.open(CACHE_NAME).then(function (cache) {
-          cache.put(event.request, copy);
-        });
+        if (
+          response &&
+          response.status === 200 &&
+          response.type === "basic"
+        ) {
+          const copy = response.clone();
+
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, copy);
+          });
+        }
 
         return response;
       })
-      .catch(function () {
-        return caches.match(event.request);
+      .catch(() => {
+        return caches.match(event.request).then((cached) => {
+
+          if (cached) {
+            return cached;
+          }
+
+          /* Offline fallback */
+          if (event.request.mode === "navigate") {
+            return caches.match("/index.html");
+          }
+
+          return new Response(
+            "Atharv AI is currently offline.",
+            {
+              status: 503,
+              headers: {
+                "Content-Type": "text/plain; charset=utf-8"
+              }
+            }
+          );
+        });
       })
   );
 });
