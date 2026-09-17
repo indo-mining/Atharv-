@@ -1,35 +1,39 @@
 /*
 =========================================================
  ATHARV AI SERVER
- Version 14.1.1
+ Version 15.0.0 FINAL
  --------------------------------------------------------
  Your AI. Every Language. Every Question.
 
  FEATURES
  - Multilingual AI
  - Hindi / Hinglish / English / Indian languages
- - World language support through AI
+ - World language support
+ - Intelligent intent router
  - Live web information
  - Groq Compound web search
  - Tavily fallback
  - GDELT news fallback
  - Weather / Open-Meteo
+ - Market / news / sports routing
  - Official PYQ research
  - Official exam source routing
  - Study Engine Class 1-12
  - Competitive Exams
  - MCQ / Mock Test / Revision / Flashcards
  - Homework / Answer Evaluation
- - UPSC Prelims / Mains support
+ - UPSC Prelims / Mains
  - Programming / Debugging
- - Python execution through Groq Compound
- - Memory / PostgreSQL
- - Attachments compatibility
- - Real streaming for normal models
- - Reliable fallback streaming for live models
+ - Python execution compatibility
+ - PostgreSQL memory
+ - Attachment compatibility
+ - Streaming
+ - Compound-model fallback
  - Response corruption protection
  - Repetition protection
- - Health / Dependency monitoring
+ - Health monitoring
+ - Dependency monitoring
+
 =========================================================
 */
 
@@ -48,10 +52,10 @@ const app = express();
 ======================================================== */
 
 const PORT =
-  process.env.PORT || 10000;
+  Number(process.env.PORT) || 10000;
 
 const SERVER_VERSION =
-  "14.1.1";
+  "15.0.0";
 
 const GROQ_API_KEY =
   process.env.GROQ_API_KEY || "";
@@ -70,9 +74,6 @@ const LIVE_MODEL =
   process.env.GROQ_LIVE_MODEL ||
   "groq/compound-mini";
 
-const MAX_BODY_SIZE =
-  "10mb";
-
 const GROQ_URL =
   "https://api.groq.com/openai/v1/chat/completions";
 
@@ -82,11 +83,14 @@ const TAVILY_URL =
 const GDELT_URL =
   "https://api.gdeltproject.org/api/v2/doc/doc";
 
-const OPEN_METEO_GEOCODING =
+const GEO_URL =
   "https://geocoding-api.open-meteo.com/v1/search";
 
-const OPEN_METEO_FORECAST =
+const WEATHER_URL =
   "https://api.open-meteo.com/v1/forecast";
+
+const MAX_BODY_SIZE =
+  "10mb";
 
 /* ========================================================
    EXPRESS
@@ -122,32 +126,28 @@ let pool = null;
 
 if (DATABASE_URL) {
   pool = new Pool({
-    connectionString:
-      DATABASE_URL,
-
+    connectionString: DATABASE_URL,
     ssl: {
-      rejectUnauthorized:
-        false
+      rejectUnauthorized: false
     },
-
     max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000
+  });
 
-    idleTimeoutMillis:
-      30000,
-
-    connectionTimeoutMillis:
-      10000
+  pool.on("error", error => {
+    console.error(
+      "POSTGRES POOL ERROR:",
+      error.message
+    );
   });
 }
 
 /* ========================================================
-   BASIC HELPERS
+   HELPERS
 ======================================================== */
 
-function safeString(
-  value,
-  fallback = ""
-) {
+function safeString(value, fallback = "") {
   if (
     value === undefined ||
     value === null
@@ -158,16 +158,10 @@ function safeString(
   return String(value);
 }
 
-function limitText(
-  text,
-  max = 12000
-) {
-  const value =
-    safeString(text);
+function limitText(text, max = 12000) {
+  const value = safeString(text);
 
-  if (
-    value.length <= max
-  ) {
+  if (value.length <= max) {
     return value;
   }
 
@@ -178,9 +172,8 @@ function limitText(
 }
 
 function sleep(ms) {
-  return new Promise(
-    resolve =>
-      setTimeout(resolve, ms)
+  return new Promise(resolve =>
+    setTimeout(resolve, ms)
   );
 }
 
@@ -192,36 +185,22 @@ async function fetchWithTimeout(
   const controller =
     new AbortController();
 
-  const timer =
-    setTimeout(() => {
-      controller.abort();
-    }, timeout);
+  const timer = setTimeout(
+    () => controller.abort(),
+    timeout
+  );
 
   try {
-    return await fetch(
-      url,
-      {
-        ...options,
-        signal:
-          controller.signal
-      }
-    );
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
   } finally {
     clearTimeout(timer);
   }
 }
 
-function estimateTokens(
-  text
-) {
-  return Math.ceil(
-    safeString(text).length / 4
-  );
-}
-
-function isCompoundModel(
-  model
-) {
+function isCompoundModel(model) {
   return (
     model === "groq/compound" ||
     model === "groq/compound-mini"
@@ -233,12 +212,13 @@ function isCompoundModel(
 ======================================================== */
 
 function getUserId(req) {
-  const raw =
+  const supplied =
     req.body?.userId ||
-    req.headers[
-      "x-atharv-user-id"
-    ] ||
-    req.query?.userId ||
+    req.headers["x-atharv-user-id"] ||
+    req.query?.userId;
+
+  const raw =
+    supplied ||
     req.ip ||
     "anonymous";
 
@@ -249,7 +229,7 @@ function getUserId(req) {
 }
 
 /* ========================================================
-   INDIA DATE/TIME
+   DATE / TIME
 ======================================================== */
 
 function getIndiaDateTime() {
@@ -257,138 +237,47 @@ function getIndiaDateTime() {
     return new Intl.DateTimeFormat(
       "en-IN",
       {
-        timeZone:
-          "Asia/Kolkata",
-        dateStyle:
-          "full",
-        timeStyle:
-          "long"
+        timeZone: "Asia/Kolkata",
+        dateStyle: "full",
+        timeStyle: "long"
       }
-    ).format(
-      new Date()
-    );
+    ).format(new Date());
   } catch {
-    return new Date()
-      .toISOString();
+    return new Date().toISOString();
   }
 }
 
 /* ========================================================
-   LANGUAGE DETECTION
+   LANGUAGE
 ======================================================== */
 
-function detectLanguage(
-  text
-) {
-  const value =
-    safeString(text);
+function detectLanguage(text) {
+  const value = safeString(text);
 
-  if (
-    /[\u0900-\u097F]/.test(
-      value
-    )
-  ) {
-    return "Hindi/Devanagari";
+  const scripts = [
+    [/[\u0900-\u097F]/, "Hindi/Devanagari"],
+    [/[\u0980-\u09FF]/, "Bengali"],
+    [/[\u0A00-\u0A7F]/, "Punjabi"],
+    [/[\u0A80-\u0AFF]/, "Gujarati"],
+    [/[\u0B00-\u0B7F]/, "Odia"],
+    [/[\u0B80-\u0BFF]/, "Tamil"],
+    [/[\u0C00-\u0C7F]/, "Telugu"],
+    [/[\u0C80-\u0CFF]/, "Kannada"],
+    [/[\u0D00-\u0D7F]/, "Malayalam"],
+    [/[\u0600-\u06FF]/, "Arabic/Urdu"],
+    [/[\u3040-\u30FF]/, "Japanese"],
+    [/[\uAC00-\uD7AF]/, "Korean"],
+    [/[\u4E00-\u9FFF]/, "Chinese"],
+    [/[\u0400-\u04FF]/, "Russian"]
+  ];
+
+  for (const [regex, name] of scripts) {
+    if (regex.test(value)) {
+      return name;
+    }
   }
 
-  if (
-    /[\u0980-\u09FF]/.test(
-      value
-    )
-  ) {
-    return "Bengali";
-  }
-
-  if (
-    /[\u0A00-\u0A7F]/.test(
-      value
-    )
-  ) {
-    return "Punjabi";
-  }
-
-  if (
-    /[\u0A80-\u0AFF]/.test(
-      value
-    )
-  ) {
-    return "Gujarati";
-  }
-
-  if (
-    /[\u0B00-\u0B7F]/.test(
-      value
-    )
-  ) {
-    return "Odia";
-  }
-
-  if (
-    /[\u0B80-\u0BFF]/.test(
-      value
-    )
-  ) {
-    return "Tamil";
-  }
-
-  if (
-    /[\u0C00-\u0C7F]/.test(
-      value
-    )
-  ) {
-    return "Telugu";
-  }
-
-  if (
-    /[\u0C80-\u0CFF]/.test(
-      value
-    )
-  ) {
-    return "Kannada";
-  }
-
-  if (
-    /[\u0D00-\u0D7F]/.test(
-      value
-    )
-  ) {
-    return "Malayalam";
-  }
-
-  if (
-    /[\u0600-\u06FF]/.test(
-      value
-    )
-  ) {
-    return "Arabic/Urdu";
-  }
-
-  if (
-    /[\u3040-\u30FF]/.test(
-      value
-    )
-  ) {
-    return "Japanese";
-  }
-
-  if (
-    /[\uAC00-\uD7AF]/.test(
-      value
-    )
-  ) {
-    return "Korean";
-  }
-
-  if (
-    /[\u4E00-\u9FFF]/.test(
-      value
-    )
-  ) {
-    return "Chinese";
-  }
-
-  const lower =
-    value.toLowerCase();
+  const lower = value.toLowerCase();
 
   const hinglishWords = [
     "mera",
@@ -430,46 +319,38 @@ function detectLanguage(
 
   const hits =
     hinglishWords.filter(
-      word =>
-        words.includes(word)
+      word => words.includes(word)
     ).length;
 
-  if (
-    hits >= 1
-  ) {
-    return "Hinglish";
-  }
-
-  return "English";
+  return hits > 0
+    ? "Hinglish"
+    : "English";
 }
 
 /* ========================================================
-   CATEGORY
+   INTENT / CATEGORY ROUTER
 ======================================================== */
 
-function detectCategory(
-  text
-) {
+function detectCategory(text) {
   const lower =
-    safeString(text)
-      .toLowerCase();
+    safeString(text).toLowerCase();
 
   if (
-    /weather|temperature|forecast|rain|बारिश|मौसम|तापमान|वर्षा|तूफान/
+    /weather|temperature|forecast|rain|storm|मौसम|तापमान|बारिश|वर्षा|तूफान/
       .test(lower)
   ) {
     return "weather";
   }
 
   if (
-    /stock|share price|market|nifty|sensex|ipo|crypto|bitcoin|ethereum|शेयर|स्टॉक|बाज़ार|बाजार|निफ्टी|सेंसेक्स/
+    /stock|share price|market|nifty|sensex|ipo|crypto|bitcoin|ethereum|शेयर|स्टॉक|बाजार|बाज़ार|निफ्टी|सेंसेक्स/
       .test(lower)
   ) {
     return "market";
   }
 
   if (
-    /news|latest|today|current affairs|breaking|headline|अभी|आज की खबर|समाचार|ताज़ा खबर|ताजा खबर|करंट अफेयर्स/
+    /news|latest|today|current affairs|breaking|headline|आज की खबर|समाचार|ताज़ा खबर|ताजा खबर|करंट अफेयर्स/
       .test(lower)
   ) {
     return "news";
@@ -483,7 +364,7 @@ function detectCategory(
   }
 
   if (
-    /upsc|ssc|banking|ibps|sbi|railway|rrb|nda|cds|capf|defence|defense|police|psc|ctet|tet|teacher exam|competitive exam|सरकारी परीक्षा|प्रतियोगी परीक्षा/
+    /upsc|ssc|banking|ibps|sbi|railway|rrb|nda|cds|capf|defence|defense|police|psc|ctet|tet|competitive exam|सरकारी परीक्षा|प्रतियोगी परीक्षा/
       .test(lower)
   ) {
     return "exam";
@@ -503,25 +384,29 @@ function detectCategory(
     return "programming";
   }
 
+  if (
+    /remember|memory|yaad rakh|याद रखना|what do you remember|मेरी याद/
+      .test(lower)
+  ) {
+    return "memory";
+  }
+
   return "general";
 }
 
 /* ========================================================
-   LIVE SEARCH DETECTION
+   LIVE INTENT
 ======================================================== */
 
-function needsLiveSearch(
-  text
-) {
+function needsLiveSearch(text) {
   const lower =
-    safeString(text)
-      .toLowerCase();
+    safeString(text).toLowerCase();
 
   return (
-    /today|today's|latest|current|right now|now|live|recent|breaking|news|price|share price|stock price|weather|forecast|score|result|election|current affairs|pyq|previous year question|official syllabus|notification|admit card|answer key|result date|2024|2025|2026|2027/
+    /today|today's|latest|current|right now|now|live|recent|breaking|news|price|share price|stock price|weather|forecast|score|result|election|current affairs|notification|admit card|answer key|result date/
       .test(lower) ||
 
-    /आज|अभी|ताज़ा|ताजा|वर्तमान|मौसम|शेयर|भाव|खबर|नतीजा|परिणाम|परीक्षा|पिछले वर्ष|आधिकारिक|सिलेबस|अधिसूचना|एडमिट कार्ड/
+    /आज|अभी|ताज़ा|ताजा|वर्तमान|मौसम|शेयर|भाव|खबर|नतीजा|परिणाम|परीक्षा|आधिकारिक|सिलेबस|अधिसूचना|एडमिट कार्ड/
       .test(lower)
   );
 }
@@ -530,109 +415,73 @@ function needsLiveSearch(
    STUDY INTENT
 ======================================================== */
 
-function detectStudyIntent(
-  text
-) {
+function detectStudyIntent(text) {
   const lower =
-    safeString(text)
-      .toLowerCase();
+    safeString(text).toLowerCase();
 
-  if (
-    /official.*pyq|pyq.*official|previous year question|previous year questions|previous year paper|past paper|official question paper|प्रश्न पत्र|पिछले वर्ष के प्रश्न|आधिकारिक प्रश्न पत्र/
-      .test(lower)
-  ) {
-    return "exam_pyq";
-  }
+  const rules = [
+    [
+      "exam_pyq",
+      /official.*pyq|pyq.*official|previous year question|previous year paper|past paper|official question paper|पिछले वर्ष के प्रश्न|आधिकारिक प्रश्न पत्र/
+    ],
+    [
+      "exam_current_affairs",
+      /current affairs|करंट अफेयर्स|समसामयिक|current gk/
+    ],
+    [
+      "exam_mains_answer",
+      /mains answer|answer writing|उत्तर लेखन|मेन परीक्षा/
+    ],
+    [
+      "study_mock_test",
+      /mock test|mock exam|मॉक टेस्ट|मॉक परीक्षा/
+    ],
+    [
+      "study_flashcards",
+      /flashcard|flash cards|फ्लैश कार्ड/
+    ],
+    [
+      "study_revision",
+      /revision|revise|रिविजन|दोहराओ|दोबारा पढ़ाओ/
+    ],
+    [
+      "study_mcq",
+      /mcq|multiple choice|बहुविकल्पीय/
+    ],
+    [
+      "study_important_questions",
+      /important questions|important question|महत्वपूर्ण प्रश्न/
+    ],
+    [
+      "study_notes",
+      /notes|short notes|नोट्स|संक्षिप्त नोट्स/
+    ],
+    [
+      "study_plan",
+      /study plan|पढ़ाई की योजना|अध्ययन योजना/
+    ],
+    [
+      "study_homework",
+      /homework|होमवर्क|गृहकार्य/
+    ],
+    [
+      "study_evaluate",
+      /check my answer|evaluate|answer check|उत्तर जांच|उत्तर जाँच/
+    ],
+    [
+      "study_doubt",
+      /doubt|confused|समझ नहीं|डाउट|शंका/
+    ],
+    [
+      "study_explain",
+      /explain|samjhao|समझाओ|व्याख्या|teach|पढ़ाओ/
+    ]
+  ];
 
-  if (
-    /current affairs|करंट अफेयर्स|आज की घटनाएं|समसामयिक|current gk/
-      .test(lower)
-  ) {
-    return "exam_current_affairs";
-  }
-
-  if (
-    /mains answer|answer writing|उत्तर लेखन|मेन परीक्षा/
-      .test(lower)
-  ) {
-    return "exam_mains_answer";
-  }
-
-  if (
-    /mock test|mock exam|मॉक टेस्ट|मॉक परीक्षा/
-      .test(lower)
-  ) {
-    return "study_mock_test";
-  }
-
-  if (
-    /flashcard|flash cards|फ्लैश कार्ड/
-      .test(lower)
-  ) {
-    return "study_flashcards";
-  }
-
-  if (
-    /revision|revise|revision karao|रिविजन|दोहराओ|दोबारा पढ़ाओ/
-      .test(lower)
-  ) {
-    return "study_revision";
-  }
-
-  if (
-    /mcq|multiple choice|बहुविकल्पीय/
-      .test(lower)
-  ) {
-    return "study_mcq";
-  }
-
-  if (
-    /important questions|important question|महत्वपूर्ण प्रश्न/
-      .test(lower)
-  ) {
-    return "study_important_questions";
-  }
-
-  if (
-    /notes|short notes|नोट्स|संक्षिप्त नोट्स/
-      .test(lower)
-  ) {
-    return "study_notes";
-  }
-
-  if (
-    /study plan|पढ़ाई की योजना|अध्ययन योजना/
-      .test(lower)
-  ) {
-    return "study_plan";
-  }
-
-  if (
-    /homework|होमवर्क|गृहकार्य/
-      .test(lower)
-  ) {
-    return "study_homework";
-  }
-
-  if (
-    /check my answer|evaluate|answer check|उत्तर जांच|उत्तर जाँच/
-      .test(lower)
-  ) {
-    return "study_evaluate";
-  }
-
-  if (
-    /doubt|confused|समझ नहीं|डाउट|शंका/
-      .test(lower)
-  ) {
-    return "study_doubt";
-  }
-
-  if (
-    /explain|samjhao|समझाओ|व्याख्या|teach|पढ़ाओ/
-      .test(lower)
-  ) {
-    return "study_explain";
+  for (const [intent, regex] of rules) {
+    if (regex.test(lower)) {
+      return intent;
+    }
   }
 
   return null;
@@ -642,9 +491,7 @@ function detectStudyIntent(
    STUDY CONTEXT
 ======================================================== */
 
-function extractStudyContext(
-  text
-) {
+function extractStudyContext(text) {
   const value =
     safeString(text);
 
@@ -653,34 +500,20 @@ function extractStudyContext(
       /(?:class|कक्षा)\s*(1[0-2]|[1-9])/i
     );
 
-  const classNumber =
-    classMatch
-      ? Number(
-          classMatch[1]
-        )
-      : null;
-
   const lower =
     value.toLowerCase();
 
   let board = null;
 
-  if (
-    lower.includes("cbse")
-  ) {
+  if (lower.includes("cbse")) {
     board = "CBSE";
-  } else if (
-    lower.includes("icse")
-  ) {
+  } else if (lower.includes("icse")) {
     board = "ICSE";
   } else if (
-    lower.includes("state board") ||
-    lower.includes("stateboard")
+    lower.includes("state board")
   ) {
     board = "State Board";
   }
-
-  let exam = null;
 
   const exams = [
     "UPSC",
@@ -688,9 +521,9 @@ function extractStudyContext(
     "SSC CHSL",
     "SSC MTS",
     "SSC GD",
-    "Banking",
     "IBPS",
     "SBI",
+    "Banking",
     "Railway",
     "RRB",
     "NDA",
@@ -703,9 +536,9 @@ function extractStudyContext(
     "TET"
   ];
 
-  for (
-    const item of exams
-  ) {
+  let exam = null;
+
+  for (const item of exams) {
     if (
       lower.includes(
         item.toLowerCase()
@@ -724,7 +557,7 @@ function extractStudyContext(
   let paperType = null;
 
   if (
-    /prelims|preliminary|preliminary examination/
+    /prelims|preliminary/
       .test(lower)
   ) {
     paperType = "Prelims";
@@ -738,154 +571,93 @@ function extractStudyContext(
   }
 
   return {
-    classNumber,
+    classNumber:
+      classMatch
+        ? Number(classMatch[1])
+        : null,
+
     board,
+
     exam,
+
     year:
       yearMatch
-        ? Number(
-            yearMatch[1]
-          )
+        ? Number(yearMatch[1])
         : null,
+
     paperType
   };
 }
 
 /* ========================================================
-   OFFICIAL EXAM DOMAINS
+   OFFICIAL DOMAINS
 ======================================================== */
 
-function getOfficialDomains(
-  exam
-) {
+function getOfficialDomains(exam) {
   const value =
     safeString(exam)
       .toLowerCase();
 
-  if (
-    value.includes("upsc")
-  ) {
-    return [
-      "upsc.gov.in"
-    ];
+  if (value.includes("upsc")) {
+    return ["upsc.gov.in"];
   }
 
-  if (
-    value.includes("ssc")
-  ) {
-    return [
-      "ssc.gov.in"
-    ];
+  if (value.includes("ssc")) {
+    return ["ssc.gov.in"];
   }
 
   if (
     value.includes("railway") ||
     value.includes("rrb")
   ) {
-    return [
-      "indianrailways.gov.in"
-    ];
+    return ["indianrailways.gov.in"];
   }
 
-  if (
-    value.includes("ibps")
-  ) {
-    return [
-      "ibps.in"
-    ];
+  if (value.includes("ibps")) {
+    return ["ibps.in"];
   }
 
-  if (
-    value.includes("sbi")
-  ) {
-    return [
-      "sbi.co.in"
-    ];
+  if (value.includes("sbi")) {
+    return ["sbi.co.in"];
   }
 
   if (
     value.includes("ctet") ||
     value.includes("tet")
   ) {
-    return [
-      "ctet.nic.in"
-    ];
+    return ["ctet.nic.in"];
   }
 
   return [];
 }
 
 /* ========================================================
-   MEMORY TABLE
+   MEMORY
 ======================================================== */
 
 async function ensureMemoryTable() {
-  if (!pool) {
-    return;
-  }
+  if (!pool) return;
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.user_memories (
       id BIGSERIAL PRIMARY KEY,
-      user_id TEXT,
-      memory TEXT,
+      user_id TEXT NOT NULL,
+      memory TEXT NOT NULL,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
 
   await pool.query(`
-    ALTER TABLE public.user_memories
-    ADD COLUMN IF NOT EXISTS user_id TEXT
-  `);
-
-  await pool.query(`
-    ALTER TABLE public.user_memories
-    ADD COLUMN IF NOT EXISTS memory TEXT
-  `);
-
-  await pool.query(`
-    ALTER TABLE public.user_memories
-    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ
-  `);
-
-  await pool.query(`
-    ALTER TABLE public.user_memories
-    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
-  `);
-
-  await pool.query(`
-    UPDATE public.user_memories
-    SET created_at = NOW()
-    WHERE created_at IS NULL
-  `);
-
-  await pool.query(`
-    UPDATE public.user_memories
-    SET updated_at = COALESCE(created_at, NOW())
-    WHERE updated_at IS NULL
-  `);
-
-  await pool.query(`
-    CREATE INDEX IF NOT EXISTS idx_user_memories_user_id
+    CREATE INDEX IF NOT EXISTS
+    idx_user_memories_user_id
     ON public.user_memories(user_id)
   `);
-
-  console.log(
-    "user_memories schema verified."
-  );
 }
 
-/* ========================================================
-   MEMORY SECURITY
-======================================================== */
-
-function isSensitiveMemory(
-  text
-) {
+function isSensitiveMemory(text) {
   const lower =
-    safeString(text)
-      .toLowerCase();
+    safeString(text).toLowerCase();
 
   const blocked = [
     "password",
@@ -909,43 +681,27 @@ function isSensitiveMemory(
   ];
 
   return blocked.some(
-    item =>
-      lower.includes(item)
+    item => lower.includes(item)
   );
 }
 
-/* ========================================================
-   MEMORY EXTRACTION
-======================================================== */
-
-function extractMemory(
-  text
-) {
+function extractMemory(text) {
   const value =
-    safeString(text)
-      .trim();
+    safeString(text).trim();
 
-  if (
-    isSensitiveMemory(value)
-  ) {
+  if (isSensitiveMemory(value)) {
     return null;
   }
 
   const patterns = [
     /^(?:my name is|i am|i'm)\s+(.+)$/i,
-
     /^(?:mera naam|मेरा नाम)\s+(.+)$/i,
-
     /^(?:remember that|remember this|yaad rakhna|याद रखना)\s+(.+)$/i
   ];
 
-  for (
-    const pattern of patterns
-  ) {
+  for (const pattern of patterns) {
     const match =
-      value.match(
-        pattern
-      );
+      value.match(pattern);
 
     if (
       match &&
@@ -961,19 +717,48 @@ function extractMemory(
   return null;
 }
 
-/* ========================================================
-   SAVE MEMORY
-======================================================== */
-
 async function saveMemory(
   userId,
   memory
 ) {
-  if (
-    !pool ||
-    !memory
-  ) {
+  if (!pool || !memory) {
     return null;
+  }
+
+  if (isSensitiveMemory(memory)) {
+    return null;
+  }
+
+  /*
+    Avoid unnecessary duplicate memories.
+  */
+
+  const existing =
+    await pool.query(
+      `
+      SELECT id
+      FROM public.user_memories
+      WHERE user_id = $1
+      AND LOWER(memory) = LOWER($2)
+      LIMIT 1
+      `,
+      [userId, memory]
+    );
+
+  if (existing.rows.length) {
+    await pool.query(
+      `
+      UPDATE public.user_memories
+      SET updated_at = NOW()
+      WHERE id = $1
+      `,
+      [existing.rows[0].id]
+    );
+
+    return {
+      id: existing.rows[0].id,
+      memory
+    };
   }
 
   const result =
@@ -985,33 +770,28 @@ async function saveMemory(
         ($1, $2)
       RETURNING id, memory, created_at
       `,
-      [
-        userId,
-        memory
-      ]
+      [userId, memory]
     );
 
   return result.rows[0];
 }
 
-/* ========================================================
-   GET MEMORY
-======================================================== */
-
-async function getMemories(
-  userId
-) {
-  if (!pool) {
-    return [];
-  }
+async function getMemories(userId) {
+  if (!pool) return [];
 
   const result =
     await pool.query(
       `
-      SELECT id, memory, created_at, updated_at
+      SELECT
+        id,
+        memory,
+        created_at,
+        updated_at
       FROM public.user_memories
       WHERE user_id = $1
-      ORDER BY updated_at DESC NULLS LAST, id DESC
+      ORDER BY
+        updated_at DESC NULLS LAST,
+        id DESC
       LIMIT 50
       `,
       [userId]
@@ -1020,17 +800,11 @@ async function getMemories(
   return result.rows;
 }
 
-/* ========================================================
-   DELETE MEMORY
-======================================================== */
-
 async function deleteMemory(
   userId,
-  memoryId
+  id
 ) {
-  if (!pool) {
-    return false;
-  }
+  if (!pool) return false;
 
   const result =
     await pool.query(
@@ -1039,27 +813,14 @@ async function deleteMemory(
       WHERE id = $1
       AND user_id = $2
       `,
-      [
-        memoryId,
-        userId
-      ]
+      [id, userId]
     );
 
-  return (
-    result.rowCount > 0
-  );
+  return result.rowCount > 0;
 }
 
-/* ========================================================
-   CLEAR MEMORY
-======================================================== */
-
-async function clearMemories(
-  userId
-) {
-  if (!pool) {
-    return 0;
-  }
+async function clearMemories(userId) {
+  if (!pool) return 0;
 
   const result =
     await pool.query(
@@ -1073,45 +834,61 @@ async function clearMemories(
   return result.rowCount;
 }
 
-/* ========================================================
-   MEMORY REQUEST
-======================================================== */
-
 async function processMemoryRequest(
   userId,
   message
 ) {
   const lower =
-    safeString(message)
-      .toLowerCase();
+    safeString(message).toLowerCase();
 
   if (
     /forget everything|forget all memories|clear memory|delete memory|सब भूल जाओ|सारी यादें मिटाओ/
       .test(lower)
   ) {
     const count =
-      await clearMemories(
-        userId
-      );
+      await clearMemories(userId);
 
     return {
       handled: true,
-
       reply:
         `ठीक है। मैंने आपकी ${count} saved memories हटा दी हैं।`
     };
   }
 
-  const extracted =
-    extractMemory(
-      message
-    );
-
   if (
-    extracted &&
-    /remember|yaad|याद|my name is|mera naam|मेरा नाम|i am|i'm/i
-      .test(message)
+    /what do you remember|what you remember|meri memory|मेरी यादें|मेरे बारे में क्या याद/
+      .test(lower)
   ) {
+    const memories =
+      await getMemories(userId);
+
+    if (!memories.length) {
+      return {
+        handled: true,
+        reply:
+          "अभी मेरी memory में आपके बारे में कुछ saved नहीं है।"
+      };
+    }
+
+    const list =
+      memories
+        .map(
+          (item, index) =>
+            `${index + 1}. ${item.memory}`
+        )
+        .join("\n");
+
+    return {
+      handled: true,
+      reply:
+        `### मुझे आपके बारे में यह याद है:\n\n${list}`
+    };
+  }
+
+  const extracted =
+    extractMemory(message);
+
+  if (extracted) {
     const saved =
       await saveMemory(
         userId,
@@ -1121,50 +898,10 @@ async function processMemoryRequest(
     if (saved) {
       return {
         handled: true,
-
         reply:
           `ठीक है, मैं इसे याद रखूँगा: **${extracted}**`
       };
     }
-  }
-
-  if (
-    /what do you remember|what you remember|meri memory|मेरी यादें|मेरे बारे में क्या याद/
-      .test(lower)
-  ) {
-    const memories =
-      await getMemories(
-        userId
-      );
-
-    if (
-      !memories.length
-    ) {
-      return {
-        handled: true,
-
-        reply:
-          "अभी मेरी memory में आपके बारे में कुछ saved नहीं है।"
-      };
-    }
-
-    const list =
-      memories
-        .map(
-          (
-            item,
-            index
-          ) =>
-            `${index + 1}. ${item.memory}`
-        )
-        .join("\n");
-
-    return {
-      handled: true,
-
-      reply:
-        `### मुझे आपके बारे में यह याद है:\n\n${list}`
-    };
   }
 
   return {
@@ -1180,9 +917,7 @@ async function tavilySearch(
   query,
   options = {}
 ) {
-  if (
-    !TAVILY_API_KEY
-  ) {
+  if (!TAVILY_API_KEY) {
     return {
       answer: "",
       results: []
@@ -1190,24 +925,16 @@ async function tavilySearch(
   }
 
   const payload = {
-    api_key:
-      TAVILY_API_KEY,
-
+    api_key: TAVILY_API_KEY,
     query,
-
     search_depth:
       options.searchDepth ||
       "advanced",
-
     max_results:
       options.maxResults ||
       6,
-
-    include_answer:
-      true,
-
-    include_raw_content:
-      false
+    include_answer: true,
+    include_raw_content: false
   };
 
   if (
@@ -1222,25 +949,18 @@ async function tavilySearch(
       await fetchWithTimeout(
         TAVILY_URL,
         {
-          method:
-            "POST",
-
+          method: "POST",
           headers: {
             "Content-Type":
               "application/json"
           },
-
           body:
-            JSON.stringify(
-              payload
-            )
+            JSON.stringify(payload)
         },
         20000
       );
 
-    if (
-      !response.ok
-    ) {
+    if (!response.ok) {
       throw new Error(
         `Tavily HTTP ${response.status}`
       );
@@ -1251,20 +971,14 @@ async function tavilySearch(
 
     return {
       answer:
-        safeString(
-          data.answer
-        ),
+        safeString(data.answer),
 
       results:
-        Array.isArray(
-          data.results
-        )
+        Array.isArray(data.results)
           ? data.results
           : []
     };
-  } catch (
-    error
-  ) {
+  } catch (error) {
     console.error(
       "TAVILY ERROR:",
       error.message
@@ -1281,14 +995,10 @@ async function tavilySearch(
    GDELT
 ======================================================== */
 
-async function gdeltSearch(
-  query
-) {
+async function gdeltSearch(query) {
   try {
     const url =
-      new URL(
-        GDELT_URL
-      );
+      new URL(GDELT_URL);
 
     url.searchParams.set(
       "query",
@@ -1322,55 +1032,34 @@ async function gdeltSearch(
         15000
       );
 
-    if (
-      !response.ok
-    ) {
-      throw new Error(
-        `GDELT HTTP ${response.status}`
-      );
+    if (!response.ok) {
+      return [];
     }
 
     const data =
       await response.json();
 
-    const articles =
-      Array.isArray(
-        data.articles
-      )
+    return (
+      Array.isArray(data.articles)
         ? data.articles
-        : [];
+        : []
+    ).map(article => ({
+      title:
+        safeString(article.title),
 
-    return articles.map(
-      article => ({
-        title:
-          safeString(
-            article.title
-          ),
+      url:
+        safeString(article.url),
 
-        url:
-          safeString(
-            article.url
-          ),
+      source:
+        safeString(article.domain),
 
-        source:
-          safeString(
-            article.domain
-          ),
+      date:
+        safeString(article.seendate),
 
-        date:
-          safeString(
-            article.seendate
-          ),
-
-        snippet:
-          safeString(
-            article.title
-          )
-      })
-    );
-  } catch (
-    error
-  ) {
+      snippet:
+        safeString(article.title)
+    }));
+  } catch (error) {
     console.error(
       "GDELT ERROR:",
       error.message
@@ -1381,35 +1070,26 @@ async function gdeltSearch(
 }
 
 /* ========================================================
-   WEATHER LOCATION EXTRACTION
+   WEATHER
 ======================================================== */
 
-function extractWeatherLocation(
-  message
-) {
+function extractWeatherLocation(message) {
   const value =
-    safeString(message)
-      .trim();
+    safeString(message).trim();
 
   const patterns = [
     /weather\s+(?:in|of|for)\s+(.+)/i,
-
     /temperature\s+(?:in|of|for)\s+(.+)/i,
-
     /forecast\s+(?:in|of|for)\s+(.+)/i,
-
-    /मौसम\s+(?:में|का|की|के)\s*(.+)/i,
-
-    /(.+?)\s+(?:weather|temperature|forecast)$/i
+    /(.+?)\s+(?:weather|temperature|forecast)$/i,
+    /(.+?)\s+(?:ka|ke|ki)\s+(?:mausam|weather)/i,
+    /(.+?)\s+का मौसम/i,
+    /मौसम\s+(?:में|का|की|के)\s*(.+)/i
   ];
 
-  for (
-    const pattern of patterns
-  ) {
+  for (const pattern of patterns) {
     const match =
-      value.match(
-        pattern
-      );
+      value.match(pattern);
 
     if (
       match &&
@@ -1428,7 +1108,7 @@ function extractWeatherLocation(
     }
   }
 
-  const knownCities = [
+  const cities = [
     "Delhi",
     "New Delhi",
     "Mumbai",
@@ -1454,9 +1134,7 @@ function extractWeatherLocation(
     "Agra"
   ];
 
-  for (
-    const city of knownCities
-  ) {
+  for (const city of cities) {
     if (
       new RegExp(
         `\\b${city}\\b`,
@@ -1470,26 +1148,15 @@ function extractWeatherLocation(
   return null;
 }
 
-/* ========================================================
-   WEATHER
-======================================================== */
-
-async function weatherSearch(
-  location
-) {
+async function weatherSearch(location) {
   const city =
-    safeString(location)
-      .trim();
+    safeString(location).trim();
 
-  if (!city) {
-    return null;
-  }
+  if (!city) return null;
 
   try {
     const geoUrl =
-      new URL(
-        OPEN_METEO_GEOCODING
-      );
+      new URL(GEO_URL);
 
     geoUrl.searchParams.set(
       "name",
@@ -1513,9 +1180,7 @@ async function weatherSearch(
         10000
       );
 
-    if (
-      !geoResponse.ok
-    ) {
+    if (!geoResponse.ok) {
       return null;
     }
 
@@ -1525,26 +1190,22 @@ async function weatherSearch(
     const place =
       geo.results?.[0];
 
-    if (!place) {
-      return null;
-    }
+    if (!place) return null;
 
-    const forecastUrl =
-      new URL(
-        OPEN_METEO_FORECAST
-      );
+    const weatherUrl =
+      new URL(WEATHER_URL);
 
-    forecastUrl.searchParams.set(
+    weatherUrl.searchParams.set(
       "latitude",
       place.latitude
     );
 
-    forecastUrl.searchParams.set(
+    weatherUrl.searchParams.set(
       "longitude",
       place.longitude
     );
 
-    forecastUrl.searchParams.set(
+    weatherUrl.searchParams.set(
       "current",
       [
         "temperature_2m",
@@ -1556,7 +1217,7 @@ async function weatherSearch(
       ].join(",")
     );
 
-    forecastUrl.searchParams.set(
+    weatherUrl.searchParams.set(
       "daily",
       [
         "temperature_2m_max",
@@ -1565,31 +1226,29 @@ async function weatherSearch(
       ].join(",")
     );
 
-    forecastUrl.searchParams.set(
+    weatherUrl.searchParams.set(
       "forecast_days",
       "3"
     );
 
-    forecastUrl.searchParams.set(
+    weatherUrl.searchParams.set(
       "timezone",
       "auto"
     );
 
-    const weatherResponse =
+    const response =
       await fetchWithTimeout(
-        forecastUrl.toString(),
+        weatherUrl.toString(),
         {},
         10000
       );
 
-    if (
-      !weatherResponse.ok
-    ) {
+    if (!response.ok) {
       return null;
     }
 
-    const weather =
-      await weatherResponse.json();
+    const data =
+      await response.json();
 
     return {
       location:
@@ -1602,16 +1261,12 @@ async function weatherSearch(
         place.longitude,
 
       current:
-        weather.current ||
-        null,
+        data.current || null,
 
       daily:
-        weather.daily ||
-        null
+        data.daily || null
     };
-  } catch (
-    error
-  ) {
+  } catch (error) {
     console.error(
       "WEATHER ERROR:",
       error.message
@@ -1622,7 +1277,7 @@ async function weatherSearch(
 }
 
 /* ========================================================
-   SEARCH QUERY BUILDER
+   SEARCH QUERY
 ======================================================== */
 
 function buildSearchQuery(
@@ -1632,8 +1287,7 @@ function buildSearchQuery(
   studyContext
 ) {
   let query =
-    safeString(message)
-      .trim();
+    safeString(message).trim();
 
   if (
     studyIntent ===
@@ -1645,25 +1299,16 @@ function buildSearchQuery(
 
     const year =
       studyContext.year ||
-      2025;
+      new Date().getFullYear();
 
     query =
       `${exam} ${year} official previous year question paper PYQ`;
 
     if (
-      studyContext.paperType ===
-      "Prelims"
+      studyContext.paperType
     ) {
       query +=
-        " preliminary examination";
-    }
-
-    if (
-      studyContext.paperType ===
-      "Mains"
-    ) {
-      query +=
-        " mains examination";
+        ` ${studyContext.paperType}`;
     }
   }
 
@@ -1672,12 +1317,10 @@ function buildSearchQuery(
     "exam_current_affairs"
   ) {
     query +=
-      " latest current affairs verified official";
+      " latest verified current affairs";
   }
 
-  if (
-    category === "news"
-  ) {
+  if (category === "news") {
     query +=
       " latest current verified information";
   }
@@ -1689,15 +1332,15 @@ function buildSearchQuery(
 }
 
 /* ========================================================
-   RESEARCH ROUTER
+   EXTERNAL RESEARCH ROUTER
 ======================================================== */
 
-async function researchWeb(
+async function researchWeb({
   message,
   category,
   studyIntent,
   studyContext
-) {
+}) {
   const searchQuery =
     buildSearchQuery(
       message,
@@ -1706,10 +1349,11 @@ async function researchWeb(
       studyContext
     );
 
-  if (
-    category ===
-    "weather"
-  ) {
+  /*
+    WEATHER
+  */
+
+  if (category === "weather") {
     const location =
       extractWeatherLocation(
         message
@@ -1723,16 +1367,17 @@ async function researchWeb(
 
       if (weather) {
         return {
-          type:
-            "weather",
-
+          type: "weather",
           weather,
-
           sources: []
         };
       }
     }
   }
+
+  /*
+    OFFICIAL PYQ
+  */
 
   if (
     studyIntent ===
@@ -1743,48 +1388,50 @@ async function researchWeb(
         studyContext.exam
       );
 
-    const official =
-      await tavilySearch(
-        searchQuery,
-        {
-          searchDepth:
-            "advanced",
+    if (domains.length) {
+      const official =
+        await tavilySearch(
+          searchQuery,
+          {
+            searchDepth:
+              "advanced",
+            maxResults: 6,
+            includeDomains:
+              domains
+          }
+        );
 
-          maxResults:
-            6,
+      if (
+        official.results.length
+      ) {
+        return {
+          type:
+            "official_exam",
 
-          includeDomains:
-            domains
-        }
-      );
+          verifiedOfficial:
+            true,
 
-    if (
-      official.results.length
-    ) {
-      return {
-        type:
-          "official_exam",
+          answer:
+            official.answer,
 
-        answer:
-          official.answer,
+          results:
+            official.results,
 
-        results:
-          official.results,
-
-        sources:
-          official.results.map(
-            item => ({
-              title:
-                item.title,
-
-              url:
-                item.url,
-
-              source:
-                item.url
-            })
-          )
-      };
+          sources:
+            official.results.map(
+              item => ({
+                title:
+                  item.title,
+                url:
+                  item.url,
+                source:
+                  item.url,
+                official:
+                  true
+              })
+            )
+        };
+      }
     }
 
     const general =
@@ -1793,15 +1440,16 @@ async function researchWeb(
         {
           searchDepth:
             "advanced",
-
-          maxResults:
-            8
+          maxResults: 8
         }
       );
 
     return {
       type:
         "official_exam",
+
+      verifiedOfficial:
+        false,
 
       answer:
         general.answer,
@@ -1814,16 +1462,20 @@ async function researchWeb(
           item => ({
             title:
               item.title,
-
             url:
               item.url,
-
             source:
-              item.url
+              item.url,
+            official:
+              false
           })
         )
     };
   }
+
+  /*
+    GENERAL WEB RESEARCH
+  */
 
   const tavily =
     await tavilySearch(
@@ -1831,9 +1483,7 @@ async function researchWeb(
       {
         searchDepth:
           "advanced",
-
-        maxResults:
-          6
+        maxResults: 6
       }
     );
 
@@ -1845,8 +1495,7 @@ async function researchWeb(
       : [];
 
   return {
-    type:
-      "web",
+    type: "web",
 
     answer:
       tavily.answer,
@@ -1861,10 +1510,8 @@ async function researchWeb(
         item => ({
           title:
             item.title,
-
           url:
             item.url,
-
           source:
             item.url
         })
@@ -1874,10 +1521,8 @@ async function researchWeb(
         item => ({
           title:
             item.title,
-
           url:
             item.url,
-
           source:
             item.source
         })
@@ -1887,7 +1532,7 @@ async function researchWeb(
 }
 
 /* ========================================================
-   RESEARCH FORMATTER
+   RESEARCH FORMAT
 ======================================================== */
 
 function formatResearchContext(
@@ -1898,7 +1543,7 @@ function formatResearchContext(
   }
 
   let output =
-    "\n\n===== LIVE RESEARCH =====\n";
+    "\n\n===== VERIFIED / LIVE RESEARCH =====\n";
 
   if (
     research.type ===
@@ -1918,8 +1563,18 @@ function formatResearchContext(
   }
 
   if (
-    research.answer
+    research.verifiedOfficial !==
+    undefined
   ) {
+    output +=
+      `OFFICIAL VERIFICATION: ${
+        research.verifiedOfficial
+          ? "VERIFIED OFFICIAL SOURCE"
+          : "NOT VERIFIED AS OFFICIAL"
+      }\n\n`;
+  }
+
+  if (research.answer) {
     output +=
       `SEARCH SUMMARY:\n${research.answer}\n\n`;
   }
@@ -1932,18 +1587,19 @@ function formatResearchContext(
     research.results
       .slice(0, 8)
       .forEach(
-        (
-          item,
-          index
-        ) => {
+        (item, index) => {
           output +=
             `[Source ${index + 1}]\n`;
 
           output +=
-            `Title: ${safeString(item.title)}\n`;
+            `Title: ${safeString(
+              item.title
+            )}\n`;
 
           output +=
-            `URL: ${safeString(item.url)}\n`;
+            `URL: ${safeString(
+              item.url
+            )}\n`;
 
           output +=
             `Content: ${limitText(
@@ -1964,10 +1620,7 @@ function formatResearchContext(
     research.gdelt
       .slice(0, 5)
       .forEach(
-        (
-          item,
-          index
-        ) => {
+        (item, index) => {
           output +=
             `[News Source ${index + 1}]\n`;
 
@@ -1990,14 +1643,14 @@ function formatResearchContext(
 }
 
 /* ========================================================
-   ATHARV CORE INSTRUCTIONS
+   ATHARV CORE
 ======================================================== */
 
 const ATHARV_INSTRUCTIONS = `
 You are Atharv AI.
 
 IDENTITY:
-You are Atharv, a helpful multilingual AI assistant.
+You are Atharv, a helpful, accurate, attentive multilingual AI assistant.
 
 TAGLINE:
 "Your AI. Every Language. Every Question."
@@ -2005,11 +1658,11 @@ TAGLINE:
 CURRENT DATE/TIME:
 ${getIndiaDateTime()}
 
-CORE BEHAVIOUR:
+CORE RULES:
 1. Answer directly.
-2. Do not say "Atharv is thinking".
-3. Do not create filler.
-4. Do not unnecessarily ask the user to clarify.
+2. Never say "Atharv is thinking".
+3. Never create filler.
+4. Do not unnecessarily ask clarification.
 5. Make a reasonable interpretation when possible.
 6. Match the user's language.
 7. Match the user's tone and style.
@@ -2018,40 +1671,53 @@ CORE BEHAVIOUR:
 10. English -> English.
 11. Other languages -> answer in that language when possible.
 12. Never invent facts.
-13. Never invent sources.
-14. Never claim an action was performed when it was not.
-15. Use live research when supplied.
-16. Clearly separate verified facts from generated examples.
-17. If information is uncertain, say so briefly.
+13. Never invent citations.
+14. Never claim an action happened when it did not.
+15. Use supplied live research when available.
+16. Clearly distinguish verified information from examples.
+17. For time-sensitive information, mention the relevant date.
+18. If information is uncertain, say so briefly.
 
-ANSWER STYLE:
-- Simple question = concise answer.
-- Learning question = explain clearly.
-- Complex question = structured answer.
-- Use headings and bullets when helpful.
+RESPONSE STYLE:
+- Simple question: concise.
+- Learning question: clear explanation.
+- Complex question: structured answer.
+- Use headings/bullets when useful.
 - Avoid unnecessary walls of text.
-- Do not repeat the same information.
+- Do not repeat yourself.
 
-MATHEMATICS:
-- Solve step by step.
-- Verify arithmetic.
-- Use normal Markdown/plain mathematical notation.
-- Do not create repeated Unicode superscripts.
-- Never output enormous repeated characters.
-- If a calculation is complex, explain each step.
+LIVE INFORMATION:
+- Treat supplied live research as the current research context.
+- Do not claim old model knowledge is live.
+- Do not invent current prices, news, weather, results or statistics.
+- If research does not verify something, say so.
+
+WEATHER:
+- Explain current conditions clearly.
+- Mention location and date/time when useful.
+
+MARKET:
+- Clearly distinguish current factual data from analysis.
+- Never guarantee profit.
+- If current data is unavailable, say so.
+- Do not fabricate prices.
+
+NEWS:
+- Distinguish reported facts from uncertain claims.
+- Mention dates.
+- Avoid sensational language.
 
 STUDY ENGINE:
 Support Classes 1-12.
 
 When class is known:
-- Match the student's level.
-- Use age-appropriate explanations.
-- Explain the concept first.
+- Match student's level.
+- Explain concept first.
 - Give examples.
 - Give important points.
 - Give practice questions when useful.
 
-STUDY FEATURES:
+FEATURES:
 - Chapter explanation
 - Topic explanation
 - Notes
@@ -2064,179 +1730,108 @@ STUDY FEATURES:
 - Doubt solving
 - Answer evaluation
 - Study plans
-- Maths step-by-step
-- Science step-by-step
+- Mathematics
+- Science
 
 IMPORTANT QUESTIONS:
-Important questions are AI-generated/prioritized questions.
-Do not guarantee that they will appear in an actual exam.
+AI-generated/prioritized questions are not guaranteed exam questions.
 
 MCQ:
-- Use A/B/C/D.
-- Exactly one correct answer unless multiple answers are requested.
-- Avoid ambiguous options.
-- Verify the answer.
-- Label generated questions as "Practice Question" where appropriate.
+- A/B/C/D.
+- One correct answer unless multiple answers requested.
+- Avoid ambiguous choices.
+- Verify answers.
+- Label generated questions as practice.
 
 OFFICIAL PYQ:
-This rule is extremely important.
+This is extremely important.
 
-If the user requests an official PYQ:
+If user asks for an official PYQ:
 - Never invent an official PYQ.
-- Never present an AI-generated question as an official PYQ.
-- Prefer official examination authority sources.
-- Distinguish:
-  "Official PYQ"
-  from
-  "Atharv Practice Question".
+- Never present an AI-generated question as official.
+- Prefer official examination authorities.
+- Clearly distinguish official PYQ from Atharv Practice Question.
 - If exact official paper/question cannot be verified, say so.
-- Never fabricate exact question wording.
+- Never fabricate exact wording.
 
 UPSC:
-For UPSC Prelims:
-- Distinguish GS Paper-I and CSAT.
-- Distinguish official PYQ from practice.
-- Current affairs should use live research when needed.
-
-For UPSC Mains:
-- Structure answers clearly.
-- Introduction.
-- Main body.
-- Examples/data only when verified or clearly labelled.
-- Conclusion.
-- Never claim a question was asked in UPSC unless verified.
-
-COMPETITIVE EXAMS:
-Support:
-UPSC
-SSC CGL
-SSC CHSL
-SSC MTS
-SSC GD
-Banking
-IBPS
-SBI
-Railway
-RRB
-NDA
-CDS
-CAPF
-Defence
-Police
-State PSC
-CTET
-TET
-and other common competitive examinations.
+- Distinguish Prelims GS Paper-I and CSAT.
+- Distinguish Mains from Prelims.
+- Never claim a question was asked unless verified.
+- Use live research for current information.
 
 PROGRAMMING:
 Support:
-Python
-C
-C++
-Java
-HTML
-CSS
-JavaScript
-TypeScript
-SQL
-PHP
-Rust
-Go
-Kotlin
-Swift
-Node.js
-React
-PostgreSQL
-MySQL
-and other common technologies.
+Python, C, C++, Java, HTML, CSS, JavaScript,
+TypeScript, SQL, PHP, Rust, Go, Kotlin, Swift,
+Node.js, React, PostgreSQL, MySQL and other common technologies.
 
-Programming features:
-- Beginner to advanced teaching
-- Code generation
-- Code explanation
-- Line-by-line explanation
-- Debugging
-- Error analysis
-- Code review
-- Projects
-- Coding exercises
-- Interview preparation
-- SQL/database help
-- API development
+Programming:
+- Teach beginner to advanced.
+- Generate code.
+- Explain code.
+- Debug.
+- Review.
+- Build projects.
+- Explain errors.
+- Help with APIs and databases.
 
 CODE EXECUTION:
-If an execution tool result is supplied, use it.
-Do not claim code was executed if it was only reasoned about.
-Groq Compound code execution is Python-based; do not claim that it directly executes C/C++/Java/SQL.
-
-LIVE INFORMATION:
-- Use supplied live research.
-- Use current date/time where relevant.
-- Mention dates for time-sensitive facts.
-- Do not pretend old knowledge is current.
-- For current prices/news/weather/results, prefer live sources.
+Only claim execution when an execution result is actually supplied.
+Groq Compound code execution is Python-oriented.
+Do not claim that C/C++/Java/SQL was executed if it was only reasoned about.
 
 MEMORY:
-- Use supplied memory context naturally.
-- Do not reveal internal database details.
-- Never store passwords, OTPs, API keys, private keys, recovery phrases, card PINs or CVVs.
+Use supplied memory naturally.
+Never expose internal database details.
+Never store passwords, OTPs, API keys, private keys,
+recovery phrases, card PINs or CVVs.
 
 ATTACHMENTS:
-- Use supplied attachment content when available.
-- Do not claim to see an attachment whose content was not supplied.
+Only use attachment content supplied to the model.
+Never claim to see unavailable attachment content.
 
 PRIVACY:
-- Do not ask for unnecessary personal information.
+Do not request unnecessary personal information.
 
 QUALITY:
-- Be useful.
-- Be attentive.
-- Be accurate.
-- Do not use fake citations.
-- Do not invent official documents.
-- Do not repeat malformed text.
+Be useful.
+Be attentive.
+Be accurate.
+Never invent official documents.
+Never invent citations.
+Never repeat malformed text.
 `;
 
 /* ========================================================
    HISTORY
 ======================================================== */
 
-function normalizeHistory(
-  history
-) {
-  if (
-    !Array.isArray(history)
-  ) {
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) {
     return [];
   }
 
   return history
     .slice(-12)
-    .map(item => {
-      const role =
+    .map(item => ({
+      role:
         item?.role ===
         "assistant"
           ? "assistant"
-          : "user";
+          : "user",
 
-      const content =
-        item?.content ??
-        item?.message ??
-        item?.text ??
-        "";
-
-      return {
-        role,
-
-        content:
-          limitText(
-            safeString(
-              content
-            ),
-            5000
-          )
-      };
-    })
+      content:
+        limitText(
+          safeString(
+            item?.content ??
+            item?.message ??
+            item?.text ??
+            ""
+          ),
+          5000
+        )
+    }))
     .filter(
       item =>
         item.content.trim()
@@ -2264,22 +1859,22 @@ function normalizeAttachments(
       name:
         safeString(
           item?.name ||
-            item?.filename ||
-            "attachment"
+          item?.filename ||
+          "attachment"
         ),
 
       type:
         safeString(
           item?.type ||
-            "unknown"
+          "unknown"
         ),
 
       content:
         limitText(
           safeString(
             item?.content ||
-              item?.text ||
-              ""
+            item?.text ||
+            ""
           ),
           8000
         )
@@ -2290,15 +1885,10 @@ function normalizeAttachments(
    RESPONSE CLEANING
 ======================================================== */
 
-function cleanResponse(
-  text
-) {
+function cleanResponse(text) {
   let value =
     safeString(text)
-      .replace(
-        /\r\n/g,
-        "\n"
-      )
+      .replace(/\r\n/g, "\n")
       .trim();
 
   if (!value) {
@@ -2335,20 +1925,11 @@ function cleanResponse(
   );
 }
 
-/* ========================================================
-   RESPONSE VALIDATION
-======================================================== */
-
-function isBadResponse(
-  text
-) {
+function isBadResponse(text) {
   const value =
-    safeString(text)
-      .trim();
+    safeString(text).trim();
 
-  if (!value) {
-    return true;
-  }
+  if (!value) return true;
 
   if (
     /^(error|failed|undefined|null)$/i
@@ -2357,12 +1938,10 @@ function isBadResponse(
     return true;
   }
 
-  const repeated =
-    value.match(
-      /(.{1,4})\1{30,}/
-    );
-
-  if (repeated) {
+  if (
+    /(.{1,4})\1{30,}/
+      .test(value)
+  ) {
     return true;
   }
 
@@ -2370,23 +1949,21 @@ function isBadResponse(
 }
 
 /* ========================================================
-   GROQ REQUEST PAYLOAD
+   GROQ PAYLOAD
 ======================================================== */
 
 function buildGroqPayload({
   model,
   messages,
-  officialDomain = false,
-  enableCode = false,
-  enableVisit = true
+  officialDomain = [],
+  enableCode = false
 }) {
   const payload = {
     model,
     messages,
     temperature: 0.2,
     max_tokens: 8192,
-    citation_options:
-      "enabled"
+    citation_options: "enabled"
   };
 
   if (
@@ -2396,17 +1973,7 @@ function buildGroqPayload({
       "web_search"
     ];
 
-    if (
-      enableVisit
-    ) {
-      tools.push(
-        "visit_website"
-      );
-    }
-
-    if (
-      enableCode
-    ) {
+    if (enableCode) {
       tools.push(
         "code_interpreter"
       );
@@ -2414,18 +1981,15 @@ function buildGroqPayload({
 
     payload.compound_custom = {
       tools: {
-        enabled_tools:
-          tools
+        enabled_tools: tools
       }
     };
 
     payload.search_settings = {
-      country:
-        "india"
+      country: "india"
     };
 
     if (
-      officialDomain &&
       officialDomain.length
     ) {
       payload.search_settings
@@ -2438,7 +2002,7 @@ function buildGroqPayload({
 }
 
 /* ========================================================
-   NORMALIZE GROQ CONTENT
+   GROQ CONTENT
 ======================================================== */
 
 function normalizeGroqContent(
@@ -2488,7 +2052,7 @@ function normalizeGroqContent(
 }
 
 /* ========================================================
-   GROQ COMPLETE CALL
+   GROQ COMPLETE
 ======================================================== */
 
 async function callGroq({
@@ -2497,9 +2061,7 @@ async function callGroq({
   officialDomain = [],
   enableCode = false
 }) {
-  if (
-    !GROQ_API_KEY
-  ) {
+  if (!GROQ_API_KEY) {
     throw new Error(
       "GROQ_API_KEY is not configured"
     );
@@ -2517,8 +2079,7 @@ async function callGroq({
     await fetchWithTimeout(
       GROQ_URL,
       {
-        method:
-          "POST",
+        method: "POST",
 
         headers: {
           Authorization:
@@ -2532,9 +2093,7 @@ async function callGroq({
         },
 
         body:
-          JSON.stringify(
-            payload
-          )
+          JSON.stringify(payload)
       },
       60000
     );
@@ -2545,27 +2104,21 @@ async function callGroq({
   let data = null;
 
   try {
-    data =
-      JSON.parse(raw);
+    data = JSON.parse(raw);
   } catch {
     data = null;
   }
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
     console.error(
-      "GROQ HTTP ERROR:",
+      "GROQ ERROR:",
       response.status,
-      raw.slice(
-        0,
-        2000
-      )
+      raw.slice(0, 2000)
     );
 
     throw new Error(
       data?.error?.message ||
-        `Groq HTTP ${response.status}`
+      `Groq HTTP ${response.status}`
     );
   }
 
@@ -2576,18 +2129,15 @@ async function callGroq({
   const content =
     normalizeGroqContent(
       message?.content ||
-        data?.output_text ||
-        ""
+      data?.output_text ||
+      ""
     );
 
   return {
     text:
-      cleanResponse(
-        content
-      ),
+      cleanResponse(content),
 
-    raw:
-      data,
+    raw: data,
 
     executedTools:
       message?.executed_tools ||
@@ -2606,25 +2156,13 @@ async function streamGroq({
   enableCode = false,
   onDelta
 }) {
-  if (
-    !GROQ_API_KEY
-  ) {
-    throw new Error(
-      "GROQ_API_KEY is not configured"
-    );
-  }
-
   /*
-    Compound models do not use the same
-    token-by-token streaming path here.
-    We call them normally and simulate
-    a smooth stream to the frontend.
+    Compound models are handled as a complete
+    response and then delivered in chunks.
   */
 
   if (
-    isCompoundModel(
-      model
-    )
+    isCompoundModel(model)
   ) {
     const result =
       await callGroq({
@@ -2639,8 +2177,7 @@ async function streamGroq({
         result.text
       );
 
-    const chunkSize =
-      250;
+    const chunkSize = 180;
 
     for (
       let i = 0;
@@ -2654,10 +2191,16 @@ async function streamGroq({
         )
       );
 
-      await sleep(5);
+      await sleep(8);
     }
 
     return result;
+  }
+
+  if (!GROQ_API_KEY) {
+    throw new Error(
+      "GROQ_API_KEY is not configured"
+    );
   }
 
   const payload =
@@ -2674,8 +2217,7 @@ async function streamGroq({
     await fetchWithTimeout(
       GROQ_URL,
       {
-        method:
-          "POST",
+        method: "POST",
 
         headers: {
           Authorization:
@@ -2689,27 +2231,24 @@ async function streamGroq({
         },
 
         body:
-          JSON.stringify(
-            payload
-          )
+          JSON.stringify(payload)
       },
       60000
     );
 
-  if (
-    !response.ok
-  ) {
+  if (!response.ok) {
     const raw =
       await response.text();
 
     throw new Error(
-      `Groq streaming HTTP ${response.status}: ${raw.slice(0, 1000)}`
+      `Groq streaming HTTP ${response.status}: ${raw.slice(
+        0,
+        1000
+      )}`
     );
   }
 
-  if (
-    !response.body
-  ) {
+  if (!response.body) {
     throw new Error(
       "Groq streaming body unavailable"
     );
@@ -2722,42 +2261,30 @@ async function streamGroq({
     new TextDecoder();
 
   let buffer = "";
-
   let fullText = "";
-
   let finalData = null;
 
   while (true) {
     const {
       value,
       done
-    } =
-      await reader.read();
+    } = await reader.read();
 
-    if (done) {
-      break;
-    }
+    if (done) break;
 
     buffer +=
       decoder.decode(
         value,
-        {
-          stream:
-            true
-        }
+        { stream: true }
       );
 
     const lines =
-      buffer.split(
-        "\n"
-      );
+      buffer.split("\n");
 
     buffer =
       lines.pop() || "";
 
-    for (
-      const line of lines
-    ) {
+    for (const line of lines) {
       const trimmed =
         line.trim();
 
@@ -2769,13 +2296,13 @@ async function streamGroq({
         continue;
       }
 
-      const payloadText =
-        trimmed.slice(
-          5
-        ).trim();
+      const rawData =
+        trimmed
+          .slice(5)
+          .trim();
 
       if (
-        payloadText ===
+        rawData ===
         "[DONE]"
       ) {
         continue;
@@ -2786,25 +2313,21 @@ async function streamGroq({
       try {
         data =
           JSON.parse(
-            payloadText
+            rawData
           );
       } catch {
         continue;
       }
 
-      finalData =
-        data;
+      finalData = data;
 
       const delta =
         data?.choices?.[0]
           ?.delta
           ?.content;
 
-      if (
-        delta
-      ) {
-        fullText +=
-          delta;
+      if (delta) {
+        fullText += delta;
 
         await onDelta(
           delta
@@ -2822,13 +2345,12 @@ async function streamGroq({
     raw:
       finalData,
 
-    executedTools:
-      []
+    executedTools: []
   };
 }
 
 /* ========================================================
-   BUILD MESSAGES
+   MESSAGE BUILDER
 ======================================================== */
 
 function buildMessages({
@@ -2896,9 +2418,7 @@ Type: ${item.type}
 Content:
 ${item.content}`
   )
-  .join(
-    "\n\n"
-  )}
+  .join("\n\n")}
 `
       : "";
 
@@ -2907,8 +2427,8 @@ ${item.content}`
       research
     );
 
-  const system =
-    `${ATHARV_INSTRUCTIONS}
+  const system = `
+${ATHARV_INSTRUCTIONS}
 
 USER LANGUAGE:
 ${language}
@@ -2927,11 +2447,8 @@ ${researchText}
 
   const messages = [
     {
-      role:
-        "system",
-
-      content:
-        system
+      role: "system",
+      content: system
     }
   ];
 
@@ -2940,9 +2457,7 @@ ${researchText}
   );
 
   messages.push({
-    role:
-      "user",
-
+    role: "user",
     content:
       limitText(
         message,
@@ -2954,31 +2469,34 @@ ${researchText}
 }
 
 /* ========================================================
-   SHOULD USE EXTERNAL RESEARCH
+   EXTERNAL RESEARCH DECISION
 ======================================================== */
 
 function shouldUseExternalResearch({
-  message,
   category,
-  studyIntent
+  studyIntent,
+  message
 }) {
   if (
+    category === "weather" ||
+    category === "news" ||
+    category === "market" ||
+    category === "sports"
+  ) {
+    return true;
+  }
+
+  if (
     studyIntent ===
-    "exam_pyq"
-  ) {
-    return true;
-  }
-
-  if (
-    category ===
-    "weather"
-  ) {
-    return true;
-  }
-
-  if (
+    "exam_pyq" ||
     studyIntent ===
     "exam_current_affairs"
+  ) {
+    return true;
+  }
+
+  if (
+    needsLiveSearch(message)
   ) {
     return true;
   }
@@ -2987,7 +2505,7 @@ function shouldUseExternalResearch({
 }
 
 /* ========================================================
-   GENERATE ATHARV RESPONSE
+   GENERATE RESPONSE
 ======================================================== */
 
 async function generateAtharvResponse({
@@ -3014,25 +2532,22 @@ async function generateAtharvResponse({
   const liveNeeded =
     needsLiveSearch(message);
 
-  const useExternalResearch =
-    shouldUseExternalResearch({
-      message,
-      category,
-      studyIntent
-    });
-
   let research = null;
 
   if (
-    useExternalResearch
+    shouldUseExternalResearch({
+      category,
+      studyIntent,
+      message
+    })
   ) {
     research =
-      await researchWeb(
+      await researchWeb({
         message,
         category,
         studyIntent,
         studyContext
-      );
+      });
   }
 
   const messages =
@@ -3056,12 +2571,15 @@ async function generateAtharvResponse({
         )
       : [];
 
-  const preferredModel =
+  const liveModelRequired =
     liveNeeded ||
     studyIntent ===
       "exam_pyq" ||
     studyIntent ===
-      "exam_current_affairs"
+      "exam_current_affairs";
+
+  const preferredModel =
+    liveModelRequired
       ? LIVE_MODEL
       : GENERAL_MODEL;
 
@@ -3081,18 +2599,12 @@ async function generateAtharvResponse({
 
         messages,
 
-        /*
-          IMPORTANT FIX:
-          Use officialDomains variable correctly.
-        */
         officialDomain:
           officialDomains,
 
         enableCode
       });
-  } catch (
-    error
-  ) {
+  } catch (error) {
     console.error(
       "PRIMARY GROQ ERROR:",
       error.message
@@ -3109,51 +2621,35 @@ async function generateAtharvResponse({
 
           messages,
 
-          officialDomain:
-            [],
+          officialDomain: [],
 
-          enableCode:
-            false
+          enableCode: false
         });
     } else {
       throw error;
     }
   }
 
-  let reply =
+  const reply =
     cleanResponse(
       result.text
     );
 
   if (
-    isBadResponse(
-      reply
-    )
+    isBadResponse(reply)
   ) {
     throw new Error(
-      "AI returned an invalid or empty response"
+      "AI returned an invalid response"
     );
   }
 
-  reply =
-    cleanResponse(
-      reply
-    );
-
   return {
     reply,
-
-    response:
-      reply,
-
-    answer:
-      reply,
-
-    text:
-      reply,
+    response: reply,
+    answer: reply,
+    text: reply,
 
     language,
-
     category,
 
     studyIntent,
@@ -3164,16 +2660,13 @@ async function generateAtharvResponse({
       liveNeeded,
 
     sources:
-      research?.sources ||
-      [],
+      research?.sources || [],
 
     executedTools:
-      result.executedTools ||
-      [],
+      result.executedTools || [],
 
     responseId:
-      result.raw?.id ||
-      null,
+      result.raw?.id || null,
 
     model:
       result.raw?.model ||
@@ -3190,10 +2683,7 @@ async function generateAtharvResponse({
 
 app.post(
   "/api/chat",
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const body =
         req.body || {};
@@ -3201,29 +2691,23 @@ app.post(
       const message =
         safeString(
           body.message ||
-            body.prompt ||
-            body.input ||
-            ""
+          body.prompt ||
+          body.input ||
+          ""
         ).trim();
 
-      if (
-        !message
-      ) {
+      if (!message) {
         return res
           .status(400)
           .json({
-            ok:
-              false,
-
+            ok: false,
             error:
               "Message is required"
           });
       }
 
       const userId =
-        getUserId(
-          req
-        );
+        getUserId(req);
 
       const memoryRequest =
         await processMemoryRequest(
@@ -3235,8 +2719,7 @@ app.post(
         memoryRequest.handled
       ) {
         return res.json({
-          ok:
-            true,
+          ok: true,
 
           reply:
             memoryRequest.reply,
@@ -3250,16 +2733,14 @@ app.post(
           text:
             memoryRequest.reply,
 
-          responseId:
-            null,
+          responseId: null,
 
           conversationId:
             body.conversationId ||
             body.chatId ||
             null,
 
-          memoryHandled:
-            true,
+          memoryHandled: true,
 
           serverVersion:
             SERVER_VERSION
@@ -3285,9 +2766,7 @@ app.post(
         });
 
       return res.json({
-        ok:
-          true,
-
+        ok: true,
         ...result,
 
         conversationId:
@@ -3295,9 +2774,7 @@ app.post(
           body.chatId ||
           null
       });
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
         "CHAT ERROR:",
         error
@@ -3306,8 +2783,7 @@ app.post(
       return res
         .status(500)
         .json({
-          ok:
-            false,
+          ok: false,
 
           error:
             "Atharv AI could not complete the request.",
@@ -3326,15 +2802,12 @@ app.post(
 );
 
 /* ========================================================
-   STREAMING API
+   STREAM API
 ======================================================== */
 
 app.post(
   "/api/chat/stream",
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     let streamStarted =
       false;
 
@@ -3345,29 +2818,23 @@ app.post(
       const message =
         safeString(
           body.message ||
-            body.prompt ||
-            body.input ||
-            ""
+          body.prompt ||
+          body.input ||
+          ""
         ).trim();
 
-      if (
-        !message
-      ) {
+      if (!message) {
         return res
           .status(400)
           .json({
-            ok:
-              false,
-
+            ok: false,
             error:
               "Message is required"
           });
       }
 
       const userId =
-        getUserId(
-          req
-        );
+        getUserId(req);
 
       res.setHeader(
         "Content-Type",
@@ -3391,8 +2858,7 @@ app.post(
 
       res.flushHeaders?.();
 
-      streamStarted =
-        true;
+      streamStarted = true;
 
       const memoryRequest =
         await processMemoryRequest(
@@ -3405,9 +2871,7 @@ app.post(
       ) {
         res.write(
           `data: ${JSON.stringify({
-            type:
-              "delta",
-
+            type: "delta",
             text:
               memoryRequest.reply
           })}\n\n`
@@ -3415,8 +2879,7 @@ app.post(
 
         res.write(
           `data: ${JSON.stringify({
-            type:
-              "done"
+            type: "done"
           })}\n\n`
         );
 
@@ -3434,55 +2897,39 @@ app.post(
         );
 
       const language =
-        detectLanguage(
-          message
-        );
+        detectLanguage(message);
 
       const category =
-        detectCategory(
-          message
-        );
+        detectCategory(message);
 
       const studyIntent =
-        detectStudyIntent(
-          message
-        );
+        detectStudyIntent(message);
 
       const studyContext =
-        extractStudyContext(
-          message
-        );
+        extractStudyContext(message);
 
       const memory =
-        await getMemories(
-          userId
-        );
+        await getMemories(userId);
 
       const liveNeeded =
-        needsLiveSearch(
-          message
-        );
+        needsLiveSearch(message);
 
-      const useExternalResearch =
-        shouldUseExternalResearch({
-          message,
-          category,
-          studyIntent
-        });
-
-      let research =
-        null;
+      let research = null;
 
       if (
-        useExternalResearch
+        shouldUseExternalResearch({
+          category,
+          studyIntent,
+          message
+        })
       ) {
         research =
-          await researchWeb(
+          await researchWeb({
             message,
             category,
             studyIntent,
             studyContext
-          );
+          });
       }
 
       const messages =
@@ -3498,11 +2945,6 @@ app.post(
           attachments
         });
 
-      /*
-        IMPORTANT:
-        Calculate these BEFORE streamGroq().
-      */
-
       const officialDomains =
         studyIntent ===
         "exam_pyq"
@@ -3511,12 +2953,15 @@ app.post(
             )
           : [];
 
-      const preferredModel =
+      const liveModelRequired =
         liveNeeded ||
         studyIntent ===
           "exam_pyq" ||
         studyIntent ===
-          "exam_current_affairs"
+          "exam_current_affairs";
+
+      const preferredModel =
+        liveModelRequired
           ? LIVE_MODEL
           : GENERAL_MODEL;
 
@@ -3528,10 +2973,6 @@ app.post(
 
       let result = null;
 
-      /*
-        PRIMARY STREAM
-      */
-
       try {
         result =
           await streamGroq({
@@ -3540,10 +2981,6 @@ app.post(
 
             messages,
 
-            /*
-              FIX:
-              officialDomains -> officialDomain
-            */
             officialDomain:
               officialDomains,
 
@@ -3551,44 +2988,26 @@ app.post(
 
             onDelta:
               async chunk => {
-                if (
-                  !chunk
-                ) {
-                  return;
-                }
+                if (!chunk) return;
 
                 res.write(
                   `data: ${JSON.stringify({
-                    type:
-                      "delta",
-
-                    text:
-                      chunk
+                    type: "delta",
+                    text: chunk
                   })}\n\n`
                 );
               }
           });
-      } catch (
-        primaryError
-      ) {
+      } catch (primaryError) {
         console.error(
           "PRIMARY STREAM ERROR:",
           primaryError.message
         );
 
-        /*
-          If live/compound model fails,
-          retry with GENERAL_MODEL.
-        */
-
         if (
           preferredModel !==
           GENERAL_MODEL
         ) {
-          console.log(
-            "Retrying stream with GENERAL_MODEL..."
-          );
-
           result =
             await streamGroq({
               model:
@@ -3596,27 +3015,18 @@ app.post(
 
               messages,
 
-              officialDomain:
-                [],
+              officialDomain: [],
 
-              enableCode:
-                false,
+              enableCode: false,
 
               onDelta:
                 async chunk => {
-                  if (
-                    !chunk
-                  ) {
-                    return;
-                  }
+                  if (!chunk) return;
 
                   res.write(
                     `data: ${JSON.stringify({
-                      type:
-                        "delta",
-
-                      text:
-                        chunk
+                      type: "delta",
+                      text: chunk
                     })}\n\n`
                   );
                 }
@@ -3632,9 +3042,7 @@ app.post(
         );
 
       if (
-        isBadResponse(
-          reply
-        )
+        isBadResponse(reply)
       ) {
         throw new Error(
           "AI returned invalid streaming response"
@@ -3643,8 +3051,7 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "meta",
+          type: "meta",
 
           responseId:
             result.raw?.id ||
@@ -3678,16 +3085,12 @@ app.post(
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "done"
+          type: "done"
         })}\n\n`
       );
 
       return res.end();
-
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
         "STREAM ERROR:",
         error
@@ -3700,22 +3103,22 @@ app.post(
         return res
           .status(500)
           .json({
-            ok:
-              false,
+            ok: false,
 
             error:
               "Atharv AI could not complete the request.",
 
             details:
-              error.message
+              process.env.NODE_ENV ===
+              "production"
+                ? undefined
+                : error.message
           });
       }
 
       res.write(
         `data: ${JSON.stringify({
-          type:
-            "error",
-
+          type: "error",
           error:
             "Atharv AI could not complete the request."
         })}\n\n`
@@ -3732,30 +3135,19 @@ app.post(
 
 app.get(
   "/api/memory",
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const userId =
-        getUserId(
-          req
-        );
+        getUserId(req);
 
       const memories =
-        await getMemories(
-          userId
-        );
+        await getMemories(userId);
 
       return res.json({
-        ok:
-          true,
-
+        ok: true,
         memories
       });
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
         "MEMORY GET ERROR:",
         error.message
@@ -3764,9 +3156,7 @@ app.get(
       return res
         .status(500)
         .json({
-          ok:
-            false,
-
+          ok: false,
           error:
             "Could not load memory"
         });
@@ -3780,48 +3170,35 @@ app.get(
 
 app.post(
   "/api/memory",
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const userId =
-        getUserId(
-          req
-        );
+        getUserId(req);
 
       const memory =
         safeString(
           req.body?.memory ||
-            req.body?.text ||
-            ""
+          req.body?.text ||
+          ""
         ).trim();
 
-      if (
-        !memory
-      ) {
+      if (!memory) {
         return res
           .status(400)
           .json({
-            ok:
-              false,
-
+            ok: false,
             error:
               "Memory is required"
           });
       }
 
       if (
-        isSensitiveMemory(
-          memory
-        )
+        isSensitiveMemory(memory)
       ) {
         return res
           .status(400)
           .json({
-            ok:
-              false,
-
+            ok: false,
             error:
               "Sensitive secrets cannot be stored."
           });
@@ -3837,15 +3214,10 @@ app.post(
         );
 
       return res.json({
-        ok:
-          true,
-
-        memory:
-          saved
+        ok: true,
+        memory: saved
       });
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
         "MEMORY POST ERROR:",
         error.message
@@ -3854,9 +3226,7 @@ app.post(
       return res
         .status(500)
         .json({
-          ok:
-            false,
-
+          ok: false,
           error:
             "Could not save memory"
         });
@@ -3870,15 +3240,10 @@ app.post(
 
 app.delete(
   "/api/memory/:id",
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const userId =
-        getUserId(
-          req
-        );
+        getUserId(req);
 
       const id =
         Number(
@@ -3886,16 +3251,12 @@ app.delete(
         );
 
       if (
-        !Number.isInteger(
-          id
-        )
+        !Number.isInteger(id)
       ) {
         return res
           .status(400)
           .json({
-            ok:
-              false,
-
+            ok: false,
             error:
               "Invalid memory id"
           });
@@ -3908,14 +3269,10 @@ app.delete(
         );
 
       return res.json({
-        ok:
-          true,
-
+        ok: true,
         deleted
       });
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
         "MEMORY DELETE ERROR:",
         error.message
@@ -3924,9 +3281,7 @@ app.delete(
       return res
         .status(500)
         .json({
-          ok:
-            false,
-
+          ok: false,
           error:
             "Could not delete memory"
         });
@@ -3940,15 +3295,10 @@ app.delete(
 
 app.delete(
   "/api/memory",
-  async (
-    req,
-    res
-  ) => {
+  async (req, res) => {
     try {
       const userId =
-        getUserId(
-          req
-        );
+        getUserId(req);
 
       const count =
         await clearMemories(
@@ -3956,15 +3306,10 @@ app.delete(
         );
 
       return res.json({
-        ok:
-          true,
-
-        deleted:
-          count
+        ok: true,
+        deleted: count
       });
-    } catch (
-      error
-    ) {
+    } catch (error) {
       console.error(
         "MEMORY CLEAR ERROR:",
         error.message
@@ -3973,9 +3318,7 @@ app.delete(
       return res
         .status(500)
         .json({
-          ok:
-            false,
-
+          ok: false,
           error:
             "Could not clear memories"
         });
@@ -3989,32 +3332,23 @@ app.delete(
 
 app.get(
   "/health",
-  async (
-    req,
-    res
-  ) => {
-    let database =
-      false;
+  async (req, res) => {
+    let database = false;
 
-    if (
-      pool
-    ) {
+    if (pool) {
       try {
         await pool.query(
           "SELECT 1"
         );
 
-        database =
-          true;
+        database = true;
       } catch {
-        database =
-          false;
+        database = false;
       }
     }
 
     return res.json({
-      ok:
-        true,
+      ok: true,
 
       service:
         "Atharv AI",
@@ -4047,87 +3381,70 @@ app.get(
             TAVILY_API_KEY
           ),
 
-        gdelt:
-          true,
+        gdelt: true,
 
-        openMeteo:
-          true
+        openMeteo: true
       },
 
       features: {
-        multilingual:
-          true,
+        multilingual: true,
 
-        worldLanguages:
-          true,
+        worldLanguages: true,
 
-        memory:
-          true,
+        intelligentRouter: true,
 
-        liveWebSearch:
-          true,
+        memory: true,
+
+        liveWebSearch: true,
 
         groqCompound:
           isCompoundModel(
             LIVE_MODEL
           ),
 
-        officialPYQ:
-          true,
+        officialPYQ: true,
 
-        officialExamDomains:
-          true,
+        officialExamDomains: true,
 
-        tavilyFallback:
-          true,
+        tavilyFallback: true,
 
-        gdeltFallback:
-          true,
+        gdeltFallback: true,
 
-        weather:
-          true,
+        weather: true,
 
-        streaming:
-          true,
+        marketRouting: true,
 
-        realStreaming:
-          true,
+        newsRouting: true,
 
-        attachments:
-          true,
+        sportsRouting: true,
 
-        study:
-          true,
+        streaming: true,
 
-        schoolClasses:
-          "1-12",
+        compoundFallback: true,
 
-        competitiveExams:
-          true,
+        attachments: true,
 
-        pyq:
-          true,
+        study: true,
 
-        mcq:
-          true,
+        schoolClasses: "1-12",
 
-        mockTests:
-          true,
+        competitiveExams: true,
 
-        revision:
-          true,
+        pyq: true,
 
-        flashcards:
-          true,
+        mcq: true,
 
-        homework:
-          true,
+        mockTests: true,
 
-        answerEvaluation:
-          true,
+        revision: true,
 
-        programming:
-          true,
+        flashcards: true,
+
+        homework: true,
+
+        answerEvaluation: true,
+
+        programming: true,
 
         pythonExecution:
           isCompoundModel(
@@ -4171,68 +3488,46 @@ app.get(
 
 app.get(
   "/health/dependencies",
-  async (
-    req,
-    res
-  ) => {
-    const result = {
+  async (req, res) => {
+    const dependencies = {
       groq:
-        false,
+        Boolean(
+          GROQ_API_KEY
+        ),
 
       tavily:
-        false,
+        Boolean(
+          TAVILY_API_KEY
+        ),
 
-      database:
-        false,
+      database: false,
 
-      gdelt:
-        false,
+      gdelt: true,
 
-      openMeteo:
-        false
+      openMeteo: true
     };
 
-    result.groq =
-      Boolean(
-        GROQ_API_KEY
-      );
-
-    result.tavily =
-      Boolean(
-        TAVILY_API_KEY
-      );
-
-    result.gdelt =
-      true;
-
-    result.openMeteo =
-      true;
-
-    if (
-      pool
-    ) {
+    if (pool) {
       try {
         await pool.query(
           "SELECT 1"
         );
 
-        result.database =
+        dependencies.database =
           true;
       } catch {
-        result.database =
+        dependencies.database =
           false;
       }
     }
 
     return res.json({
-      ok:
-        true,
+      ok: true,
 
       version:
         SERVER_VERSION,
 
-      dependencies:
-        result
+      dependencies
     });
   }
 );
@@ -4248,23 +3543,18 @@ app.use(
   express.static(
     publicPath,
     {
-      extensions: [
-        "html"
-      ]
+      extensions: ["html"]
     }
   )
 );
 
 /* ========================================================
-   ROOT FRONTEND
+   ROOT
 ======================================================== */
 
 app.get(
   "/",
-  (
-    req,
-    res
-  ) => {
+  (req, res) => {
     res.sendFile(
       path.join(
         publicPath,
@@ -4280,11 +3570,7 @@ app.get(
 
 app.get(
   "*splat",
-  (
-    req,
-    res,
-    next
-  ) => {
+  (req, res, next) => {
     if (
       req.path.startsWith(
         "/api/"
@@ -4308,16 +3594,11 @@ app.get(
 
 app.use(
   "/api",
-  (
-    req,
-    res
-  ) => {
+  (req, res) => {
     res
       .status(404)
       .json({
-        ok:
-          false,
-
+        ok: false,
         error:
           "API endpoint not found"
       });
@@ -4325,7 +3606,7 @@ app.use(
 );
 
 /* ========================================================
-   GLOBAL ERROR HANDLER
+   GLOBAL ERROR
 ======================================================== */
 
 app.use(
@@ -4343,16 +3624,13 @@ app.use(
     if (
       res.headersSent
     ) {
-      return next(
-        error
-      );
+      return next(error);
     }
 
     res
       .status(500)
       .json({
-        ok:
-          false,
+        ok: false,
 
         error:
           "Atharv AI server error",
@@ -4369,9 +3647,7 @@ app.use(
 
 async function startServer() {
   try {
-    if (
-      pool
-    ) {
+    if (pool) {
       await pool.query(
         "SELECT 1"
       );
@@ -4415,15 +3691,27 @@ async function startServer() {
         );
 
         console.log(
+          "========================================"
+        );
+
+        console.log(
           "Multilingual AI: ENABLED"
         );
 
         console.log(
-          "Live Web Search: ENABLED"
+          "World Languages: ENABLED"
         );
 
         console.log(
-          "Official PYQ routing: ENABLED"
+          "Intelligent Router: ENABLED"
+        );
+
+        console.log(
+          "Live Web Research: ENABLED"
+        );
+
+        console.log(
+          "Official PYQ Routing: ENABLED"
         );
 
         console.log(
@@ -4443,6 +3731,18 @@ async function startServer() {
         );
 
         console.log(
+          "Weather: ENABLED"
+        );
+
+        console.log(
+          "Market Routing: ENABLED"
+        );
+
+        console.log(
+          "News Routing: ENABLED"
+        );
+
+        console.log(
           "Frontend: ENABLED"
         );
 
@@ -4451,19 +3751,21 @@ async function startServer() {
         );
       }
     );
-  } catch (
-    error
-  ) {
+  } catch (error) {
     console.error(
       "SERVER START ERROR:",
       error
     );
 
+    /*
+      Keep Render alive even if DB is temporarily unavailable.
+    */
+
     app.listen(
       PORT,
       () => {
         console.log(
-          `Atharv AI v${SERVER_VERSION} listening on ${PORT} with degraded database state.`
+          `Atharv AI v${SERVER_VERSION} running on ${PORT} with degraded database state.`
         );
       }
     );
