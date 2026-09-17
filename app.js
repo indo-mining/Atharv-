@@ -1,12 +1,9 @@
 /* =========================================================
    ATHARV AI
    FRONTEND CONTROLLER
-   Version 10.1.0
+   Version 10.2.0
 
-   Backend compatible with:
-   Atharv AI Server v10.1.0
-
-   Existing features preserved:
+   PWA / INSTALL FLOW FIXED
    ---------------------------------------------------------
    • Multi-chat history
    • New / Open / Rename / Delete chat
@@ -24,40 +21,46 @@
    • Memory / conversation compatibility
    • Timeout protection
    • PWA / install support
+   • Android install prompt
+   • Already-installed detection
+   • Service worker registration
    ========================================================= */
 
 "use strict";
 
 /* =========================================================
    CONFIG
-   ========================================================= */
+========================================================= */
 
-const ATHARV_VERSION = "10.1.0";
+const ATHARV_VERSION = "10.2.0";
 
 const API_BASE =
   window.ATHARV_API_BASE !== undefined
     ? window.ATHARV_API_BASE
     : "";
 
-const CHAT_ENDPOINT = `${API_BASE}/api/chat`;
+const CHAT_ENDPOINT =
+  `${API_BASE}/api/chat`;
 
-const STORAGE_KEY = "atharv_chats_v10";
-const ACTIVE_CHAT_KEY = "atharv_active_chat_v10";
-const SETTINGS_KEY = "atharv_settings_v10";
+const STORAGE_KEY =
+  "atharv_chats_v10";
+
+const ACTIVE_CHAT_KEY =
+  "atharv_active_chat_v10";
+
+const SETTINGS_KEY =
+  "atharv_settings_v10";
 
 const MAX_HISTORY_MESSAGES = 100;
 const MAX_SEND_HISTORY = 20;
-const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_SIZE =
+  10 * 1024 * 1024;
 
-/*
- * Frontend request timeout.
- * Server itself also has timeout protection.
- */
 const REQUEST_TIMEOUT = 45000;
 
 /* =========================================================
    STATE
-   ========================================================= */
+========================================================= */
 
 const state = {
   chats: [],
@@ -79,18 +82,36 @@ const state = {
 };
 
 /* =========================================================
-   DOM HELPERS
-   ========================================================= */
+   PWA STATE
+========================================================= */
 
-const $ = (selector, root = document) =>
+let deferredInstallPrompt = null;
+let pwaInstalled = false;
+
+/* =========================================================
+   DOM HELPERS
+========================================================= */
+
+const $ = (
+  selector,
+  root = document
+) =>
   root.querySelector(selector);
 
-const $$ = (selector, root = document) =>
-  Array.from(root.querySelectorAll(selector));
+const $$ = (
+  selector,
+  root = document
+) =>
+  Array.from(
+    root.querySelectorAll(selector)
+  );
 
 function firstElement(selectors) {
-  for (const selector of selectors) {
-    const element = $(selector);
+  for (
+    const selector of selectors
+  ) {
+    const element =
+      $(selector);
 
     if (element) {
       return element;
@@ -102,7 +123,7 @@ function firstElement(selectors) {
 
 /* =========================================================
    COMMON ELEMENTS
-   ========================================================= */
+========================================================= */
 
 let elements = {};
 
@@ -176,12 +197,13 @@ function cacheElements() {
       "input[type='file']"
     ]),
 
-    attachmentPreview: firstElement([
-      "#attachmentPreview",
-      "#attachments",
-      ".attachment-preview",
-      "[data-attachments]"
-    ]),
+    attachmentPreview:
+      firstElement([
+        "#attachmentPreview",
+        "#attachments",
+        ".attachment-preview",
+        "[data-attachments]"
+      ]),
 
     voiceButton: firstElement([
       "#voiceButton",
@@ -190,11 +212,12 @@ function cacheElements() {
       "[data-voice]"
     ]),
 
-    stopVoiceButton: firstElement([
-      "#stopVoice",
-      "#stop-voice",
-      "[data-stop-voice]"
-    ]),
+    stopVoiceButton:
+      firstElement([
+        "#stopVoice",
+        "#stop-voice",
+        "[data-stop-voice]"
+      ]),
 
     menuButton: firstElement([
       "#menuButton",
@@ -221,9 +244,11 @@ function cacheElements() {
 
 /* =========================================================
    ID / TEXT HELPERS
-   ========================================================= */
+========================================================= */
 
-function createId(prefix = "id") {
+function createId(
+  prefix = "id"
+) {
   return `${prefix}_${Date.now()}_${Math.random()
     .toString(36)
     .slice(2, 9)}`;
@@ -239,28 +264,43 @@ function escapeHTML(value) {
 }
 
 function cleanText(value) {
-  return String(value ?? "").trim();
+  return String(value ?? "")
+    .trim();
 }
 
-function truncate(text, length = 42) {
-  const value = cleanText(text);
+function truncate(
+  text,
+  length = 42
+) {
+  const value =
+    cleanText(text);
 
-  if (value.length <= length) {
+  if (
+    value.length <= length
+  ) {
     return value;
   }
 
-  return `${value.slice(0, length).trim()}…`;
+  return `${value
+    .slice(0, length)
+    .trim()}…`;
 }
 
-function generateChatTitle(message) {
-  const text = cleanText(message)
-    .replace(/\s+/g, " ");
+function generateChatTitle(
+  message
+) {
+  const text =
+    cleanText(message)
+      .replace(/\s+/g, " ");
 
   if (!text) {
     return "New Chat";
   }
 
-  return truncate(text, 42);
+  return truncate(
+    text,
+    42
+  );
 }
 
 function now() {
@@ -269,16 +309,20 @@ function now() {
 
 /* =========================================================
    LOCAL STORAGE
-   ========================================================= */
+========================================================= */
 
 function saveState() {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify(state.chats)
+      JSON.stringify(
+        state.chats
+      )
     );
 
-    if (state.activeChatId) {
+    if (
+      state.activeChatId
+    ) {
       localStorage.setItem(
         ACTIVE_CHAT_KEY,
         state.activeChatId
@@ -287,7 +331,9 @@ function saveState() {
 
     localStorage.setItem(
       SETTINGS_KEY,
-      JSON.stringify(state.settings)
+      JSON.stringify(
+        state.settings
+      )
     );
   } catch (error) {
     console.warn(
@@ -300,33 +346,49 @@ function saveState() {
 function loadState() {
   try {
     const storedChats =
-      localStorage.getItem(STORAGE_KEY);
+      localStorage.getItem(
+        STORAGE_KEY
+      );
 
     if (storedChats) {
-      const parsed = JSON.parse(storedChats);
+      const parsed =
+        JSON.parse(
+          storedChats
+        );
 
-      if (Array.isArray(parsed)) {
-        state.chats = parsed;
+      if (
+        Array.isArray(parsed)
+      ) {
+        state.chats =
+          parsed;
       }
     }
 
     const active =
-      localStorage.getItem(ACTIVE_CHAT_KEY);
+      localStorage.getItem(
+        ACTIVE_CHAT_KEY
+      );
 
     if (active) {
-      state.activeChatId = active;
+      state.activeChatId =
+        active;
     }
 
     const settings =
-      localStorage.getItem(SETTINGS_KEY);
+      localStorage.getItem(
+        SETTINGS_KEY
+      );
 
     if (settings) {
       const parsedSettings =
-        JSON.parse(settings);
+        JSON.parse(
+          settings
+        );
 
       if (
         parsedSettings &&
-        typeof parsedSettings === "object"
+        typeof parsedSettings ===
+          "object"
       ) {
         state.settings = {
           ...state.settings,
@@ -347,7 +409,7 @@ function loadState() {
 
 /* =========================================================
    CHAT MODEL
-   ========================================================= */
+========================================================= */
 
 function createChat() {
   return {
@@ -359,9 +421,6 @@ function createChat() {
 
     messages: [],
 
-    /*
-     * Kept for backend conversation compatibility.
-     */
     responseId: null,
     conversationId: null
   };
@@ -369,18 +428,26 @@ function createChat() {
 
 function getActiveChat() {
   return state.chats.find(
-    chat => chat.id === state.activeChatId
+    chat =>
+      chat.id ===
+      state.activeChatId
   );
 }
 
 function ensureChat() {
-  let chat = getActiveChat();
+  let chat =
+    getActiveChat();
 
   if (!chat) {
-    chat = createChat();
+    chat =
+      createChat();
 
-    state.chats.unshift(chat);
-    state.activeChatId = chat.id;
+    state.chats.unshift(
+      chat
+    );
+
+    state.activeChatId =
+      chat.id;
 
     saveState();
   }
@@ -390,17 +457,25 @@ function ensureChat() {
 
 /* =========================================================
    NEW CHAT
-   ========================================================= */
+========================================================= */
 
-function createNewChat(openImmediately = true) {
+function createNewChat(
+  openImmediately = true
+) {
   stopSpeaking();
 
-  const chat = createChat();
+  const chat =
+    createChat();
 
-  state.chats.unshift(chat);
-  state.activeChatId = chat.id;
+  state.chats.unshift(
+    chat
+  );
 
-  state.selectedFiles = [];
+  state.activeChatId =
+    chat.id;
+
+  state.selectedFiles =
+    [];
 
   saveState();
 
@@ -418,12 +493,15 @@ function createNewChat(openImmediately = true) {
 
 /* =========================================================
    OPEN CHAT
-   ========================================================= */
+========================================================= */
 
 function openChat(chatId) {
-  const chat = state.chats.find(
-    item => item.id === chatId
-  );
+  const chat =
+    state.chats.find(
+      item =>
+        item.id ===
+        chatId
+    );
 
   if (!chat) {
     return;
@@ -431,8 +509,11 @@ function openChat(chatId) {
 
   stopSpeaking();
 
-  state.activeChatId = chatId;
-  state.selectedFiles = [];
+  state.activeChatId =
+    chatId;
+
+  state.selectedFiles =
+    [];
 
   saveState();
 
@@ -445,34 +526,50 @@ function openChat(chatId) {
 
 /* =========================================================
    RENAME CHAT
-   ========================================================= */
+========================================================= */
 
-function renameChat(chatId) {
-  const chat = state.chats.find(
-    item => item.id === chatId
-  );
+function renameChat(
+  chatId
+) {
+  const chat =
+    state.chats.find(
+      item =>
+        item.id ===
+        chatId
+    );
 
   if (!chat) {
     return;
   }
 
-  const newTitle = window.prompt(
-    "Rename chat",
-    chat.title || "New Chat"
-  );
+  const newTitle =
+    window.prompt(
+      "Rename chat",
+      chat.title ||
+        "New Chat"
+    );
 
-  if (newTitle === null) {
+  if (
+    newTitle === null
+  ) {
     return;
   }
 
-  const title = cleanText(newTitle);
+  const title =
+    cleanText(newTitle);
 
   if (!title) {
     return;
   }
 
-  chat.title = truncate(title, 80);
-  chat.updatedAt = now();
+  chat.title =
+    truncate(
+      title,
+      80
+    );
+
+  chat.updatedAt =
+    now();
 
   saveState();
 
@@ -482,42 +579,60 @@ function renameChat(chatId) {
 
 /* =========================================================
    DELETE CHAT
-   ========================================================= */
+========================================================= */
 
-function deleteChat(chatId) {
-  const chat = state.chats.find(
-    item => item.id === chatId
-  );
+function deleteChat(
+  chatId
+) {
+  const chat =
+    state.chats.find(
+      item =>
+        item.id ===
+        chatId
+    );
 
   if (!chat) {
     return;
   }
 
-  const confirmed = window.confirm(
-    `Delete "${chat.title || "New Chat"}"?`
-  );
+  const confirmed =
+    window.confirm(
+      `Delete "${
+        chat.title ||
+        "New Chat"
+      }"?`
+    );
 
   if (!confirmed) {
     return;
   }
 
   const wasActive =
-    state.activeChatId === chatId;
+    state.activeChatId ===
+    chatId;
 
-  state.chats = state.chats.filter(
-    item => item.id !== chatId
-  );
+  state.chats =
+    state.chats.filter(
+      item =>
+        item.id !==
+        chatId
+    );
 
   if (wasActive) {
-    const nextChat = state.chats[0];
+    const nextChat =
+      state.chats[0];
 
     if (nextChat) {
       state.activeChatId =
         nextChat.id;
     } else {
-      const fresh = createChat();
+      const fresh =
+        createChat();
 
-      state.chats = [fresh];
+      state.chats = [
+        fresh
+      ];
+
       state.activeChatId =
         fresh.id;
     }
@@ -531,19 +646,23 @@ function deleteChat(chatId) {
 
 /* =========================================================
    SORT CHATS
-   ========================================================= */
+========================================================= */
 
 function sortChats() {
   state.chats.sort(
     (a, b) =>
-      (b.updatedAt || b.createdAt || 0) -
-      (a.updatedAt || a.createdAt || 0)
+      (b.updatedAt ||
+        b.createdAt ||
+        0) -
+      (a.updatedAt ||
+        a.createdAt ||
+        0)
   );
 }
 
 /* =========================================================
    HISTORY RENDER
-   ========================================================= */
+========================================================= */
 
 function renderHistory() {
   sortChats();
@@ -570,27 +689,40 @@ function renderHistory() {
     state.chats
       .map(chat => {
         const active =
-          chat.id === state.activeChatId;
+          chat.id ===
+          state.activeChatId;
 
         return `
           <div
-            class="atharv-chat-item ${active ? "active" : ""}"
-            data-chat-id="${escapeHTML(chat.id)}"
+            class="atharv-chat-item ${
+              active
+                ? "active"
+                : ""
+            }"
+            data-chat-id="${escapeHTML(
+              chat.id
+            )}"
           >
+
             <button
               type="button"
               class="atharv-chat-open"
               data-action="open-chat"
-              data-chat-id="${escapeHTML(chat.id)}"
+              data-chat-id="${escapeHTML(
+                chat.id
+              )}"
             >
+
               <span class="atharv-chat-icon">
                 💬
               </span>
 
               <span class="atharv-chat-info">
+
                 <span class="atharv-chat-name">
                   ${escapeHTML(
-                    chat.title || "New Chat"
+                    chat.title ||
+                      "New Chat"
                   )}
                 </span>
 
@@ -599,31 +731,41 @@ function renderHistory() {
                     chat.updatedAt
                   )}
                 </span>
+
               </span>
+
             </button>
 
             <button
               type="button"
               class="atharv-chat-more"
               data-action="chat-menu"
-              data-chat-id="${escapeHTML(chat.id)}"
+              data-chat-id="${escapeHTML(
+                chat.id
+              )}"
               aria-label="Chat options"
             >
               ⋯
             </button>
+
           </div>
         `;
       })
       .join("");
 }
 
-function formatChatDate(timestamp) {
+function formatChatDate(
+  timestamp
+) {
   if (!timestamp) {
     return "";
   }
 
-  const date = new Date(timestamp);
-  const today = new Date();
+  const date =
+    new Date(timestamp);
+
+  const today =
+    new Date();
 
   const sameDay =
     date.toDateString() ===
@@ -650,13 +792,18 @@ function formatChatDate(timestamp) {
 
 /* =========================================================
    CHAT MENU
-   ========================================================= */
+========================================================= */
 
-function showChatMenu(chatId, anchor) {
+function showChatMenu(
+  chatId,
+  anchor
+) {
   closeChatMenus();
 
   const menu =
-    document.createElement("div");
+    document.createElement(
+      "div"
+    );
 
   menu.className =
     "atharv-chat-menu";
@@ -665,7 +812,9 @@ function showChatMenu(chatId, anchor) {
     <button
       type="button"
       data-action="rename-chat"
-      data-chat-id="${escapeHTML(chatId)}"
+      data-chat-id="${escapeHTML(
+        chatId
+      )}"
     >
       ✏️ Rename
     </button>
@@ -673,23 +822,29 @@ function showChatMenu(chatId, anchor) {
     <button
       type="button"
       data-action="delete-chat"
-      data-chat-id="${escapeHTML(chatId)}"
+      data-chat-id="${escapeHTML(
+        chatId
+      )}"
     >
       🗑️ Delete
     </button>
   `;
 
-  document.body.appendChild(menu);
+  document.body.appendChild(
+    menu
+  );
 
   const rect =
     anchor.getBoundingClientRect();
 
-  menu.style.position = "fixed";
+  menu.style.position =
+    "fixed";
 
   menu.style.top =
     `${Math.min(
       rect.bottom + 4,
-      window.innerHeight - 100
+      window.innerHeight -
+        100
     )}px`;
 
   menu.style.left =
@@ -702,12 +857,16 @@ function showChatMenu(chatId, anchor) {
     document.addEventListener(
       "click",
       handleOutsideChatMenu,
-      { once: true }
+      {
+        once: true
+      }
     );
   }, 0);
 }
 
-function handleOutsideChatMenu(event) {
+function handleOutsideChatMenu(
+  event
+) {
   if (
     !event.target.closest(
       ".atharv-chat-menu"
@@ -718,17 +877,20 @@ function handleOutsideChatMenu(event) {
 }
 
 function closeChatMenus() {
-  $$(".atharv-chat-menu").forEach(
-    element => element.remove()
-  );
+  $$(".atharv-chat-menu")
+    .forEach(
+      element =>
+        element.remove()
+    );
 }
 
 /* =========================================================
    ACTIVE CHAT RENDER
-   ========================================================= */
+========================================================= */
 
 function renderActiveChat() {
-  const chat = ensureChat();
+  const chat =
+    ensureChat();
 
   updateChatHeader();
 
@@ -736,15 +898,20 @@ function renderActiveChat() {
     return;
   }
 
-  if (!chat.messages.length) {
+  if (
+    !chat.messages.length
+  ) {
     renderWelcome();
+
     return;
   }
 
   elements.messages.innerHTML =
     chat.messages
       .map(message =>
-        renderMessage(message)
+        renderMessage(
+          message
+        )
       )
       .join("");
 
@@ -759,21 +926,25 @@ function updateChatHeader() {
     return;
   }
 
-  if (elements.chatTitle) {
+  if (
+    elements.chatTitle
+  ) {
     elements.chatTitle.textContent =
-      chat.title || "Atharv AI";
+      chat.title ||
+      "Atharv AI";
   }
 
   document.title =
     chat.title &&
-    chat.title !== "New Chat"
+    chat.title !==
+      "New Chat"
       ? `${chat.title} — Atharv AI`
       : "Atharv AI";
 }
 
 /* =========================================================
    WELCOME
-   ========================================================= */
+========================================================= */
 
 function renderWelcome() {
   if (!elements.messages) {
@@ -782,40 +953,52 @@ function renderWelcome() {
 
   elements.messages.innerHTML = `
     <div class="atharv-welcome-message">
+
       <div class="atharv-welcome-logo">
         A
       </div>
 
-      <h1>Namaste 👋</h1>
+      <h1>
+        Namaste 👋
+      </h1>
 
       <p>
-        Main Atharv hoon. Aap mujhse
-        kisi bhi language mein sawaal pooch sakte hain.
+        Main Atharv hoon.
+        Aap mujhse kisi bhi
+        language mein sawaal
+        pooch sakte hain.
       </p>
 
       <p class="atharv-welcome-subtitle">
-        Your AI. Every Language. Every Question.
+        Your AI. Every Language.
+        Every Question.
       </p>
+
     </div>
   `;
 
   if (elements.welcome) {
-    elements.welcome.style.display = "";
+    elements.welcome.style.display =
+      "";
   }
 }
 
 /* =========================================================
    MESSAGE RENDER
-   ========================================================= */
+========================================================= */
 
-function renderMessage(message) {
+function renderMessage(
+  message
+) {
   const role =
-    message.role === "user"
+    message.role ===
+    "user"
       ? "user"
       : "assistant";
 
   const text =
-    message.content || "";
+    message.content ||
+    "";
 
   const attachmentHTML =
     Array.isArray(
@@ -834,6 +1017,7 @@ function renderMessage(message) {
         message.id || ""
       )}"
     >
+
       <div class="atharv-message-avatar">
         ${
           role === "user"
@@ -843,6 +1027,7 @@ function renderMessage(message) {
       </div>
 
       <div class="atharv-message-content">
+
         <div class="atharv-message-name">
           ${
             role === "user"
@@ -855,9 +1040,14 @@ function renderMessage(message) {
 
         <div class="atharv-message-text">
           ${
-            role === "assistant"
-              ? renderMarkdown(text)
-              : escapeHTML(text).replace(
+            role ===
+            "assistant"
+              ? renderMarkdown(
+                  text
+                )
+              : escapeHTML(
+                  text
+                ).replace(
                   /\n/g,
                   "<br>"
                 )
@@ -865,14 +1055,17 @@ function renderMessage(message) {
         </div>
 
         ${
-          role === "assistant"
+          role ===
+          "assistant"
             ? `
               <div class="atharv-message-actions">
+
                 <button
                   type="button"
                   data-action="copy-message"
                   data-message-id="${escapeHTML(
-                    message.id || ""
+                    message.id ||
+                      ""
                   )}"
                   title="Copy"
                 >
@@ -883,27 +1076,34 @@ function renderMessage(message) {
                   type="button"
                   data-action="speak-message"
                   data-message-id="${escapeHTML(
-                    message.id || ""
+                    message.id ||
+                      ""
                   )}"
                   title="Read aloud"
                 >
                   🔊
                 </button>
+
               </div>
             `
             : ""
         }
+
       </div>
+
     </article>
   `;
 }
 
 /* =========================================================
    MARKDOWN RENDERER
-   ========================================================= */
+========================================================= */
 
-function renderMarkdown(input) {
-  let text = String(input ?? "");
+function renderMarkdown(
+  input
+) {
+  let text =
+    String(input ?? "");
 
   if (!text) {
     return "";
@@ -913,7 +1113,11 @@ function renderMarkdown(input) {
 
   text = text.replace(
     /```([\w+-]*)\n?([\s\S]*?)```/g,
-    (_, language, code) => {
+    (
+      _,
+      language,
+      code
+    ) => {
       const id =
         `ATHARV_CODE_${codeBlocks.length}`;
 
@@ -922,14 +1126,18 @@ function renderMarkdown(input) {
         language:
           language || "",
         code:
-          code.replace(/\n$/, "")
+          code.replace(
+            /\n$/,
+            ""
+          )
       });
 
       return `\n${id}\n`;
     }
   );
 
-  text = escapeHTML(text);
+  text =
+    escapeHTML(text);
 
   text = text.replace(
     /`([^`\n]+)`/g,
@@ -981,18 +1189,21 @@ function renderMarkdown(input) {
     "<em>$1</em>"
   );
 
-  /*
-   * Only allow http/https links.
-   */
   text = text.replace(
     /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (_, label, url) => {
+    (
+      _,
+      label,
+      url
+    ) => {
       const safeURL =
         sanitizeURL(url);
 
       return `
         <a
-          href="${escapeHTML(safeURL)}"
+          href="${escapeHTML(
+            safeURL
+          )}"
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -1033,54 +1244,68 @@ function renderMarkdown(input) {
     "<br>"
   );
 
-  text = `<p>${text}</p>`;
+  text =
+    `<p>${text}</p>`;
 
-  codeBlocks.forEach(block => {
-    const safeCode =
-      escapeHTML(block.code);
+  codeBlocks.forEach(
+    block => {
+      const safeCode =
+        escapeHTML(
+          block.code
+        );
 
-    const language =
-      escapeHTML(block.language);
+      const language =
+        escapeHTML(
+          block.language
+        );
 
-    const html = `
-      <div class="atharv-code-block">
-        <div class="atharv-code-header">
-          <span>
-            ${language || "code"}
-          </span>
+      const html = `
+        <div class="atharv-code-block">
 
-          <button
-            type="button"
-            data-action="copy-code"
-            data-code="${escapeHTML(
-              block.code
-            )}"
-          >
-            Copy
-          </button>
+          <div class="atharv-code-header">
+
+            <span>
+              ${
+                language ||
+                "code"
+              }
+            </span>
+
+            <button
+              type="button"
+              data-action="copy-code"
+              data-code="${escapeHTML(
+                block.code
+              )}"
+            >
+              Copy
+            </button>
+
+          </div>
+
+          <pre><code>${safeCode}</code></pre>
+
         </div>
+      `;
 
-        <pre><code>${safeCode}</code></pre>
-      </div>
-    `;
+      text = text.replace(
+        `<p>${block.id}</p>`,
+        html
+      );
 
-    text = text.replace(
-      `<p>${block.id}</p>`,
-      html
-    );
-
-    text = text.replace(
-      block.id,
-      html
-    );
-  });
+      text = text.replace(
+        block.id,
+        html
+      );
+    }
+  );
 
   return text;
 }
 
 /* =========================================================
    ADD MESSAGE
-   ========================================================= */
+========================================================= */
 
 function addMessage(
   role,
@@ -1096,17 +1321,23 @@ function addMessage(
     role,
 
     content:
-      String(content ?? ""),
+      String(
+        content ?? ""
+      ),
 
     attachments:
-      Array.isArray(attachments)
+      Array.isArray(
+        attachments
+      )
         ? attachments
         : [],
 
     createdAt: now()
   };
 
-  chat.messages.push(message);
+  chat.messages.push(
+    message
+  );
 
   if (
     chat.messages.length >
@@ -1122,14 +1353,18 @@ function addMessage(
     role === "user" &&
     chat.messages.filter(
       item =>
-        item.role === "user"
+        item.role ===
+        "user"
     ).length === 1
   ) {
     chat.title =
-      generateChatTitle(content);
+      generateChatTitle(
+        content
+      );
   }
 
-  chat.updatedAt = now();
+  chat.updatedAt =
+    now();
 
   saveState();
 
@@ -1138,7 +1373,7 @@ function addMessage(
 
 /* =========================================================
    UPDATE MESSAGE
-   ========================================================= */
+========================================================= */
 
 function updateMessage(
   messageId,
@@ -1154,7 +1389,8 @@ function updateMessage(
   const message =
     chat.messages.find(
       item =>
-        item.id === messageId
+        item.id ===
+        messageId
     );
 
   if (!message) {
@@ -1162,7 +1398,9 @@ function updateMessage(
   }
 
   message.content =
-    String(content ?? "");
+    String(
+      content ?? ""
+    );
 
   message.updatedAt =
     now();
@@ -1174,8 +1412,8 @@ function updateMessage(
 }
 
 /* =========================================================
-   TYPING INDICATOR
-   ========================================================= */
+   TYPING
+========================================================= */
 
 function showTyping() {
   removeTyping();
@@ -1198,6 +1436,7 @@ function showTyping() {
     </div>
 
     <div class="atharv-message-content">
+
       <div class="atharv-message-name">
         Atharv
       </div>
@@ -1207,6 +1446,7 @@ function showTyping() {
         <span></span>
         <span></span>
       </div>
+
     </div>
   `;
 
@@ -1218,15 +1458,16 @@ function showTyping() {
 }
 
 function removeTyping() {
-  $$(".atharv-typing").forEach(
-    element =>
-      element.remove()
-  );
+  $$(".atharv-typing")
+    .forEach(
+      element =>
+        element.remove()
+    );
 }
 
 /* =========================================================
-   FETCH WITH FRONTEND TIMEOUT
-   ========================================================= */
+   FETCH WITH TIMEOUT
+========================================================= */
 
 async function fetchWithTimeout(
   url,
@@ -1238,7 +1479,8 @@ async function fetchWithTimeout(
 
   const timer =
     setTimeout(
-      () => controller.abort(),
+      () =>
+        controller.abort(),
       timeout
     );
 
@@ -1269,7 +1511,7 @@ async function fetchWithTimeout(
 
 /* =========================================================
    SEND MESSAGE
-   ========================================================= */
+========================================================= */
 
 async function sendMessage(
   customText = null
@@ -1283,33 +1525,38 @@ async function sendMessage(
 
   const text =
     customText !== null
-      ? cleanText(customText)
-      : cleanText(input?.value);
+      ? cleanText(
+          customText
+        )
+      : cleanText(
+          input?.value
+        );
 
   const hasFiles =
-    state.selectedFiles.length > 0;
+    state.selectedFiles
+      .length > 0;
 
-  if (!text && !hasFiles) {
+  if (
+    !text &&
+    !hasFiles
+  ) {
     focusInput();
     return;
   }
 
-  state.isSending = true;
+  state.isSending =
+    true;
 
   updateSendState();
 
   const files =
     [...state.selectedFiles];
 
-  /*
-   * Save attachment metadata locally.
-   */
   const attachments =
-    await prepareAttachments(files);
+    await prepareAttachments(
+      files
+    );
 
-  /*
-   * Add user message before request.
-   */
   addMessage(
     "user",
     text,
@@ -1321,10 +1568,12 @@ async function sendMessage(
     customText === null
   ) {
     input.value = "";
+
     autoResizeInput();
   }
 
-  state.selectedFiles = [];
+  state.selectedFiles =
+    [];
 
   renderAttachmentsPreview();
 
@@ -1348,12 +1597,15 @@ async function sendMessage(
           headers: {
             "Content-Type":
               "application/json",
-            "Accept":
+
+            Accept:
               "application/json"
           },
 
           body:
-            JSON.stringify(payload)
+            JSON.stringify(
+              payload
+            )
         }
       );
 
@@ -1365,8 +1617,8 @@ async function sendMessage(
     if (!response.ok) {
       throw new Error(
         data?.error ||
-        data?.message ||
-        `Server error (${response.status})`
+          data?.message ||
+          `Server error (${response.status})`
       );
     }
 
@@ -1389,10 +1641,6 @@ async function sendMessage(
         answer
       );
 
-    /*
-     * Keep any conversation identifiers
-     * supplied by backend.
-     */
     const chat =
       getActiveChat();
 
@@ -1417,10 +1665,6 @@ async function sendMessage(
           conversationId;
       }
 
-      /*
-       * Some backends use one identifier
-       * for both concepts.
-       */
       if (
         !chat.conversationId &&
         chat.responseId
@@ -1445,11 +1689,9 @@ async function sendMessage(
 
     renderActiveChat();
 
-    /*
-     * Auto-speak remains disabled by default.
-     */
     if (
-      state.settings.voiceEnabled &&
+      state.settings
+        .voiceEnabled &&
       shouldAutoSpeak()
     ) {
       speakText(answer);
@@ -1465,7 +1707,9 @@ async function sendMessage(
     removeTyping();
 
     const errorText =
-      getFriendlyError(error);
+      getFriendlyError(
+        error
+      );
 
     addMessage(
       "assistant",
@@ -1474,7 +1718,8 @@ async function sendMessage(
 
     renderActiveChat();
   } finally {
-    state.isSending = false;
+    state.isSending =
+      false;
 
     updateSendState();
 
@@ -1484,7 +1729,7 @@ async function sendMessage(
 
 /* =========================================================
    BUILD API PAYLOAD
-   ========================================================= */
+========================================================= */
 
 async function buildChatPayload(
   text,
@@ -1493,22 +1738,21 @@ async function buildChatPayload(
   const chat =
     ensureChat();
 
-  /*
-   * Do not send the current user message
-   * twice in history.
-   *
-   * Backend receives "message" separately.
-   */
   const previousHistory =
     chat.messages
       .slice(0, -1)
-      .slice(-MAX_SEND_HISTORY)
-      .map(message => ({
-        role:
-          message.role,
-        content:
-          message.content
-      }));
+      .slice(
+        -MAX_SEND_HISTORY
+      )
+      .map(
+        message => ({
+          role:
+            message.role,
+
+          content:
+            message.content
+        })
+      );
 
   const detectedLanguage =
     detectLanguage(text);
@@ -1550,7 +1794,7 @@ async function buildChatPayload(
 
 /* =========================================================
    RESPONSE PARSER
-   ========================================================= */
+========================================================= */
 
 async function parseResponse(
   response
@@ -1584,7 +1828,10 @@ function extractAssistantResponse(
     return "";
   }
 
-  if (typeof data === "string") {
+  if (
+    typeof data ===
+    "string"
+  ) {
     return data.trim();
   }
 
@@ -1599,19 +1846,18 @@ function extractAssistantResponse(
   ];
 
   for (
-    const candidate of candidates
+    const candidate of
+      candidates
   ) {
     if (
-      typeof candidate === "string" &&
+      typeof candidate ===
+        "string" &&
       candidate.trim()
     ) {
       return candidate.trim();
     }
   }
 
-  /*
-   * Array output.
-   */
   if (
     Array.isArray(
       data.output
@@ -1621,7 +1867,8 @@ function extractAssistantResponse(
       data.output
         .map(item => {
           if (
-            typeof item === "string"
+            typeof item ===
+            "string"
           ) {
             return item;
           }
@@ -1640,9 +1887,6 @@ function extractAssistantResponse(
     }
   }
 
-  /*
-   * OpenAI-style output_text.
-   */
   if (
     Array.isArray(
       data.output_text
@@ -1660,9 +1904,6 @@ function extractAssistantResponse(
     return data.output_text.trim();
   }
 
-  /*
-   * Some APIs wrap the response.
-   */
   if (
     data.data &&
     typeof data.data ===
@@ -1678,7 +1919,7 @@ function extractAssistantResponse(
 
 /* =========================================================
    FRIENDLY ERROR
-   ========================================================= */
+========================================================= */
 
 function getFriendlyError(
   error
@@ -1686,8 +1927,8 @@ function getFriendlyError(
   const message =
     String(
       error?.message ||
-      error ||
-      ""
+        error ||
+        ""
     );
 
   if (
@@ -1710,7 +1951,7 @@ function getFriendlyError(
     )
   ) {
     return (
-      "⚠️ Atharv server se connection nahi ho paaya. " +
+      "⚠️ Atharv server se connection nahi paaya. " +
       "Internet connection check karke dobara try karein."
     );
   }
@@ -1753,11 +1994,12 @@ function getFriendlyError(
 
 /* =========================================================
    LANGUAGE DETECTION
-   ========================================================= */
+========================================================= */
 
 function detectLanguage(text) {
   const value =
-    String(text || "").trim();
+    String(text || "")
+      .trim();
 
   if (!value) {
     return (
@@ -1766,216 +2008,187 @@ function detectLanguage(text) {
     );
   }
 
-  /*
-   * Devanagari
-   */
   if (
-    /[\u0900-\u097F]/.test(value)
+    /[\u0900-\u097F]/.test(
+      value
+    )
   ) {
     return "hi";
   }
 
-  /*
-   * Bengali / Assamese
-   */
   if (
-    /[\u0980-\u09FF]/.test(value)
+    /[\u0980-\u09FF]/.test(
+      value
+    )
   ) {
     return "bn";
   }
 
-  /*
-   * Gurmukhi
-   */
   if (
-    /[\u0A00-\u0A7F]/.test(value)
+    /[\u0A00-\u0A7F]/.test(
+      value
+    )
   ) {
     return "pa";
   }
 
-  /*
-   * Gujarati
-   */
   if (
-    /[\u0A80-\u0AFF]/.test(value)
+    /[\u0A80-\u0AFF]/.test(
+      value
+    )
   ) {
     return "gu";
   }
 
-  /*
-   * Odia
-   */
   if (
-    /[\u0B00-\u0B7F]/.test(value)
+    /[\u0B00-\u0B7F]/.test(
+      value
+    )
   ) {
     return "or";
   }
 
-  /*
-   * Tamil
-   */
   if (
-    /[\u0B80-\u0BFF]/.test(value)
+    /[\u0B80-\u0BFF]/.test(
+      value
+    )
   ) {
     return "ta";
   }
 
-  /*
-   * Telugu
-   */
   if (
-    /[\u0C00-\u0C7F]/.test(value)
+    /[\u0C00-\u0C7F]/.test(
+      value
+    )
   ) {
     return "te";
   }
 
-  /*
-   * Kannada
-   */
   if (
-    /[\u0C80-\u0CFF]/.test(value)
+    /[\u0C80-\u0CFF]/.test(
+      value
+    )
   ) {
     return "kn";
   }
 
-  /*
-   * Malayalam
-   */
   if (
-    /[\u0D00-\u0D7F]/.test(value)
+    /[\u0D00-\u0D7F]/.test(
+      value
+    )
   ) {
     return "ml";
   }
 
-  /*
-   * Sinhala
-   */
   if (
-    /[\u0D80-\u0DFF]/.test(value)
+    /[\u0D80-\u0DFF]/.test(
+      value
+    )
   ) {
     return "si";
   }
 
-  /*
-   * Thai
-   */
   if (
-    /[\u0E00-\u0E7F]/.test(value)
+    /[\u0E00-\u0E7F]/.test(
+      value
+    )
   ) {
     return "th";
   }
 
-  /*
-   * Arabic
-   */
   if (
-    /[\u0600-\u06FF]/.test(value)
+    /[\u0600-\u06FF]/.test(
+      value
+    )
   ) {
     return "ar";
   }
 
-  /*
-   * Hebrew
-   */
   if (
-    /[\u0590-\u05FF]/.test(value)
+    /[\u0590-\u05FF]/.test(
+      value
+    )
   ) {
     return "he";
   }
 
-  /*
-   * Chinese
-   */
   if (
-    /[\u4E00-\u9FFF]/.test(value)
+    /[\u4E00-\u9FFF]/.test(
+      value
+    )
   ) {
     return "zh";
   }
 
-  /*
-   * Japanese
-   */
   if (
-    /[\u3040-\u30FF]/.test(value)
+    /[\u3040-\u30FF]/.test(
+      value
+    )
   ) {
     return "ja";
   }
 
-  /*
-   * Korean
-   */
   if (
-    /[\uAC00-\uD7AF]/.test(value)
+    /[\uAC00-\uD7AF]/.test(
+      value
+    )
   ) {
     return "ko";
   }
 
-  /*
-   * Greek
-   */
   if (
-    /[\u0370-\u03FF]/.test(value)
+    /[\u0370-\u03FF]/.test(
+      value
+    )
   ) {
     return "el";
   }
 
-  /*
-   * Cyrillic — Russian/Ukrainian/Bulgarian etc.
-   */
   if (
-    /[\u0400-\u04FF]/.test(value)
+    /[\u0400-\u04FF]/.test(
+      value
+    )
   ) {
     return "ru";
   }
 
-  /*
-   * Georgian
-   */
   if (
-    /[\u10A0-\u10FF]/.test(value)
+    /[\u10A0-\u10FF]/.test(
+      value
+    )
   ) {
     return "ka";
   }
 
-  /*
-   * Armenian
-   */
   if (
-    /[\u0530-\u058F]/.test(value)
+    /[\u0530-\u058F]/.test(
+      value
+    )
   ) {
     return "hy";
   }
 
-  /*
-   * Latin-script languages.
-   *
-   * Without a full language-identification
-   * library, English is the safe default.
-   * Backend/model still receives the original
-   * text and can answer in the user's language.
-   */
   return "en";
 }
 
 /* =========================================================
    AUTO SPEAK
-   ========================================================= */
+========================================================= */
 
 function shouldAutoSpeak() {
-  /*
-   * Intentionally false.
-   * User presses 🔊 when desired.
-   */
   return false;
 }
 
 /* =========================================================
    TEXT TO SPEECH
-   ========================================================= */
+========================================================= */
 
 function speakText(text) {
   if (
-    !("speechSynthesis" in window)
+    !(
+      "speechSynthesis" in
+      window
+    )
   ) {
     return;
   }
@@ -1995,7 +2208,9 @@ function speakText(text) {
     );
 
   const language =
-    detectLanguage(value);
+    detectLanguage(
+      value
+    );
 
   utterance.lang =
     languageToSpeechLocale(
@@ -2007,17 +2222,23 @@ function speakText(text) {
   utterance.volume = 1;
 
   utterance.onstart = () => {
-    state.isSpeaking = true;
+    state.isSpeaking =
+      true;
+
     updateVoiceUI();
   };
 
   utterance.onend = () => {
-    state.isSpeaking = false;
+    state.isSpeaking =
+      false;
+
     updateVoiceUI();
   };
 
   utterance.onerror = () => {
-    state.isSpeaking = false;
+    state.isSpeaking =
+      false;
+
     updateVoiceUI();
   };
 
@@ -2028,12 +2249,14 @@ function speakText(text) {
 
 function stopSpeaking() {
   if (
-    "speechSynthesis" in window
+    "speechSynthesis" in
+    window
   ) {
     window.speechSynthesis.cancel();
   }
 
-  state.isSpeaking = false;
+  state.isSpeaking =
+    false;
 
   updateVoiceUI();
 }
@@ -2073,7 +2296,7 @@ function languageToSpeechLocale(
 
 /* =========================================================
    VOICE INPUT
-   ========================================================= */
+========================================================= */
 
 function setupSpeechRecognition() {
   const SpeechRecognition =
@@ -2084,7 +2307,9 @@ function setupSpeechRecognition() {
     state.speechSupported =
       false;
 
-    if (elements.voiceButton) {
+    if (
+      elements.voiceButton
+    ) {
       elements.voiceButton.disabled =
         true;
 
@@ -2113,10 +2338,13 @@ function setupSpeechRecognition() {
   recognition.lang =
     getRecognitionLanguage();
 
-  recognition.onstart = () => {
-    state.isListening = true;
-    updateVoiceUI();
-  };
+  recognition.onstart =
+    () => {
+      state.isListening =
+        true;
+
+      updateVoiceUI();
+    };
 
   recognition.onresult =
     event => {
@@ -2157,12 +2385,13 @@ function setupSpeechRecognition() {
       updateVoiceUI();
     };
 
-  recognition.onend = () => {
-    state.isListening =
-      false;
+  recognition.onend =
+    () => {
+      state.isListening =
+        false;
 
-    updateVoiceUI();
-  };
+      updateVoiceUI();
+    };
 
   state.recognition =
     recognition;
@@ -2200,7 +2429,9 @@ function getRecognitionLanguage() {
 }
 
 function toggleVoiceInput() {
-  if (!state.speechSupported) {
+  if (
+    !state.speechSupported
+  ) {
     alert(
       "Voice input is not supported in this browser."
     );
@@ -2208,7 +2439,9 @@ function toggleVoiceInput() {
     return;
   }
 
-  if (state.isListening) {
+  if (
+    state.isListening
+  ) {
     stopVoiceInput();
   } else {
     startVoiceInput();
@@ -2216,11 +2449,15 @@ function toggleVoiceInput() {
 }
 
 function startVoiceInput() {
-  if (!state.recognition) {
+  if (
+    !state.recognition
+  ) {
     setupSpeechRecognition();
   }
 
-  if (!state.recognition) {
+  if (
+    !state.recognition
+  ) {
     return;
   }
 
@@ -2238,16 +2475,16 @@ function startVoiceInput() {
 }
 
 function stopVoiceInput() {
-  if (!state.recognition) {
+  if (
+    !state.recognition
+  ) {
     return;
   }
 
   try {
     state.recognition.stop();
   } catch {
-    /*
-     * Already stopped.
-     */
+    /* Already stopped */
   }
 
   state.isListening =
@@ -2257,11 +2494,15 @@ function stopVoiceInput() {
 }
 
 function updateVoiceUI() {
-  if (!elements.voiceButton) {
+  if (
+    !elements.voiceButton
+  ) {
     return;
   }
 
-  if (state.isListening) {
+  if (
+    state.isListening
+  ) {
     elements.voiceButton.classList.add(
       "active"
     );
@@ -2296,7 +2537,7 @@ function updateVoiceUI() {
 
 /* =========================================================
    FILE / ATTACHMENTS
-   ========================================================= */
+========================================================= */
 
 function setupFileInput() {
   if (!elements.fileInput) {
@@ -2308,18 +2549,22 @@ function setupFileInput() {
     event => {
       const files =
         Array.from(
-          event.target.files || []
+          event.target.files ||
+            []
         );
 
       addFiles(files);
 
-      event.target.value = "";
+      event.target.value =
+        "";
     }
   );
 }
 
 function addFiles(files) {
-  for (const file of files) {
+  for (
+    const file of files
+  ) {
     if (
       file.size >
       MAX_ATTACHMENT_SIZE
@@ -2373,100 +2618,107 @@ function renderAttachmentsPreview() {
     return;
   }
 
-  if (!state.selectedFiles.length) {
-    container.innerHTML = "";
-    container.hidden = true;
+  if (
+    !state.selectedFiles
+      .length
+  ) {
+    container.innerHTML =
+      "";
+
+    container.hidden =
+      true;
 
     return;
   }
 
-  container.hidden = false;
+  container.hidden =
+    false;
 
   container.innerHTML =
     state.selectedFiles
-      .map((file, index) => {
-        const isImage =
-          file.type.startsWith(
-            "image/"
-          );
+      .map(
+        (
+          file,
+          index
+        ) => {
+          const isImage =
+            file.type.startsWith(
+              "image/"
+            );
 
-        const url =
-          isImage
-            ? URL.createObjectURL(
-                file
-              )
-            : "";
+          const url =
+            isImage
+              ? URL.createObjectURL(
+                  file
+                )
+              : "";
 
-        return `
-          <div class="atharv-attachment-item">
+          return `
+            <div class="atharv-attachment-item">
 
-            ${
-              isImage
-                ? `
-                  <img
-                    src="${url}"
-                    alt="${escapeHTML(
-                      file.name
-                    )}"
-                  >
-                `
-                : `
-                  <div class="atharv-file-icon">
-                    📄
-                  </div>
-                `
-            }
+              ${
+                isImage
+                  ? `
+                    <img
+                      src="${url}"
+                      alt="${escapeHTML(
+                        file.name
+                      )}"
+                    >
+                  `
+                  : `
+                    <div class="atharv-file-icon">
+                      📄
+                    </div>
+                  `
+              }
 
-            <div class="atharv-attachment-name">
-              ${escapeHTML(
-                file.name
-              )}
+              <div class="atharv-attachment-name">
+                ${escapeHTML(
+                  file.name
+                )}
+              </div>
+
+              <button
+                type="button"
+                data-action="remove-file"
+                data-file-index="${index}"
+                aria-label="Remove file"
+              >
+                ×
+              </button>
+
             </div>
-
-            <button
-              type="button"
-              data-action="remove-file"
-              data-file-index="${index}"
-              aria-label="Remove file"
-            >
-              ×
-            </button>
-
-          </div>
-        `;
-      })
+          `;
+        }
+      )
       .join("");
 }
 
 /* =========================================================
    ATTACHMENT DATA
-   ========================================================= */
+========================================================= */
 
 async function prepareAttachments(
   files
 ) {
-  return files.map(file => ({
-    name: file.name,
-    type: file.type,
-    size: file.size
-  }));
+  return files.map(
+    file => ({
+      name: file.name,
+      type: file.type,
+      size: file.size
+    })
+  );
 }
 
 async function prepareAPIFileData(
   files
 ) {
-  /*
-   * Keep current attachment behavior.
-   *
-   * Backend v10.1.0 primarily uses
-   * attachment metadata/text fields.
-   *
-   * Base64 is retained for compatibility
-   * with future attachment processing.
-   */
   const result = [];
 
-  for (const file of files) {
+  for (
+    const file of files
+  ) {
     try {
       const base64 =
         await fileToBase64(
@@ -2490,17 +2742,23 @@ async function prepareAPIFileData(
   return result;
 }
 
-function fileToBase64(file) {
+function fileToBase64(
+  file
+) {
   return new Promise(
-    (resolve, reject) => {
+    (
+      resolve,
+      reject
+    ) => {
       const reader =
         new FileReader();
 
-      reader.onload = () => {
-        resolve(
-          reader.result
-        );
-      };
+      reader.onload =
+        () => {
+          resolve(
+            reader.result
+          );
+        };
 
       reader.onerror =
         reject;
@@ -2513,8 +2771,7 @@ function fileToBase64(file) {
 }
 
 function renderAttachments(
-  attachments,
-  readonly = false
+  attachments
 ) {
   if (
     !Array.isArray(
@@ -2526,8 +2783,10 @@ function renderAttachments(
 
   return `
     <div class="atharv-message-attachments">
+
       ${attachments
         .map(item => {
+
           if (
             item.type &&
             item.type.startsWith(
@@ -2559,15 +2818,18 @@ function renderAttachments(
           `;
         })
         .join("")}
+
     </div>
   `;
 }
 
 /* =========================================================
    COPY
-   ========================================================= */
+========================================================= */
 
-async function copyText(text) {
+async function copyText(
+  text
+) {
   try {
     if (
       navigator.clipboard &&
@@ -2577,7 +2839,9 @@ async function copyText(text) {
         text
       );
 
-      showToast("Copied");
+      showToast(
+        "Copied"
+      );
 
       return;
     }
@@ -2611,7 +2875,9 @@ async function copyText(text) {
         "copy"
       );
 
-      showToast("Copied");
+      showToast(
+        "Copied"
+      );
     } catch {
       showToast(
         "Copy failed"
@@ -2635,7 +2901,8 @@ function copyMessage(
   const message =
     chat.messages.find(
       item =>
-        item.id === messageId
+        item.id ===
+        messageId
     );
 
   if (!message) {
@@ -2647,17 +2914,21 @@ function copyMessage(
   );
 }
 
-function copyCode(code) {
+function copyCode(
+  code
+) {
   copyText(code);
 }
 
 /* =========================================================
    TOAST
-   ========================================================= */
+========================================================= */
 
 let toastTimer = null;
 
-function showToast(message) {
+function showToast(
+  message
+) {
   let toast =
     $("#atharvToast");
 
@@ -2690,25 +2961,33 @@ function showToast(message) {
   );
 
   toastTimer =
-    setTimeout(() => {
-      toast.classList.remove(
-        "show"
-      );
-    }, 1800);
+    setTimeout(
+      () => {
+        toast.classList.remove(
+          "show"
+        );
+      },
+      1800
+    );
 }
 
 /* =========================================================
    INPUT
-   ========================================================= */
+========================================================= */
 
 function focusInput() {
-  if (!elements.messageInput) {
+  if (
+    !elements.messageInput
+  ) {
     return;
   }
 
-  setTimeout(() => {
-    elements.messageInput.focus();
-  }, 50);
+  setTimeout(
+    () => {
+      elements.messageInput.focus();
+    },
+    50
+  );
 }
 
 function autoResizeInput() {
@@ -2735,7 +3014,8 @@ function handleInputKeydown(
   event
 ) {
   if (
-    event.key === "Enter" &&
+    event.key ===
+      "Enter" &&
     !event.shiftKey
   ) {
     event.preventDefault();
@@ -2745,14 +3025,18 @@ function handleInputKeydown(
 }
 
 function updateSendState() {
-  if (!elements.sendButton) {
+  if (
+    !elements.sendButton
+  ) {
     return;
   }
 
   elements.sendButton.disabled =
     state.isSending;
 
-  if (state.isSending) {
+  if (
+    state.isSending
+  ) {
     elements.sendButton.classList.add(
       "loading"
     );
@@ -2765,22 +3049,24 @@ function updateSendState() {
 
 /* =========================================================
    SCROLL
-   ========================================================= */
+========================================================= */
 
 function scrollMessagesToBottom() {
   if (!elements.messages) {
     return;
   }
 
-  requestAnimationFrame(() => {
-    elements.messages.scrollTop =
-      elements.messages.scrollHeight;
-  });
+  requestAnimationFrame(
+    () => {
+      elements.messages.scrollTop =
+        elements.messages.scrollHeight;
+    }
+  );
 }
 
 /* =========================================================
    SIDEBAR
-   ========================================================= */
+========================================================= */
 
 function openSidebar() {
   if (!elements.sidebar) {
@@ -2840,7 +3126,7 @@ function toggleSidebar() {
 
 /* =========================================================
    QUICK PROMPTS
-   ========================================================= */
+========================================================= */
 
 function setupQuickPrompts() {
   document.addEventListener(
@@ -2862,14 +3148,16 @@ function setupQuickPrompts() {
         return;
       }
 
-      sendMessage(prompt);
+      sendMessage(
+        prompt
+      );
     }
   );
 }
 
 /* =========================================================
    EVENT DELEGATION
-   ========================================================= */
+========================================================= */
 
 function setupGlobalEvents() {
   document.addEventListener(
@@ -2891,17 +3179,22 @@ function setupGlobalEvents() {
         target.dataset.chatId;
 
       switch (action) {
+
         case "open-chat":
           openChat(chatId);
           break;
 
         case "rename-chat":
-          renameChat(chatId);
+          renameChat(
+            chatId
+          );
           closeChatMenus();
           break;
 
         case "delete-chat":
-          deleteChat(chatId);
+          deleteChat(
+            chatId
+          );
           closeChatMenus();
           break;
 
@@ -2920,7 +3213,6 @@ function setupGlobalEvents() {
             target.dataset
               .messageId
           );
-
           break;
 
         case "speak-message":
@@ -2928,15 +3220,13 @@ function setupGlobalEvents() {
             target.dataset
               .messageId
           );
-
           break;
 
         case "copy-code":
           copyCode(
-            target.dataset.code ||
-              ""
+            target.dataset
+              .code || ""
           );
-
           break;
 
         case "remove-file":
@@ -2946,7 +3236,6 @@ function setupGlobalEvents() {
                 .fileIndex
             )
           );
-
           break;
 
         default:
@@ -2958,7 +3247,7 @@ function setupGlobalEvents() {
 
 /* =========================================================
    SPEAK MESSAGE
-   ========================================================= */
+========================================================= */
 
 function speakMessage(
   messageId
@@ -2973,14 +3262,17 @@ function speakMessage(
   const message =
     chat.messages.find(
       item =>
-        item.id === messageId
+        item.id ===
+        messageId
     );
 
   if (!message) {
     return;
   }
 
-  if (state.isSpeaking) {
+  if (
+    state.isSpeaking
+  ) {
     stopSpeaking();
 
     return;
@@ -2993,15 +3285,20 @@ function speakMessage(
 
 /* =========================================================
    SETTINGS
-   ========================================================= */
+========================================================= */
 
-function setLanguage(language) {
+function setLanguage(
+  language
+) {
   state.settings.language =
-    language || "auto";
+    language ||
+    "auto";
 
   saveState();
 
-  if (state.recognition) {
+  if (
+    state.recognition
+  ) {
     state.recognition.lang =
       getRecognitionLanguage();
   }
@@ -3022,11 +3319,15 @@ function toggleVoiceEnabled() {
 
 /* =========================================================
    INIT DEFAULT CHAT
-   ========================================================= */
+========================================================= */
 
 function initializeChats() {
-  if (!state.chats.length) {
-    createNewChat(false);
+  if (
+    !state.chats.length
+  ) {
+    createNewChat(
+      false
+    );
 
     return;
   }
@@ -3043,17 +3344,16 @@ function initializeChats() {
       state.chats[0].id;
   }
 
-  /*
-   * Normalize older chat objects.
-   */
   state.chats.forEach(
     chat => {
+
       if (
         !Array.isArray(
           chat.messages
         )
       ) {
-        chat.messages = [];
+        chat.messages =
+          [];
       }
 
       if (
@@ -3071,6 +3371,7 @@ function initializeChats() {
         chat.conversationId =
           null;
       }
+
     }
   );
 
@@ -3079,13 +3380,13 @@ function initializeChats() {
 
 /* =========================================================
    BIND UI
-   ========================================================= */
+========================================================= */
 
 function bindUI() {
-  /*
-   * New Chat
-   */
-  if (elements.newChat) {
+
+  if (
+    elements.newChat
+  ) {
     elements.newChat.addEventListener(
       "click",
       () =>
@@ -3093,10 +3394,9 @@ function bindUI() {
     );
   }
 
-  /*
-   * Send
-   */
-  if (elements.sendButton) {
+  if (
+    elements.sendButton
+  ) {
     elements.sendButton.addEventListener(
       "click",
       () =>
@@ -3104,10 +3404,9 @@ function bindUI() {
     );
   }
 
-  /*
-   * Input
-   */
-  if (elements.messageInput) {
+  if (
+    elements.messageInput
+  ) {
     elements.messageInput.addEventListener(
       "keydown",
       handleInputKeydown
@@ -3119,10 +3418,9 @@ function bindUI() {
     );
   }
 
-  /*
-   * Attach
-   */
-  if (elements.attachButton) {
+  if (
+    elements.attachButton
+  ) {
     elements.attachButton.addEventListener(
       "click",
       () => {
@@ -3131,20 +3429,18 @@ function bindUI() {
     );
   }
 
-  /*
-   * Voice
-   */
-  if (elements.voiceButton) {
+  if (
+    elements.voiceButton
+  ) {
     elements.voiceButton.addEventListener(
       "click",
       toggleVoiceInput
     );
   }
 
-  /*
-   * Stop voice / speech
-   */
-  if (elements.stopVoiceButton) {
+  if (
+    elements.stopVoiceButton
+  ) {
     elements.stopVoiceButton.addEventListener(
       "click",
       () => {
@@ -3154,10 +3450,9 @@ function bindUI() {
     );
   }
 
-  /*
-   * Mobile menu
-   */
-  if (elements.menuButton) {
+  if (
+    elements.menuButton
+  ) {
     elements.menuButton.addEventListener(
       "click",
       toggleSidebar
@@ -3173,14 +3468,12 @@ function bindUI() {
     );
   }
 
-  /*
-   * Escape
-   */
   document.addEventListener(
     "keydown",
     event => {
       if (
-        event.key === "Escape"
+        event.key ===
+        "Escape"
       ) {
         closeSidebar();
         closeChatMenus();
@@ -3190,61 +3483,169 @@ function bindUI() {
 }
 
 /* =========================================================
-   PWA / INSTALL SUPPORT
-   ========================================================= */
+   PWA HELPERS
+========================================================= */
 
-let deferredInstallPrompt =
-  null;
+function isRunningStandalone() {
+  return (
+    window.matchMedia &&
+    window.matchMedia(
+      "(display-mode: standalone)"
+    ).matches
+  ) ||
+  window.navigator.standalone ===
+    true ||
+  document.referrer.startsWith(
+    "android-app://"
+  );
+}
+
+function isInstallPromptAvailable() {
+  return (
+    !!deferredInstallPrompt
+  );
+}
+
+/* =========================================================
+   PWA / INSTALL SUPPORT
+========================================================= */
 
 function setupInstallPrompt() {
+
+  /*
+   * Detect already-installed app.
+   */
+  pwaInstalled =
+    isRunningStandalone();
+
+  if (pwaInstalled) {
+    hideInstallButton();
+  }
+
+  /*
+   * Android / Chrome / compatible browsers
+   */
   window.addEventListener(
     "beforeinstallprompt",
     event => {
+
       event.preventDefault();
 
       deferredInstallPrompt =
         event;
 
+      console.log(
+        "Atharv: PWA install prompt available."
+      );
+
       showInstallButton();
     }
   );
 
+  /*
+   * Installation completed.
+   */
   window.addEventListener(
     "appinstalled",
     () => {
+
+      console.log(
+        "Atharv: app installed."
+      );
+
+      pwaInstalled =
+        true;
+
       deferredInstallPrompt =
         null;
 
       hideInstallButton();
 
       showToast(
-        "Atharv AI installed"
+        "Atharv AI installed successfully"
       );
     }
   );
+
+  /*
+   * If browser does not fire
+   * beforeinstallprompt immediately,
+   * check again after page load.
+   */
+  setTimeout(
+    () => {
+
+      if (
+        isRunningStandalone()
+      ) {
+        pwaInstalled =
+          true;
+
+        hideInstallButton();
+
+        return;
+      }
+
+      if (
+        deferredInstallPrompt
+      ) {
+        showInstallButton();
+      }
+
+    },
+    1500
+  );
 }
 
+/* =========================================================
+   SHOW INSTALL BUTTON
+========================================================= */
+
 function showInstallButton() {
+
+  if (pwaInstalled) {
+    return;
+  }
+
   const buttons =
     $$(
-      "[data-install], #installApp, #installButton"
+      "[data-install]"
     );
 
   buttons.forEach(
     button => {
+
       button.hidden =
+        false;
+
+      button.disabled =
         false;
 
       button.onclick =
         installApp;
+
+      button.setAttribute(
+        "aria-label",
+        "Install Atharv AI"
+      );
+
     }
+  );
+
+  console.log(
+    "Atharv: install buttons shown."
   );
 }
 
+/* =========================================================
+   HIDE INSTALL BUTTON
+========================================================= */
+
 function hideInstallButton() {
+
   const buttons =
     $$(
-      "[data-install], #installApp, #installButton"
+      "[data-install]"
     );
 
   buttons.forEach(
@@ -3255,61 +3656,148 @@ function hideInstallButton() {
   );
 }
 
+/* =========================================================
+   INSTALL APP
+========================================================= */
+
 async function installApp() {
-  if (!deferredInstallPrompt) {
+
+  /*
+   * Already installed
+   */
+  if (
+    isRunningStandalone()
+  ) {
+
     showToast(
-      "Install option browser menu se available ho sakta hai."
+      "Atharv AI already installed."
+    );
+
+    hideInstallButton();
+
+    return;
+  }
+
+  /*
+   * Browser supplied native
+   * installation prompt.
+   */
+  if (
+    deferredInstallPrompt
+  ) {
+
+    try {
+
+      deferredInstallPrompt.prompt();
+
+      const result =
+        await deferredInstallPrompt.userChoice;
+
+      console.log(
+        "Atharv install result:",
+        result?.outcome
+      );
+
+    } catch (error) {
+
+      console.warn(
+        "Atharv install prompt error:",
+        error
+      );
+
+    } finally {
+
+      deferredInstallPrompt =
+        null;
+
+      hideInstallButton();
+
+    }
+
+    return;
+  }
+
+  /*
+   * No native prompt available.
+   *
+   * This can happen when Chrome has
+   * not yet decided that the site is
+   * installable.
+   */
+  showToast(
+    "Chrome menu se 'Install app' ya 'Add to Home screen' select karein."
+  );
+}
+
+/* =========================================================
+   SERVICE WORKER
+========================================================= */
+
+function setupServiceWorker() {
+
+  if (
+    !("serviceWorker" in
+      navigator)
+  ) {
+    console.warn(
+      "Atharv: service worker not supported."
     );
 
     return;
   }
 
-  deferredInstallPrompt.prompt();
+  if (
+    location.protocol !==
+    "https:"
+  ) {
+    console.warn(
+      "Atharv: service worker requires HTTPS."
+    );
 
-  try {
-    await deferredInstallPrompt.userChoice;
-  } catch {
-    /*
-     * User cancelled or browser closed
-     * the prompt.
-     */
+    return;
   }
 
-  deferredInstallPrompt =
-    null;
+  navigator.serviceWorker
+    .register(
+      "/service-worker.js",
+      {
+        scope: "/"
+      }
+    )
+    .then(
+      registration => {
 
-  hideInstallButton();
-}
+        console.log(
+          "Atharv service worker registered:",
+          registration.scope
+        );
 
-/* =========================================================
-   SERVICE WORKER
-   ========================================================= */
+        /*
+         * Check for updates.
+         */
+        registration.update()
+          .catch(
+            () => {}
+          );
 
-function setupServiceWorker() {
-  if (
-    "serviceWorker" in
-      navigator &&
-    location.protocol ===
-      "https:"
-  ) {
-    navigator.serviceWorker
-      .register(
-        "/service-worker.js"
-      )
-      .catch(error => {
+      }
+    )
+    .catch(
+      error => {
         console.warn(
-          "Service worker:",
+          "Atharv service worker:",
           error
         );
-      });
-  }
+      }
+    );
 }
 
 /* =========================================================
    CONNECTION STATUS
-   ========================================================= */
+========================================================= */
 
 function setupConnectionStatus() {
+
   window.addEventListener(
     "online",
     () => {
@@ -3331,26 +3819,30 @@ function setupConnectionStatus() {
 
 /* =========================================================
    PAGE VISIBILITY
-   ========================================================= */
+========================================================= */
 
 function setupVisibilityHandling() {
+
   document.addEventListener(
     "visibilitychange",
     () => {
+
       if (
         document.hidden
       ) {
         saveState();
       }
+
     }
   );
 }
 
 /* =========================================================
    CLEAN OLD STORAGE
-   ========================================================= */
+========================================================= */
 
 function migrateOldHistory() {
+
   if (
     localStorage.getItem(
       STORAGE_KEY
@@ -3369,12 +3861,15 @@ function migrateOldHistory() {
   }
 
   try {
+
     const old =
       JSON.parse(
         oldHistory
       );
 
-    if (!Array.isArray(old)) {
+    if (
+      !Array.isArray(old)
+    ) {
       return;
     }
 
@@ -3396,23 +3891,27 @@ function migrateOldHistory() {
                 "assistant"
             )
         )
-        .map(item => ({
-          id:
-            createId("msg"),
+        .map(
+          item => ({
+            id:
+              createId(
+                "msg"
+              ),
 
-          role:
-            item.role,
+            role:
+              item.role,
 
-          content:
-            item.content ||
-            item.text ||
-            "",
+            content:
+              item.content ||
+              item.text ||
+              "",
 
-          attachments: [],
+            attachments: [],
 
-          createdAt:
-            now()
-        }));
+            createdAt:
+              now()
+          })
+        );
 
     chat.updatedAt =
       now();
@@ -3428,20 +3927,27 @@ function migrateOldHistory() {
     console.info(
       "Atharv: old chat history migrated."
     );
+
   } catch (error) {
+
     console.warn(
       "Old history migration failed:",
       error
     );
+
   }
 }
 
 /* =========================================================
    SECURITY HELPERS
-   ========================================================= */
+========================================================= */
 
-function sanitizeURL(url) {
+function sanitizeURL(
+  url
+) {
+
   try {
+
     const parsed =
       new URL(
         url,
@@ -3458,20 +3964,37 @@ function sanitizeURL(url) {
     }
 
     return "#";
+
   } catch {
+
     return "#";
+
   }
 }
 
 /* =========================================================
-   DEBUG API
-   ========================================================= */
+   DEBUG / PUBLIC API
+========================================================= */
 
 window.Atharv = {
+
   version:
     ATHARV_VERSION,
 
   state,
+
+  /*
+   * IMPORTANT:
+   * This export fixes the
+   * Install button in index.html.
+   */
+  install:
+    installApp,
+
+  isInstalled:
+    isRunningStandalone,
+
+  isInstallPromptAvailable,
 
   newChat:
     createNewChat,
@@ -3497,6 +4020,7 @@ window.Atharv = {
     stopVoiceInput,
 
   clearHistory() {
+
     const confirmed =
       window.confirm(
         "Delete all Atharv chat history?"
@@ -3533,9 +4057,10 @@ window.Atharv = {
 
 /* =========================================================
    APPLICATION INIT
-   ========================================================= */
+========================================================= */
 
 function initAtharv() {
+
   console.log(
     `Atharv AI v${ATHARV_VERSION} starting...`
   );
@@ -3585,16 +4110,20 @@ function initAtharv() {
 
 /* =========================================================
    DOM READY
-   ========================================================= */
+========================================================= */
 
 if (
   document.readyState ===
   "loading"
 ) {
+
   document.addEventListener(
     "DOMContentLoaded",
     initAtharv
   );
+
 } else {
+
   initAtharv();
+
 }
