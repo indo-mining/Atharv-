@@ -1,7 +1,7 @@
 /*
 =========================================================
  ATHARV AI SERVER
- Version 14.0.0
+ Version 14.1.0
  --------------------------------------------------------
  Your AI. Every Language. Every Question.
 
@@ -51,7 +51,7 @@ const PORT =
   process.env.PORT || 10000;
 
 const SERVER_VERSION =
-  "14.0.0";
+  "14.1.0";
 
 const GROQ_API_KEY =
   process.env.GROQ_API_KEY || "";
@@ -165,7 +165,9 @@ function limitText(
   const value =
     safeString(text);
 
-  if (value.length <= max) {
+  if (
+    value.length <= max
+  ) {
     return value;
   }
 
@@ -281,10 +283,6 @@ function detectLanguage(
   const value =
     safeString(text);
 
-  /*
-    Indian scripts
-  */
-
   if (
     /[\u0900-\u097F]/.test(
       value
@@ -389,10 +387,6 @@ function detectLanguage(
     return "Chinese";
   }
 
-  /*
-    Latin-script Indian language clues
-  */
-
   const lower =
     value.toLowerCase();
 
@@ -428,8 +422,7 @@ function detectLanguage(
     "iska",
     "uska",
     "aap",
-    "aapko",
-    "mujhe"
+    "aapko"
   ];
 
   const words =
@@ -443,7 +436,9 @@ function detectLanguage(
         words.includes(word)
     ).length;
 
-  if (hits >= 1) {
+  if (
+    hits >= 1
+  ) {
     return "Hinglish";
   }
 
@@ -824,6 +819,7 @@ function getOfficialDomains(
 
 /* ========================================================
    MEMORY TABLE
+   Self-healing schema
 ======================================================== */
 
 async function ensureMemoryTable() {
@@ -831,20 +827,74 @@ async function ensureMemoryTable() {
     return;
   }
 
+  /*
+    Create the table if it does not exist.
+  */
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.user_memories (
       id BIGSERIAL PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      memory TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      user_id TEXT,
+      memory TEXT,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
+
+  /*
+    Existing installations may already have the
+    table but be missing one or more columns.
+    Add only missing columns.
+  */
+
+  await pool.query(`
+    ALTER TABLE public.user_memories
+    ADD COLUMN IF NOT EXISTS user_id TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.user_memories
+    ADD COLUMN IF NOT EXISTS memory TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.user_memories
+    ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ
+  `);
+
+  await pool.query(`
+    ALTER TABLE public.user_memories
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
+  `);
+
+  /*
+    Fill timestamps for old rows where necessary.
+  */
+
+  await pool.query(`
+    UPDATE public.user_memories
+    SET created_at = NOW()
+    WHERE created_at IS NULL
+  `);
+
+  await pool.query(`
+    UPDATE public.user_memories
+    SET updated_at = COALESCE(created_at, NOW())
+    WHERE updated_at IS NULL
+  `);
+
+  /*
+    Index for faster memory lookup.
+  */
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_user_memories_user_id
     ON public.user_memories(user_id)
   `);
+
+  console.log(
+    "user_memories schema verified."
+  );
 }
 
 /* ========================================================
@@ -982,7 +1032,7 @@ async function getMemories(
       SELECT id, memory, created_at, updated_at
       FROM public.user_memories
       WHERE user_id = $1
-      ORDER BY updated_at DESC, id DESC
+      ORDER BY updated_at DESC NULLS LAST, id DESC
       LIMIT 50
       `,
       [userId]
@@ -1067,6 +1117,7 @@ async function processMemoryRequest(
 
     return {
       handled: true,
+
       reply:
         `ठीक है। मैंने आपकी ${count} saved memories हटा दी हैं।`
     };
@@ -1091,6 +1142,7 @@ async function processMemoryRequest(
     if (saved) {
       return {
         handled: true,
+
         reply:
           `ठीक है, मैं इसे याद रखूँगा: **${extracted}**`
       };
@@ -1111,6 +1163,7 @@ async function processMemoryRequest(
     ) {
       return {
         handled: true,
+
         reply:
           "अभी मेरी memory में आपके बारे में कुछ saved नहीं है।"
       };
@@ -1129,6 +1182,7 @@ async function processMemoryRequest(
 
     return {
       handled: true,
+
       reply:
         `### मुझे आपके बारे में यह याद है:\n\n${list}`
     };
@@ -1394,10 +1448,6 @@ function extractWeatherLocation(
         .trim();
     }
   }
-
-  /*
-    Common city extraction.
-  */
 
   const knownCities = [
     "Delhi",
@@ -1677,10 +1727,6 @@ async function researchWeb(
       studyContext
     );
 
-  /* ------------------------------------------
-     WEATHER
-  ------------------------------------------ */
-
   if (
     category ===
     "weather"
@@ -1708,10 +1754,6 @@ async function researchWeb(
       }
     }
   }
-
-  /* ------------------------------------------
-     OFFICIAL PYQ
-  ------------------------------------------ */
 
   if (
     studyIntent ===
@@ -1766,10 +1808,6 @@ async function researchWeb(
       };
     }
 
-    /*
-      Fallback without domain
-    */
-
     const general =
       await tavilySearch(
         searchQuery,
@@ -1807,12 +1845,6 @@ async function researchWeb(
         )
     };
   }
-
-  /* ------------------------------------------
-     GENERAL TAVILY + GDELT
-     Only used when explicitly needed as
-     fallback/research context.
-  ------------------------------------------ */
 
   const tavily =
     await tavilySearch(
@@ -2294,19 +2326,11 @@ function cleanResponse(
     return "";
   }
 
-  /*
-    Repeated characters
-  */
-
   value =
     value.replace(
       /(.)\1{80,}/g,
       "$1$1$1…"
     );
-
-  /*
-    Repeated superscripts
-  */
 
   value =
     value.replace(
@@ -2314,19 +2338,11 @@ function cleanResponse(
       "$1"
     );
 
-  /*
-    Repeated Unicode
-  */
-
   value =
     value.replace(
       /([^\s])\1{100,}/g,
       "$1$1…"
     );
-
-  /*
-    Control characters
-  */
 
   value =
     value.replace(
@@ -2618,13 +2634,6 @@ async function streamGroq({
       "GROQ_API_KEY is not configured"
     );
   }
-
-  /*
-    Compound systems are kept on reliable
-    complete-response mode because their
-    tool orchestration is more important
-    than pretending token streaming.
-  */
 
   if (
     isCompoundModel(
@@ -2967,10 +2976,6 @@ function shouldUseExternalResearch({
   category,
   studyIntent
 }) {
-  /*
-    Official PYQ requires our own source research.
-  */
-
   if (
     studyIntent ===
     "exam_pyq"
@@ -2978,22 +2983,12 @@ function shouldUseExternalResearch({
     return true;
   }
 
-  /*
-    Weather gets structured Open-Meteo data.
-  */
-
   if (
     category ===
     "weather"
   ) {
     return true;
   }
-
-  /*
-    Normal current/news requests are primarily
-    handled directly by Groq Compound web search.
-    This avoids duplicate search latency.
-  */
 
   if (
     studyIntent ===
@@ -3089,11 +3084,6 @@ async function generateAtharvResponse({
         )
       : [];
 
-  /*
-    Current/live requests should use Compound
-    when configured.
-  */
-
   const preferredModel =
     liveNeeded ||
     studyIntent ===
@@ -3130,11 +3120,6 @@ async function generateAtharvResponse({
       "PRIMARY GROQ ERROR:",
       error.message
     );
-
-    /*
-      If live model fails and we already have
-      external research, use general model.
-    */
 
     if (
       preferredModel !==
@@ -3260,10 +3245,6 @@ app.post(
         getUserId(
           req
         );
-
-      /*
-        Memory commands bypass AI.
-      */
 
       const memoryRequest =
         await processMemoryRequest(
@@ -3394,6 +3375,7 @@ app.post(
           .status(400)
           .json({
             ok: false,
+
             error:
               "Message is required"
           });
@@ -3428,10 +3410,6 @@ app.post(
 
       streamStarted =
         true;
-
-      /*
-        Memory requests
-      */
 
       const memoryRequest =
         await processMemoryRequest(
@@ -3471,10 +3449,6 @@ app.post(
         normalizeAttachments(
           body.attachments
         );
-
-      /*
-        Determine same routing as normal chat.
-      */
 
       const language =
         detectLanguage(
@@ -3567,12 +3541,6 @@ app.post(
           .test(message);
 
       let result = null;
-
-      /*
-        Real streaming for standard Groq models.
-        Compound uses reliable complete response
-        followed by SSE chunks.
-      */
 
       result =
         await streamGroq({
@@ -3727,6 +3695,7 @@ app.get(
 
       return res.json({
         ok: true,
+
         memories
       });
     } catch (
@@ -3811,6 +3780,7 @@ app.post(
 
       return res.json({
         ok: true,
+
         memory:
           saved
       });
@@ -3878,6 +3848,7 @@ app.delete(
 
       return res.json({
         ok: true,
+
         deleted
       });
     } catch (
@@ -4202,45 +4173,13 @@ app.get(
 );
 
 /* ========================================================
-   ROOT STATUS
-======================================================== */
-
-app.get(
-  "/",
-  (
-    req,
-    res
-  ) => {
-    res.json({
-      ok:
-        true,
-
-      service:
-        "Atharv AI",
-
-      version:
-        SERVER_VERSION,
-
-      message:
-        "Atharv AI server is running.",
-
-      tagline:
-        "Your AI. Every Language. Every Question.",
-
-      health:
-        "/health"
-    });
-  }
-);
-
-/* ========================================================
    STATIC FRONTEND
+   IMPORTANT:
+   This must serve the actual Atharv UI.
 ======================================================== */
 
 const publicPath =
-  path.join(
-    __dirname
-  );
+  __dirname;
 
 app.use(
   express.static(
@@ -4251,6 +4190,25 @@ app.use(
       ]
     }
   )
+);
+
+/* ========================================================
+   ROOT FRONTEND
+======================================================== */
+
+app.get(
+  "/",
+  (
+    req,
+    res
+  ) => {
+    res.sendFile(
+      path.join(
+        publicPath,
+        "index.html"
+      )
+    );
+  }
 );
 
 /* ========================================================
@@ -4422,6 +4380,10 @@ async function startServer() {
         );
 
         console.log(
+          "Frontend: ENABLED"
+        );
+
+        console.log(
           "========================================"
         );
       }
@@ -4433,11 +4395,6 @@ async function startServer() {
       "SERVER START ERROR:",
       error
     );
-
-    /*
-      Start server even if database is
-      temporarily unavailable.
-    */
 
     app.listen(
       PORT,
