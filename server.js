@@ -3000,62 +3000,8 @@ function shouldUseExternalResearch({
   return false;
 }
 
-/* ========================================================
-   GENERATE ATHARV RESPONSE
-======================================================== */
 
-async function generateAtharvResponse({
-  message,
-  history,
-  userId,
-  attachments = []
-}) {
-  const language =
-    detectLanguage(
-      message
-    );
-
-  const category =
-    detectCategory(
-      message
-    );
-
-  const studyIntent =
-    detectStudyIntent(
-      message
-    );
-
-  const studyContext =
-    extractStudyContext(
-      message
-    );
-
-  const memory =
-    await getMemories(
-      userId
-    );
-
-  const liveNeeded =
-    needsLiveSearch(
-      message
-    );
-
-  const useExternalResearch =
-    shouldUseExternalResearch(
-      {
-        message,
-        category,
-        studyIntent
-      }
-    );
-
-  let research = null;
-
-  if (
-    useExternalResearch
-  ) {
-    research =
-      await researchWeb(
+   (
         message,
         category,
         studyIntent,
@@ -3162,17 +3108,156 @@ async function generateAtharvResponse({
       reply
     );
 
+  /* ========================================================
+   GENERATE ATHARV RESPONSE
+======================================================== */
+
+async function generateAtharvResponse({
+  message,
+  history,
+  userId,
+  attachments = []
+}) {
+  const language =
+    detectLanguage(message);
+
+  const category =
+    detectCategory(message);
+
+  const studyIntent =
+    detectStudyIntent(message);
+
+  const studyContext =
+    extractStudyContext(message);
+
+  const memory =
+    await getMemories(userId);
+
+  const liveNeeded =
+    needsLiveSearch(message);
+
+  const useExternalResearch =
+    shouldUseExternalResearch({
+      message,
+      category,
+      studyIntent
+    });
+
+  let research = null;
+
+  if (useExternalResearch) {
+    research =
+      await researchWeb(
+        message,
+        category,
+        studyIntent,
+        studyContext
+      );
+  }
+
+  const messages =
+    buildMessages({
+      message,
+      history,
+      memory,
+      research,
+      language,
+      category,
+      studyIntent,
+      studyContext,
+      attachments
+    });
+
+  /*
+    IMPORTANT:
+    Variable name is officialDomains.
+    Never use undefined officialDomain here.
+  */
+  const officialDomains =
+    studyIntent === "exam_pyq"
+      ? getOfficialDomains(
+          studyContext.exam
+        )
+      : [];
+
+  const preferredModel =
+    liveNeeded ||
+    studyIntent === "exam_pyq" ||
+    studyIntent === "exam_current_affairs"
+      ? LIVE_MODEL
+      : GENERAL_MODEL;
+
+  const enableCode =
+    category === "programming" ||
+    /calculate|calculation|solve|python|debug|code/i
+      .test(message);
+
+  let result;
+
+  try {
+    result =
+      await callGroq({
+        model: preferredModel,
+        messages,
+
+        /*
+          FIX:
+          officialDomains -> officialDomain
+        */
+        officialDomain: officialDomains,
+
+        enableCode
+      });
+  } catch (error) {
+    console.error(
+      "PRIMARY GROQ ERROR:",
+      error.message
+    );
+
+    /*
+      Fallback to general model.
+    */
+    if (
+      preferredModel !== GENERAL_MODEL
+    ) {
+      result =
+        await callGroq({
+          model: GENERAL_MODEL,
+          messages,
+
+          officialDomain: [],
+
+          enableCode: false
+        });
+    } else {
+      throw error;
+    }
+  }
+
+  let reply =
+    cleanResponse(
+      result.text
+    );
+
+  if (
+    isBadResponse(reply)
+  ) {
+    throw new Error(
+      "AI returned an invalid or empty response"
+    );
+  }
+
+  reply =
+    cleanResponse(reply);
+
   return {
     reply,
 
-    response:
-      reply,
+    response: reply,
 
-    answer:
-      reply,
+    answer: reply,
 
-    text:
-      reply,
+    text: reply,
 
     language,
 
@@ -3182,20 +3267,16 @@ async function generateAtharvResponse({
 
     studyContext,
 
-    live:
-      liveNeeded,
+    live: liveNeeded,
 
     sources:
-      research?.sources ||
-      [],
+      research?.sources || [],
 
     executedTools:
-      result.executedTools ||
-      [],
+      result.executedTools || [],
 
     responseId:
-      result.raw?.id ||
-      null,
+      result.raw?.id || null,
 
     model:
       result.raw?.model ||
@@ -3524,6 +3605,16 @@ app.post(
               studyContext.exam
             )
           : [];
+     result =
+  await streamGroq({
+    model:
+      preferredModel,
+
+    messages,
+
+    officialDomain,
+
+    enableCode,
 
       const preferredModel =
         liveNeeded ||
