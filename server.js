@@ -1963,7 +1963,6 @@ function buildGroqPayload({
     messages,
     temperature: 0.2,
     max_tokens: 8192,
-    citation_options: "enabled"
   };
 
   if (
