@@ -892,7 +892,13 @@ content="Atharv AI — Your AI. Every Language. Every Question."
 
   </div>  <!-- =====================================================
        APP JAVASCRIPT
-       ===================================================== -->  <script src="/app.js"></script>  <!-- =====================================================
+       ===================================================== -->  <script src="/app.js"></script> <script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/service-worker.js");
+  });
+}
+</script> <!-- =====================================================
        SMALL UI HELPERS
        ===================================================== -->  <script>
 
