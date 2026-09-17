@@ -1,7 +1,7 @@
 /*
 =========================================================
  ATHARV AI SERVER
- Version 14.1.0
+ Version 14.1.1
  --------------------------------------------------------
  Your AI. Every Language. Every Question.
 
@@ -51,7 +51,7 @@ const PORT =
   process.env.PORT || 10000;
 
 const SERVER_VERSION =
-  "14.1.0";
+  "14.1.1";
 
 const GROQ_API_KEY =
   process.env.GROQ_API_KEY || "";
@@ -426,9 +426,7 @@ function detectLanguage(
   ];
 
   const words =
-    lower.split(
-      /\s+/
-    );
+    lower.split(/\s+/);
 
   const hits =
     hinglishWords.filter(
@@ -819,17 +817,12 @@ function getOfficialDomains(
 
 /* ========================================================
    MEMORY TABLE
-   Self-healing schema
 ======================================================== */
 
 async function ensureMemoryTable() {
   if (!pool) {
     return;
   }
-
-  /*
-    Create the table if it does not exist.
-  */
 
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.user_memories (
@@ -840,12 +833,6 @@ async function ensureMemoryTable() {
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `);
-
-  /*
-    Existing installations may already have the
-    table but be missing one or more columns.
-    Add only missing columns.
-  */
 
   await pool.query(`
     ALTER TABLE public.user_memories
@@ -867,10 +854,6 @@ async function ensureMemoryTable() {
     ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
   `);
 
-  /*
-    Fill timestamps for old rows where necessary.
-  */
-
   await pool.query(`
     UPDATE public.user_memories
     SET created_at = NOW()
@@ -882,10 +865,6 @@ async function ensureMemoryTable() {
     SET updated_at = COALESCE(created_at, NOW())
     WHERE updated_at IS NULL
   `);
-
-  /*
-    Index for faster memory lookup.
-  */
 
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_user_memories_user_id
@@ -2617,7 +2596,7 @@ async function callGroq({
 }
 
 /* ========================================================
-   GROQ REAL STREAM
+   GROQ STREAM
 ======================================================== */
 
 async function streamGroq({
@@ -2634,6 +2613,13 @@ async function streamGroq({
       "GROQ_API_KEY is not configured"
     );
   }
+
+  /*
+    Compound models do not use the same
+    token-by-token streaming path here.
+    We call them normally and simulate
+    a smooth stream to the frontend.
+  */
 
   if (
     isCompoundModel(
@@ -3000,8 +2986,48 @@ function shouldUseExternalResearch({
   return false;
 }
 
+/* ========================================================
+   GENERATE ATHARV RESPONSE
+======================================================== */
 
-   (
+async function generateAtharvResponse({
+  message,
+  history,
+  userId,
+  attachments = []
+}) {
+  const language =
+    detectLanguage(message);
+
+  const category =
+    detectCategory(message);
+
+  const studyIntent =
+    detectStudyIntent(message);
+
+  const studyContext =
+    extractStudyContext(message);
+
+  const memory =
+    await getMemories(userId);
+
+  const liveNeeded =
+    needsLiveSearch(message);
+
+  const useExternalResearch =
+    shouldUseExternalResearch({
+      message,
+      category,
+      studyIntent
+    });
+
+  let research = null;
+
+  if (
+    useExternalResearch
+  ) {
+    research =
+      await researchWeb(
         message,
         category,
         studyIntent,
@@ -3055,7 +3081,12 @@ function shouldUseExternalResearch({
 
         messages,
 
-        officialDomain,
+        /*
+          IMPORTANT FIX:
+          Use officialDomains variable correctly.
+        */
+        officialDomain:
+          officialDomains,
 
         enableCode
       });
@@ -3078,7 +3109,8 @@ function shouldUseExternalResearch({
 
           messages,
 
-          officialDomain: [],
+          officialDomain:
+            [],
 
           enableCode:
             false
@@ -3108,156 +3140,17 @@ function shouldUseExternalResearch({
       reply
     );
 
-  /* ========================================================
-   GENERATE ATHARV RESPONSE
-======================================================== */
-
-async function generateAtharvResponse({
-  message,
-  history,
-  userId,
-  attachments = []
-}) {
-  const language =
-    detectLanguage(message);
-
-  const category =
-    detectCategory(message);
-
-  const studyIntent =
-    detectStudyIntent(message);
-
-  const studyContext =
-    extractStudyContext(message);
-
-  const memory =
-    await getMemories(userId);
-
-  const liveNeeded =
-    needsLiveSearch(message);
-
-  const useExternalResearch =
-    shouldUseExternalResearch({
-      message,
-      category,
-      studyIntent
-    });
-
-  let research = null;
-
-  if (useExternalResearch) {
-    research =
-      await researchWeb(
-        message,
-        category,
-        studyIntent,
-        studyContext
-      );
-  }
-
-  const messages =
-    buildMessages({
-      message,
-      history,
-      memory,
-      research,
-      language,
-      category,
-      studyIntent,
-      studyContext,
-      attachments
-    });
-
-  /*
-    IMPORTANT:
-    Variable name is officialDomains.
-    Never use undefined officialDomain here.
-  */
-  const officialDomains =
-    studyIntent === "exam_pyq"
-      ? getOfficialDomains(
-          studyContext.exam
-        )
-      : [];
-
-  const preferredModel =
-    liveNeeded ||
-    studyIntent === "exam_pyq" ||
-    studyIntent === "exam_current_affairs"
-      ? LIVE_MODEL
-      : GENERAL_MODEL;
-
-  const enableCode =
-    category === "programming" ||
-    /calculate|calculation|solve|python|debug|code/i
-      .test(message);
-
-  let result;
-
-  try {
-    result =
-      await callGroq({
-        model: preferredModel,
-        messages,
-
-        /*
-          FIX:
-          officialDomains -> officialDomain
-        */
-        officialDomain: officialDomains,
-
-        enableCode
-      });
-  } catch (error) {
-    console.error(
-      "PRIMARY GROQ ERROR:",
-      error.message
-    );
-
-    /*
-      Fallback to general model.
-    */
-    if (
-      preferredModel !== GENERAL_MODEL
-    ) {
-      result =
-        await callGroq({
-          model: GENERAL_MODEL,
-          messages,
-
-          officialDomain: [],
-
-          enableCode: false
-        });
-    } else {
-      throw error;
-    }
-  }
-
-  let reply =
-    cleanResponse(
-      result.text
-    );
-
-  if (
-    isBadResponse(reply)
-  ) {
-    throw new Error(
-      "AI returned an invalid or empty response"
-    );
-  }
-
-  reply =
-    cleanResponse(reply);
-
   return {
     reply,
 
-    response: reply,
+    response:
+      reply,
 
-    answer: reply,
+    answer:
+      reply,
 
-    text: reply,
+    text:
+      reply,
 
     language,
 
@@ -3267,16 +3160,20 @@ async function generateAtharvResponse({
 
     studyContext,
 
-    live: liveNeeded,
+    live:
+      liveNeeded,
 
     sources:
-      research?.sources || [],
+      research?.sources ||
+      [],
 
     executedTools:
-      result.executedTools || [],
+      result.executedTools ||
+      [],
 
     responseId:
-      result.raw?.id || null,
+      result.raw?.id ||
+      null,
 
     model:
       result.raw?.model ||
@@ -3315,7 +3212,8 @@ app.post(
         return res
           .status(400)
           .json({
-            ok: false,
+            ok:
+              false,
 
             error:
               "Message is required"
@@ -3337,7 +3235,8 @@ app.post(
         memoryRequest.handled
       ) {
         return res.json({
-          ok: true,
+          ok:
+            true,
 
           reply:
             memoryRequest.reply,
@@ -3386,7 +3285,8 @@ app.post(
         });
 
       return res.json({
-        ok: true,
+        ok:
+          true,
 
         ...result,
 
@@ -3406,7 +3306,8 @@ app.post(
       return res
         .status(500)
         .json({
-          ok: false,
+          ok:
+            false,
 
           error:
             "Atharv AI could not complete the request.",
@@ -3455,7 +3356,8 @@ app.post(
         return res
           .status(400)
           .json({
-            ok: false,
+            ok:
+              false,
 
             error:
               "Message is required"
@@ -3562,13 +3464,11 @@ app.post(
         );
 
       const useExternalResearch =
-        shouldUseExternalResearch(
-          {
-            message,
-            category,
-            studyIntent
-          }
-        );
+        shouldUseExternalResearch({
+          message,
+          category,
+          studyIntent
+        });
 
       let research =
         null;
@@ -3598,6 +3498,11 @@ app.post(
           attachments
         });
 
+      /*
+        IMPORTANT:
+        Calculate these BEFORE streamGroq().
+      */
+
       const officialDomains =
         studyIntent ===
         "exam_pyq"
@@ -3605,16 +3510,6 @@ app.post(
               studyContext.exam
             )
           : [];
-     result =
-  await streamGroq({
-    model:
-      preferredModel,
-
-    messages,
-
-    officialDomain,
-
-    enableCode,
 
       const preferredModel =
         liveNeeded ||
@@ -3633,36 +3528,103 @@ app.post(
 
       let result = null;
 
-      result =
-        await streamGroq({
-          model:
-            preferredModel,
+      /*
+        PRIMARY STREAM
+      */
 
-          messages,
+      try {
+        result =
+          await streamGroq({
+            model:
+              preferredModel,
 
-          officialDomain,
+            messages,
 
-          enableCode,
+            /*
+              FIX:
+              officialDomains -> officialDomain
+            */
+            officialDomain:
+              officialDomains,
 
-          onDelta:
-            async chunk => {
-              if (
-                !chunk
-              ) {
-                return;
+            enableCode,
+
+            onDelta:
+              async chunk => {
+                if (
+                  !chunk
+                ) {
+                  return;
+                }
+
+                res.write(
+                  `data: ${JSON.stringify({
+                    type:
+                      "delta",
+
+                    text:
+                      chunk
+                  })}\n\n`
+                );
               }
+          });
+      } catch (
+        primaryError
+      ) {
+        console.error(
+          "PRIMARY STREAM ERROR:",
+          primaryError.message
+        );
 
-              res.write(
-                `data: ${JSON.stringify({
-                  type:
-                    "delta",
+        /*
+          If live/compound model fails,
+          retry with GENERAL_MODEL.
+        */
 
-                  text:
-                    chunk
-                })}\n\n`
-              );
-            }
-        });
+        if (
+          preferredModel !==
+          GENERAL_MODEL
+        ) {
+          console.log(
+            "Retrying stream with GENERAL_MODEL..."
+          );
+
+          result =
+            await streamGroq({
+              model:
+                GENERAL_MODEL,
+
+              messages,
+
+              officialDomain:
+                [],
+
+              enableCode:
+                false,
+
+              onDelta:
+                async chunk => {
+                  if (
+                    !chunk
+                  ) {
+                    return;
+                  }
+
+                  res.write(
+                    `data: ${JSON.stringify({
+                      type:
+                        "delta",
+
+                      text:
+                        chunk
+                    })}\n\n`
+                  );
+                }
+            });
+        } else {
+          throw primaryError;
+        }
+      }
 
       const reply =
         cleanResponse(
@@ -3738,7 +3700,8 @@ app.post(
         return res
           .status(500)
           .json({
-            ok: false,
+            ok:
+              false,
 
             error:
               "Atharv AI could not complete the request.",
@@ -3785,7 +3748,8 @@ app.get(
         );
 
       return res.json({
-        ok: true,
+        ok:
+          true,
 
         memories
       });
@@ -3800,7 +3764,8 @@ app.get(
       return res
         .status(500)
         .json({
-          ok: false,
+          ok:
+            false,
 
           error:
             "Could not load memory"
@@ -3838,7 +3803,8 @@ app.post(
         return res
           .status(400)
           .json({
-            ok: false,
+            ok:
+              false,
 
             error:
               "Memory is required"
@@ -3853,7 +3819,8 @@ app.post(
         return res
           .status(400)
           .json({
-            ok: false,
+            ok:
+              false,
 
             error:
               "Sensitive secrets cannot be stored."
@@ -3870,7 +3837,8 @@ app.post(
         );
 
       return res.json({
-        ok: true,
+        ok:
+          true,
 
         memory:
           saved
@@ -3886,7 +3854,8 @@ app.post(
       return res
         .status(500)
         .json({
-          ok: false,
+          ok:
+            false,
 
           error:
             "Could not save memory"
@@ -3924,7 +3893,8 @@ app.delete(
         return res
           .status(400)
           .json({
-            ok: false,
+            ok:
+              false,
 
             error:
               "Invalid memory id"
@@ -3938,7 +3908,8 @@ app.delete(
         );
 
       return res.json({
-        ok: true,
+        ok:
+          true,
 
         deleted
       });
@@ -3953,7 +3924,8 @@ app.delete(
       return res
         .status(500)
         .json({
-          ok: false,
+          ok:
+            false,
 
           error:
             "Could not delete memory"
@@ -3984,7 +3956,8 @@ app.delete(
         );
 
       return res.json({
-        ok: true,
+        ok:
+          true,
 
         deleted:
           count
@@ -4000,7 +3973,8 @@ app.delete(
       return res
         .status(500)
         .json({
-          ok: false,
+          ok:
+            false,
 
           error:
             "Could not clear memories"
@@ -4265,8 +4239,6 @@ app.get(
 
 /* ========================================================
    STATIC FRONTEND
-   IMPORTANT:
-   This must serve the actual Atharv UI.
 ======================================================== */
 
 const publicPath =
