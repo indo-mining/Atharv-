@@ -1,16 +1,16 @@
 {
-  "name": "atharv-ai",
-  "version": "3.0.0",
-  "description": "Atharv AI - Multilingual AI Assistant",
+  "name": "listing-app-backend",
+  "version": "1.0.0",
+  "description": "Simple Listing App Backend",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "openai": "^5.0.0",
-    "pg": "^8.16.3"
+    "better-sqlite3": "^12.4.1"
   }
 }
