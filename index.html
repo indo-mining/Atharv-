@@ -35,26 +35,15 @@
 
   <title>Atharv AI</title>
 
-  <link
-    rel="manifest"
-    href="/manifest.json"
-  >
-
-  <link
-    rel="icon"
-    href="/favicon.ico"
-  >
-
-  <link
-    rel="stylesheet"
-    href="/style.css"
-  >
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="stylesheet" href="/style.css">
 </head>
 
 <body>
 
   <!-- ==================================================
-       APP
+       APP SHELL
   =================================================== -->
 
   <div id="app" class="app-shell">
@@ -69,14 +58,18 @@
       aria-label="Atharv navigation"
     >
 
+      <!-- SIDEBAR BRAND -->
+
       <div class="sidebar-header">
 
         <div class="brand-mini">
+
           <div class="brand-icon">
-            A
+            <span>A</span>
           </div>
 
-          <div>
+          <div class="brand-text">
+
             <div class="brand-name">
               ATHARV
             </div>
@@ -84,7 +77,9 @@
             <div class="brand-subtitle">
               AI Assistant
             </div>
+
           </div>
+
         </div>
 
         <button
@@ -99,16 +94,27 @@
       </div>
 
 
+      <!-- NEW CHAT -->
+
       <button
         id="newChat"
         class="new-chat-button"
         type="button"
         data-action="new-chat"
       >
-        <span class="new-chat-icon">＋</span>
-        <span>New chat</span>
+
+        <span class="new-chat-icon">
+          ＋
+        </span>
+
+        <span>
+          New chat
+        </span>
+
       </button>
 
+
+      <!-- SIDEBAR NAV -->
 
       <nav class="sidebar-nav">
 
@@ -118,9 +124,17 @@
           type="button"
           data-action="home"
         >
-          <span class="nav-icon">⌂</span>
-          <span>Home</span>
+
+          <span class="nav-icon">
+            ⌂
+          </span>
+
+          <span>
+            Home
+          </span>
+
         </button>
+
 
         <button
           id="memoryButton"
@@ -128,9 +142,17 @@
           type="button"
           data-action="memory"
         >
-          <span class="nav-icon">◉</span>
-          <span>Memory</span>
+
+          <span class="nav-icon">
+            ◉
+          </span>
+
+          <span>
+            Memory
+          </span>
+
         </button>
+
 
         <button
           id="installButton"
@@ -139,17 +161,32 @@
           data-action="install"
           hidden
         >
-          <span class="nav-icon">↓</span>
-          <span>Install Atharv</span>
+
+          <span class="nav-icon">
+            ↓
+          </span>
+
+          <span>
+            Install Atharv
+          </span>
+
         </button>
 
       </nav>
 
 
+      <!-- RECENT CHATS -->
+
       <div class="history-section">
 
-        <div class="history-title">
-          Recent chats
+        <div class="history-heading">
+
+          <span>
+            Recent chats
+          </span>
+
+          <span class="history-dot"></span>
+
         </div>
 
         <div
@@ -161,6 +198,8 @@
       </div>
 
 
+      <!-- SIDEBAR FOOTER -->
+
       <div class="sidebar-footer">
 
         <button
@@ -169,15 +208,31 @@
           type="button"
           data-action="clear-history"
         >
-          <span>⌫</span>
-          <span>Clear history</span>
+
+          <span>
+            ⌫
+          </span>
+
+          <span>
+            Clear history
+          </span>
+
         </button>
 
+
         <div class="sidebar-version">
-          Atharv AI
-          <span id="version" data-version>
+
+          <span>
+            Atharv AI
+          </span>
+
+          <span
+            id="version"
+            data-version
+          >
             v17.1.0
           </span>
+
         </div>
 
       </div>
@@ -197,12 +252,14 @@
 
 
     <!-- ==================================================
-         MAIN
+         MAIN CONTENT
     =================================================== -->
 
     <main class="main-content">
 
-      <!-- TOP BAR -->
+      <!-- ==================================================
+           TOP BAR
+      =================================================== -->
 
       <header class="topbar">
 
@@ -212,37 +269,56 @@
           type="button"
           data-action="open-drawer"
           aria-label="Open menu"
+          title="Open menu"
         >
           ☰
         </button>
 
+
         <div class="topbar-brand">
 
           <div class="topbar-logo">
-            A
+            <span>A</span>
           </div>
 
-          <div>
+          <div class="topbar-brand-text">
+
             <div class="topbar-title">
               Atharv
             </div>
 
             <div class="topbar-status">
+
+              <span class="online-dot"></span>
+
               AI Assistant
+
             </div>
+
           </div>
 
         </div>
 
+
         <div class="topbar-spacer"></div>
 
+
         <button
+          id="memoryButtonTop"
           class="topbar-memory"
           type="button"
           data-action="memory"
-          id="memoryButtonTop"
+          aria-label="Open memory"
         >
-          Memory
+
+          <span class="memory-button-icon">
+            ◉
+          </span>
+
+          <span>
+            Memory
+          </span>
+
         </button>
 
       </header>
@@ -258,34 +334,69 @@
         aria-live="polite"
       >
 
-        <!-- WELCOME -->
+        <!-- ==================================================
+             WELCOME
+        =================================================== -->
 
         <div class="welcome-section">
 
-          <div class="welcome-avatar">
-            A
+          <!-- AI ORB -->
+
+          <div class="welcome-avatar-wrapper">
+
+            <div class="welcome-orbit orbit-one"></div>
+            <div class="welcome-orbit orbit-two"></div>
+
+            <div class="welcome-avatar">
+
+              <span>
+                A
+              </span>
+
+            </div>
+
           </div>
+
 
           <div class="welcome-label">
             ATHARV AI
           </div>
 
+
           <h1>
+
             Your AI.
             <span>Every Language.</span>
             Every Question.
+
           </h1>
 
+
           <p class="welcome-description">
+
             Ask anything, learn anything, create anything.
             Atharv understands your language and helps you
             find clear, useful answers.
+
           </p>
+
+
+          <div class="welcome-status">
+
+            <span class="status-check">
+              ✓
+            </span>
+
+            Ready to help
+
+          </div>
 
         </div>
 
 
-        <!-- SUGGESTIONS -->
+        <!-- ==================================================
+             SUGGESTIONS
+        =================================================== -->
 
         <div class="suggestions-grid">
 
@@ -294,12 +405,27 @@
             type="button"
             data-suggestion="Explain something to me in simple Hindi"
           >
-            <span class="suggestion-icon">✦</span>
 
-            <span>
-              <strong>Explain simply</strong>
-              <small>Make a difficult topic easy</small>
+            <span class="suggestion-icon">
+              ✦
             </span>
+
+            <span class="suggestion-content">
+
+              <strong>
+                Explain simply
+              </strong>
+
+              <small>
+                Make a difficult topic easy
+              </small>
+
+            </span>
+
+            <span class="suggestion-arrow">
+              →
+            </span>
+
           </button>
 
 
@@ -308,12 +434,27 @@
             type="button"
             data-suggestion="Help me prepare a study plan for my exam"
           >
-            <span class="suggestion-icon">▣</span>
 
-            <span>
-              <strong>Study with me</strong>
-              <small>Plan, learn and revise</small>
+            <span class="suggestion-icon">
+              ▣
             </span>
+
+            <span class="suggestion-content">
+
+              <strong>
+                Study with me
+              </strong>
+
+              <small>
+                Plan, learn and revise
+              </small>
+
+            </span>
+
+            <span class="suggestion-arrow">
+              →
+            </span>
+
           </button>
 
 
@@ -322,12 +463,27 @@
             type="button"
             data-suggestion="Write a professional email for me"
           >
-            <span class="suggestion-icon">✎</span>
 
-            <span>
-              <strong>Write for me</strong>
-              <small>Emails, applications and more</small>
+            <span class="suggestion-icon">
+              ✎
             </span>
+
+            <span class="suggestion-content">
+
+              <strong>
+                Write for me
+              </strong>
+
+              <small>
+                Emails, applications and more
+              </small>
+
+            </span>
+
+            <span class="suggestion-arrow">
+              →
+            </span>
+
           </button>
 
 
@@ -336,18 +492,35 @@
             type="button"
             data-suggestion="Help me solve this programming problem"
           >
-            <span class="suggestion-icon">{ }</span>
 
-            <span>
-              <strong>Code with me</strong>
-              <small>Programming and debugging</small>
+            <span class="suggestion-icon code-icon">
+              { }
             </span>
+
+            <span class="suggestion-content">
+
+              <strong>
+                Code with me
+              </strong>
+
+              <small>
+                Programming and debugging
+              </small>
+
+            </span>
+
+            <span class="suggestion-arrow">
+              →
+            </span>
+
           </button>
 
         </div>
 
 
-        <!-- MESSAGES -->
+        <!-- ==================================================
+             MESSAGES
+        =================================================== -->
 
         <div
           id="messages"
@@ -359,10 +532,12 @@
 
 
       <!-- ==================================================
-           INPUT AREA
+           COMPOSER
       =================================================== -->
 
       <section class="composer-wrapper">
+
+        <!-- ATTACHMENT -->
 
         <div
           id="attachment"
@@ -370,6 +545,8 @@
           data-attachment
         ></div>
 
+
+        <!-- ERROR -->
 
         <div
           id="errorMessage"
@@ -379,6 +556,8 @@
         ></div>
 
 
+        <!-- CHAT FORM -->
+
         <form
           id="chatForm"
           class="composer"
@@ -387,6 +566,8 @@
         >
 
           <div class="composer-inner">
+
+            <!-- ATTACH -->
 
             <button
               id="attachButton"
@@ -399,6 +580,7 @@
               ＋
             </button>
 
+
             <input
               id="fileInput"
               type="file"
@@ -406,6 +588,8 @@
               accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json"
             >
 
+
+            <!-- MESSAGE -->
 
             <textarea
               id="messageInput"
@@ -419,6 +603,8 @@
             ></textarea>
 
 
+            <!-- SEND -->
+
             <button
               id="sendButton"
               class="send-button"
@@ -426,10 +612,15 @@
               aria-label="Send message"
               title="Send message"
             >
-              ↑
+
+              <span>
+                ↑
+              </span>
+
             </button>
 
           </div>
+
 
           <div class="composer-bottom">
 
@@ -470,6 +661,7 @@
       <div class="modal-header">
 
         <div>
+
           <div class="modal-kicker">
             PERSONALIZATION
           </div>
@@ -481,7 +673,9 @@
           <p>
             Save information you want Atharv to remember.
           </p>
+
         </div>
+
 
         <button
           id="memoryClose"
@@ -496,6 +690,8 @@
       </div>
 
 
+      <!-- MEMORY INPUT -->
+
       <div class="memory-input-area">
 
         <textarea
@@ -505,6 +701,7 @@
           maxlength="1000"
           placeholder="Example: I prefer simple explanations in Hindi."
         ></textarea>
+
 
         <button
           id="memoryAdd"
@@ -523,7 +720,7 @@
 
 
   <!-- ==================================================
-       APPLICATION SCRIPT
+       APPLICATION
   =================================================== -->
 
   <script
