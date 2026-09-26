@@ -1,282 +1,465 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
 
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1, viewport-fit=cover"
-  />
+  >
 
   <meta
     name="theme-color"
     content="#ffffff"
-  />
+  >
 
   <meta
     name="description"
-    content="Atharv AI - Your AI. Every Language. Every Question."
-  />
+    content="Atharv AI — Your AI. Every Language. Every Question."
+  >
 
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  >
+
   <meta
     name="apple-mobile-web-app-status-bar-style"
     content="default"
-  />
+  >
 
   <title>Atharv AI</title>
 
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="stylesheet" href="/style.css" />
+  <link
+    rel="manifest"
+    href="/manifest.json"
+  >
+
+  <link
+    rel="icon"
+    href="/favicon.ico"
+  >
+
+  <link
+    rel="stylesheet"
+    href="/style.css"
+  >
 </head>
 
 <body>
 
-  <div id="app">
+  <!-- ==================================================
+       APP
+  =================================================== -->
 
-    <!-- HEADER -->
-    <header class="topbar">
+  <div id="app" class="app-shell">
 
-      <div class="brand-area">
-        <button
-          id="menuBtn"
-          class="icon-btn"
-          type="button"
-          aria-label="Open menu"
-        >
-          ☰
-        </button>
+    <!-- ==================================================
+         SIDEBAR
+    =================================================== -->
 
-        <div class="brand">
-          <div class="brand-logo">A</div>
+    <aside
+      id="drawer"
+      class="sidebar"
+      aria-label="Atharv navigation"
+    >
+
+      <div class="sidebar-header">
+
+        <div class="brand-mini">
+          <div class="brand-icon">
+            A
+          </div>
 
           <div>
-            <div class="brand-name">ATHARV</div>
+            <div class="brand-name">
+              ATHARV
+            </div>
+
             <div class="brand-subtitle">
-              Your AI. Every Language. Every Question.
+              AI Assistant
             </div>
           </div>
         </div>
-      </div>
-
-      <div class="header-actions">
-        <button
-          id="newChatBtn"
-          class="header-btn"
-          type="button"
-        >
-          ＋ New
-        </button>
 
         <button
-          id="installBtn"
-          class="header-btn install-btn hidden"
+          id="closeDrawer"
+          class="icon-button mobile-only"
           type="button"
-        >
-          Install
-        </button>
-      </div>
-
-    </header>
-
-
-    <!-- SIDE DRAWER -->
-    <aside id="drawer" class="drawer">
-
-      <div class="drawer-header">
-        <strong>Atharv AI</strong>
-
-        <button
-          id="closeDrawerBtn"
-          class="icon-btn"
-          type="button"
+          aria-label="Close menu"
         >
           ×
         </button>
+
       </div>
 
-      <div class="drawer-body">
+
+      <button
+        id="newChat"
+        class="new-chat-button"
+        type="button"
+        data-action="new-chat"
+      >
+        <span class="new-chat-icon">＋</span>
+        <span>New chat</span>
+      </button>
+
+
+      <nav class="sidebar-nav">
 
         <button
-          id="drawerNewChatBtn"
-          class="drawer-action"
+          id="homeButton"
+          class="nav-item active"
           type="button"
+          data-action="home"
         >
-          ＋ New Chat
+          <span class="nav-icon">⌂</span>
+          <span>Home</span>
         </button>
 
         <button
-          id="memoryBtn"
-          class="drawer-action"
+          id="memoryButton"
+          class="nav-item"
           type="button"
+          data-action="memory"
         >
-          🧠 Memory
+          <span class="nav-icon">◉</span>
+          <span>Memory</span>
         </button>
 
         <button
-          id="clearHistoryBtn"
-          class="drawer-action danger-action"
+          id="installButton"
+          class="nav-item install-nav"
           type="button"
+          data-action="install"
+          hidden
         >
-          🗑 Clear Chat
+          <span class="nav-icon">↓</span>
+          <span>Install Atharv</span>
         </button>
 
-        <div class="drawer-info">
-          <div class="drawer-title">Atharv AI</div>
+      </nav>
 
-          <p>
-            Multilingual AI assistant for questions, study,
-            coding, research and everyday tasks.
-          </p>
 
-          <div id="versionInfo" class="version-info">
-            Checking version...
-          </div>
+      <div class="history-section">
+
+        <div class="history-title">
+          Recent chats
+        </div>
+
+        <div
+          id="history"
+          class="history-list"
+          data-chat-history
+        ></div>
+
+      </div>
+
+
+      <div class="sidebar-footer">
+
+        <button
+          id="clearHistory"
+          class="sidebar-footer-button"
+          type="button"
+          data-action="clear-history"
+        >
+          <span>⌫</span>
+          <span>Clear history</span>
+        </button>
+
+        <div class="sidebar-version">
+          Atharv AI
+          <span id="version" data-version>
+            v17.1.0
+          </span>
         </div>
 
       </div>
 
     </aside>
 
-    <div id="drawerOverlay" class="drawer-overlay hidden"></div>
+
+    <!-- ==================================================
+         DRAWER OVERLAY
+    =================================================== -->
+
+    <div
+      id="drawerOverlay"
+      class="drawer-overlay"
+      data-drawer-overlay
+    ></div>
 
 
-    <!-- MAIN -->
-    <main class="main">
+    <!-- ==================================================
+         MAIN
+    =================================================== -->
 
-      <!-- WELCOME -->
-      <section id="welcome" class="welcome">
+    <main class="main-content">
 
-        <div class="welcome-logo">A</div>
+      <!-- TOP BAR -->
 
-        <h1>How can I help you?</h1>
+      <header class="topbar">
 
-        <p>
-          Ask Atharv anything.
-        </p>
+        <button
+          id="menuButton"
+          class="icon-button menu-button"
+          type="button"
+          data-action="open-drawer"
+          aria-label="Open menu"
+        >
+          ☰
+        </button>
 
-        <div class="suggestions">
+        <div class="topbar-brand">
+
+          <div class="topbar-logo">
+            A
+          </div>
+
+          <div>
+            <div class="topbar-title">
+              Atharv
+            </div>
+
+            <div class="topbar-status">
+              AI Assistant
+            </div>
+          </div>
+
+        </div>
+
+        <div class="topbar-spacer"></div>
+
+        <button
+          class="topbar-memory"
+          type="button"
+          data-action="memory"
+          id="memoryButtonTop"
+        >
+          Memory
+        </button>
+
+      </header>
+
+
+      <!-- ==================================================
+           CHAT AREA
+      =================================================== -->
+
+      <section
+        id="chatContainer"
+        class="chat-area"
+        aria-live="polite"
+      >
+
+        <!-- WELCOME -->
+
+        <div class="welcome-section">
+
+          <div class="welcome-avatar">
+            A
+          </div>
+
+          <div class="welcome-label">
+            ATHARV AI
+          </div>
+
+          <h1>
+            Your AI.
+            <span>Every Language.</span>
+            Every Question.
+          </h1>
+
+          <p class="welcome-description">
+            Ask anything, learn anything, create anything.
+            Atharv understands your language and helps you
+            find clear, useful answers.
+          </p>
+
+        </div>
+
+
+        <!-- SUGGESTIONS -->
+
+        <div class="suggestions-grid">
 
           <button
             class="suggestion"
-            data-prompt="Explain artificial intelligence in simple Hindi"
             type="button"
+            data-suggestion="Explain something to me in simple Hindi"
           >
-            <span>🤖</span>
-            <span>Explain AI simply</span>
+            <span class="suggestion-icon">✦</span>
+
+            <span>
+              <strong>Explain simply</strong>
+              <small>Make a difficult topic easy</small>
+            </span>
           </button>
 
-          <button
-            class="suggestion"
-            data-prompt="Help me prepare for my exam"
-            type="button"
-          >
-            <span>📚</span>
-            <span>Study & Exams</span>
-          </button>
 
           <button
             class="suggestion"
-            data-prompt="Write a Python program to check whether a number is prime"
             type="button"
+            data-suggestion="Help me prepare a study plan for my exam"
           >
-            <span>💻</span>
-            <span>Write code</span>
+            <span class="suggestion-icon">▣</span>
+
+            <span>
+              <strong>Study with me</strong>
+              <small>Plan, learn and revise</small>
+            </span>
           </button>
+
 
           <button
             class="suggestion"
-            data-prompt="What is the weather today?"
             type="button"
+            data-suggestion="Write a professional email for me"
           >
-            <span>🌤️</span>
-            <span>Current information</span>
+            <span class="suggestion-icon">✎</span>
+
+            <span>
+              <strong>Write for me</strong>
+              <small>Emails, applications and more</small>
+            </span>
+          </button>
+
+
+          <button
+            class="suggestion"
+            type="button"
+            data-suggestion="Help me solve this programming problem"
+          >
+            <span class="suggestion-icon">{ }</span>
+
+            <span>
+              <strong>Code with me</strong>
+              <small>Programming and debugging</small>
+            </span>
           </button>
 
         </div>
 
+
+        <!-- MESSAGES -->
+
+        <div
+          id="messages"
+          class="messages"
+          data-chat-messages
+        ></div>
+
       </section>
 
 
-      <!-- CHAT -->
-      <section
-        id="chatContainer"
-        class="chat-container hidden"
-        aria-live="polite"
-      ></section>
+      <!-- ==================================================
+           INPUT AREA
+      =================================================== -->
+
+      <section class="composer-wrapper">
+
+        <div
+          id="attachment"
+          class="attachment-preview"
+          data-attachment
+        ></div>
 
 
-      <!-- ERROR -->
-      <div
-        id="errorBox"
-        class="error-box hidden"
-        role="alert"
-      ></div>
+        <div
+          id="errorMessage"
+          class="error-message"
+          role="alert"
+          aria-live="assertive"
+        ></div>
+
+
+        <form
+          id="chatForm"
+          class="composer"
+          data-chat-form
+          autocomplete="off"
+        >
+
+          <div class="composer-inner">
+
+            <button
+              id="attachButton"
+              class="composer-button"
+              type="button"
+              data-action="attach"
+              aria-label="Attach file"
+              title="Attach file"
+            >
+              ＋
+            </button>
+
+            <input
+              id="fileInput"
+              type="file"
+              hidden
+              accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json"
+            >
+
+
+            <textarea
+              id="messageInput"
+              name="message"
+              rows="1"
+              maxlength="12000"
+              placeholder="Message Atharv..."
+              aria-label="Message Atharv"
+              autocomplete="off"
+              spellcheck="true"
+            ></textarea>
+
+
+            <button
+              id="sendButton"
+              class="send-button"
+              type="submit"
+              aria-label="Send message"
+              title="Send message"
+            >
+              ↑
+            </button>
+
+          </div>
+
+          <div class="composer-bottom">
+
+            <span>
+              Atharv can make mistakes. Check important information.
+            </span>
+
+            <span class="shortcut">
+              Enter to send · Shift + Enter for new line
+            </span>
+
+          </div>
+
+        </form>
+
+      </section>
 
     </main>
-
-
-    <!-- COMPOSER -->
-    <footer class="composer-area">
-
-      <div class="composer-wrapper">
-
-        <button
-          id="attachBtn"
-          class="composer-icon"
-          type="button"
-          title="Attach file"
-          aria-label="Attach file"
-        >
-          ＋
-        </button>
-
-        <input
-          id="fileInput"
-          type="file"
-          hidden
-          accept=".txt,.md,.json,.csv,.js,.ts,.py,.java,.cpp,.c,.html,.css,.xml,.pdf,.doc,.docx"
-        />
-
-        <textarea
-          id="messageInput"
-          rows="1"
-          maxlength="12000"
-          placeholder="Message Atharv..."
-          autocomplete="off"
-          spellcheck="true"
-        ></textarea>
-
-        <button
-          id="sendBtn"
-          class="send-btn"
-          type="button"
-          aria-label="Send message"
-        >
-          ↑
-        </button>
-
-      </div>
-
-      <div
-        id="attachmentPreview"
-        class="attachment-preview hidden"
-      ></div>
-
-      <div class="composer-hint">
-        Atharv can make mistakes. Check important information.
-      </div>
-
-    </footer>
 
   </div>
 
 
-  <!-- MEMORY MODAL -->
+  <!-- ==================================================
+       MEMORY MODAL
+  =================================================== -->
+
   <div
     id="memoryModal"
-    class="modal hidden"
+    class="modal-backdrop"
+    data-memory-modal
     role="dialog"
     aria-modal="true"
     aria-labelledby="memoryTitle"
@@ -285,87 +468,51 @@
     <div class="modal-card">
 
       <div class="modal-header">
-        <h2 id="memoryTitle">🧠 Memory</h2>
 
-        <button
-          id="closeMemoryBtn"
-          class="icon-btn"
-          type="button"
-        >
-          ×
-        </button>
-      </div>
+        <div>
+          <div class="modal-kicker">
+            PERSONALIZATION
+          </div>
 
-      <div class="modal-body">
+          <h2 id="memoryTitle">
+            Atharv Memory
+          </h2>
 
-        <p class="modal-description">
-          Atharv can remember useful information you explicitly
-          ask it to remember.
-        </p>
-
-        <div id="memoryList" class="memory-list">
-          Loading...
+          <p>
+            Save information you want Atharv to remember.
+          </p>
         </div>
 
-        <div class="memory-add">
-
-          <input
-            id="memoryInput"
-            type="text"
-            maxlength="500"
-            placeholder="Add something to remember..."
-          />
-
-          <button
-            id="saveMemoryBtn"
-            type="button"
-          >
-            Save
-          </button>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </div>
-
-
-  <!-- ATTACHMENT MODAL -->
-  <div
-    id="fileModal"
-    class="modal hidden"
-    role="dialog"
-    aria-modal="true"
-  >
-
-    <div class="modal-card">
-
-      <div class="modal-header">
-
-        <h2>📎 File</h2>
-
         <button
-          id="closeFileBtn"
-          class="icon-btn"
+          id="memoryClose"
+          class="modal-close"
           type="button"
+          data-action="close-memory"
+          aria-label="Close memory"
         >
           ×
         </button>
 
       </div>
 
-      <div class="modal-body">
 
-        <div id="fileInfo"></div>
+      <div class="memory-input-area">
+
+        <textarea
+          id="memoryInput"
+          name="memory"
+          rows="4"
+          maxlength="1000"
+          placeholder="Example: I prefer simple explanations in Hindi."
+        ></textarea>
 
         <button
-          id="useFileBtn"
-          class="primary-btn"
+          id="memoryAdd"
+          class="primary-button"
           type="button"
+          data-action="add-memory"
         >
-          Add to message
+          Save memory
         </button>
 
       </div>
@@ -375,7 +522,14 @@
   </div>
 
 
-  <script type="module" src="/app.js"></script>
+  <!-- ==================================================
+       APPLICATION SCRIPT
+  =================================================== -->
+
+  <script
+    type="module"
+    src="/js/app.js"
+  ></script>
 
 </body>
 </html>
