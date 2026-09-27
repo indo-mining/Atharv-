@@ -1,333 +1,354 @@
+"use strict";
+
 import {
   $,
-  renderText,
-  escapeHtml
+  escapeHtml,
+  truncate,
+  scrollToBottom
 } from "./utils.js";
 
+export function showError(message) {
+  const element = $("#errorMessage");
 
-/**
- * @param {boolean} show
- */
-export function showWelcome(show) {
+  if (!element) return;
 
-  const welcome = $("welcome");
-  const chat = $("chatContainer");
+  element.textContent = message || "Something went wrong.";
+  element.classList.add("visible");
+}
 
-  if (show) {
-    welcome?.classList.remove("hidden");
-    chat?.classList.add("hidden");
-  } else {
-    welcome?.classList.add("hidden");
-    chat?.classList.remove("hidden");
+export function hideError() {
+  const element = $("#errorMessage");
+
+  if (!element) return;
+
+  element.textContent = "";
+  element.classList.remove("visible");
+}
+
+export function setSending(isSending) {
+  const sendButton = $("#sendButton");
+  const input = $("#messageInput");
+
+  if (sendButton) {
+    sendButton.disabled = isSending;
+  }
+
+  if (input) {
+    input.disabled = isSending;
   }
 }
 
+export function showWelcome(show = true) {
+  const welcome = $("#welcomeSection");
+  const suggestions = $("#suggestions");
 
-/**
- * @param {string} role
- * @param {string} content
- * @returns {HTMLElement}
- */
-export function createMessageElement(
-  role,
-  content = ""
-) {
+  if (welcome) {
+    welcome.style.display = show ? "" : "none";
+  }
 
-  const row =
-    document.createElement("div");
+  if (suggestions) {
+    suggestions.style.display = show ? "" : "none";
+  }
+}
+
+function createMessageElement(role, content = "") {
+  const row = document.createElement("div");
 
   row.className =
-    `message-row ${role}`;
-
-  const message =
-    document.createElement("div");
-
-  message.className = "message";
-
-  const roleLabel =
-    document.createElement("div");
-
-  roleLabel.className = "message-role";
-
-  roleLabel.textContent =
     role === "user"
-      ? "You"
-      : "Atharv";
+      ? "message-row user"
+      : "message-row assistant";
 
-  const contentElement =
-    document.createElement("div");
+  const message = document.createElement("div");
 
-  contentElement.className =
-    "message-content";
+  message.className =
+    role === "user"
+      ? "message user-message"
+      : "message assistant-message";
 
-  contentElement.innerHTML =
-    renderText(content);
+  message.dataset.role = role;
 
-  message.append(
-    roleLabel,
-    contentElement
-  );
+  message.innerHTML =
+    role === "user"
+      ? escapeHtml(content).replace(/\n/g, "<br>")
+      : formatAssistantText(content);
 
   row.appendChild(message);
 
   return row;
 }
 
+export function appendUserMessage(content) {
+  const messages = $("#messages");
 
-/**
- * @param {string} role
- * @param {string} content
- * @returns {HTMLElement}
- */
-export function appendMessage(
-  role,
-  content
-) {
+  if (!messages) return null;
+
+  const element = createMessageElement("user", content);
+
+  messages.appendChild(element);
 
   showWelcome(false);
-
-  const chat =
-    $("chatContainer");
-
-  const element =
-    createMessageElement(
-      role,
-      content
-    );
-
-  chat.appendChild(element);
-
-  scrollToBottom();
+  scrollToBottom($("#chatContainer"));
 
   return element;
 }
 
+export function appendAssistantMessage(content = "") {
+  const messages = $("#messages");
 
-/**
- * @param {HTMLElement} element
- * @param {string} content
- */
-export function updateMessage(
-  element,
-  content
-) {
+  if (!messages) return null;
 
-  const target =
-    element.querySelector(
-      ".message-content"
-    );
-
-  if (!target) {
-    return;
-  }
-
-  target.innerHTML =
-    renderText(content);
-
-  scrollToBottom();
-}
-
-
-/**
- * @returns {HTMLElement}
- */
-export function appendTyping() {
-
-  showWelcome(false);
-
-  const chat =
-    $("chatContainer");
-
-  const row =
-    document.createElement("div");
-
-  row.className =
-    "message-row assistant";
-
-  const message =
-    document.createElement("div");
-
-  message.className =
-    "message";
-
-  const role =
-    document.createElement("div");
-
-  role.className =
-    "message-role";
-
-  role.textContent =
-    "Atharv";
-
-  const typing =
-    document.createElement("div");
-
-  typing.className =
-    "typing";
-
-  typing.innerHTML =
-    "<span></span><span></span><span></span>";
-
-  message.append(
-    role,
-    typing
+  const element = createMessageElement(
+    "assistant",
+    content
   );
 
-  row.appendChild(message);
+  messages.appendChild(element);
 
-  chat.appendChild(row);
+  showWelcome(false);
+  scrollToBottom($("#chatContainer"));
 
-  scrollToBottom();
+  return element.querySelector(".message");
+}
+
+export function updateAssistantMessage(element, content) {
+  if (!element) return;
+
+  element.innerHTML = formatAssistantText(content);
+
+  scrollToBottom($("#chatContainer"));
+}
+
+export function showThinking() {
+  const messages = $("#messages");
+
+  if (!messages) return null;
+
+  const row = document.createElement("div");
+
+  row.className = "message-row assistant";
+  row.dataset.thinking = "true";
+
+  row.innerHTML = `
+    <div class="thinking-message">
+      <span>Atharv is thinking</span>
+      <span class="thinking-dots">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+    </div>
+  `;
+
+  messages.appendChild(row);
+
+  showWelcome(false);
+  scrollToBottom($("#chatContainer"));
 
   return row;
 }
 
-
-/**
- * @param {string} message
- */
-export function showError(message) {
-
-  const box =
-    $("errorBox");
-
-  if (!box) {
-    return;
-  }
-
-  box.textContent =
-    message || "Something went wrong.";
-
-  box.classList.remove("hidden");
-}
-
-
-/**
- * Hide error box.
- */
-export function hideError() {
-
-  $("errorBox")?.classList.add(
-    "hidden"
-  );
-}
-
-
-/**
- * @param {boolean} loading
- */
-export function setLoading(loading) {
-
-  const send =
-    $("sendBtn");
-
-  const input =
-    $("messageInput");
-
-  if (send) {
-    send.disabled = loading;
-  }
-
-  if (input) {
-    input.disabled = loading;
+export function removeThinking(element) {
+  if (element?.remove) {
+    element.remove();
   }
 }
 
+export function clearMessages() {
+  const messages = $("#messages");
 
-/**
- * Scroll chat to bottom.
- */
-export function scrollToBottom() {
+  if (messages) {
+    messages.innerHTML = "";
+  }
 
-  requestAnimationFrame(() => {
-
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: "smooth"
-    });
-
-  });
+  showWelcome(true);
 }
 
+export function renderHistory(history = [], activeId = null) {
+  const container = $("#history");
+  const empty = $("#emptyHistory");
 
-/**
- * @param {Array} history
- */
-export function renderHistory(history) {
+  if (!container) return;
 
-  const chat =
-    $("chatContainer");
+  container.innerHTML = "";
 
-  if (!chat) {
-    return;
-  }
-
-  chat.innerHTML = "";
-
-  if (!history.length) {
-    showWelcome(true);
-    return;
-  }
-
-  showWelcome(false);
-
-  history.forEach(item => {
-
-    if (
-      !item ||
-      !["user", "assistant"].includes(
-        item.role
-      )
-    ) {
-      return;
+  if (!Array.isArray(history) || history.length === 0) {
+    if (empty) {
+      empty.style.display = "";
     }
 
-    chat.appendChild(
-      createMessageElement(
-        item.role,
-        item.content || ""
-      )
-    );
-
-  });
-
-  scrollToBottom();
-}
-
-
-/**
- * @param {string} filename
- * @param {number} size
- */
-export function showAttachment(
-  filename,
-  size
-) {
-
-  const preview =
-    $("attachmentPreview");
-
-  if (!preview) {
     return;
   }
 
-  const kb =
-    Math.round(size / 1024);
+  if (empty) {
+    empty.style.display = "none";
+  }
 
-  preview.innerHTML = `
-    📎 <strong>${escapeHtml(filename)}</strong>
-    <span>(${kb} KB)</span>
-  `;
+  history.forEach((item) => {
+    const button = document.createElement("button");
 
-  preview.classList.remove("hidden");
+    button.type = "button";
+    button.className = "history-item";
+
+    if (item.id === activeId) {
+      button.classList.add("active");
+    }
+
+    button.dataset.historyId = item.id;
+
+    button.textContent =
+      truncate(item.title || item.message || "New chat", 55);
+
+    container.appendChild(button);
+  });
 }
 
+export function showAttachment(file) {
+  const container = $("#attachment");
 
-/**
- * Hide attachment preview.
- */
+  if (!container) return;
+
+  if (!file) {
+    container.innerHTML = "";
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="attachment-chip">
+      <span>📎</span>
+      <span>${escapeHtml(file.name)}</span>
+      <button
+        type="button"
+        class="attachment-remove"
+        data-action="remove-attachment"
+        aria-label="Remove attachment"
+      >×</button>
+    </div>
+  `;
+}
+
 export function hideAttachment() {
+  const container = $("#attachment");
 
-  $("attachmentPreview")
-    ?.classList.add("hidden");
+  if (container) {
+    container.innerHTML = "";
+  }
+}
+
+function escapeCode(code) {
+  return escapeHtml(code);
+}
+
+function formatAssistantText(text = "") {
+  let value = String(text);
+
+  /*
+   * First escape HTML so model output cannot inject arbitrary HTML.
+   */
+  value = escapeHtml(value);
+
+  /*
+   * Code blocks.
+   */
+  value = value.replace(
+    /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g,
+    (_, language, code) => {
+      const label = language || "code";
+
+      return `
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span>${escapeHtml(label)}</span>
+            <button
+              type="button"
+              class="copy-code"
+              data-code="${encodeURIComponent(code)}"
+            >
+              Copy
+            </button>
+          </div>
+          <pre><code>${escapeCode(code)}</code></pre>
+        </div>
+      `;
+    }
+  );
+
+  /*
+   * Inline code.
+   */
+  value = value.replace(
+    /`([^`\n]+)`/g,
+    '<span class="inline-code">$1</span>'
+  );
+
+  /*
+   * Basic markdown headings.
+   */
+  value = value.replace(
+    /^### (.+)$/gm,
+    "<h3>$1</h3>"
+  );
+
+  value = value.replace(
+    /^## (.+)$/gm,
+    "<h2>$1</h2>"
+  );
+
+  value = value.replace(
+    /^# (.+)$/gm,
+    "<h1>$1</h1>"
+  );
+
+  /*
+   * Bold and italic.
+   */
+  value = value.replace(
+    /\*\*(.+?)\*\*/g,
+    "<strong>$1</strong>"
+  );
+
+  value = value.replace(
+    /\*([^*\n]+)\*/g,
+    "<em>$1</em>"
+  );
+
+  /*
+   * Links.
+   */
+  value = value.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+
+  /*
+   * Lists.
+   */
+  value = value.replace(
+    /^\s*[-•]\s+(.+)$/gm,
+    "<li>$1</li>"
+  );
+
+  value = value.replace(
+    /(<li>.*<\/li>\n?)+/g,
+    (block) => `<ul>${block}</ul>`
+  );
+
+  /*
+   * Paragraphs / new lines.
+   */
+  value = value.replace(
+    /\n{2,}/g,
+    "</p><p>"
+  );
+
+  value = value.replace(
+    /\n/g,
+    "<br>"
+  );
+
+  if (!value.startsWith("<h") && !value.startsWith("<div")) {
+    value = `<p>${value}</p>`;
+  }
+
+  return value;
 }
