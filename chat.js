@@ -1,222 +1,218 @@
+"use strict";
+
+import { CONFIG } from "./config.js";
 import {
-  chat,
-  chatStream
+  sendChat,
+  sendResearch
 } from "./api.js";
 
 import {
-  getHistory,
-  addHistoryMessage,
-  saveHistory
-} from "./storage.js";
-
-import {
-  appendMessage,
-  appendTyping,
-  updateMessage,
-  setLoading,
+  appendUserMessage,
+  appendAssistantMessage,
+  updateAssistantMessage,
+  showThinking,
+  removeThinking,
+  setSending,
   showError,
-  hideError
+  hideError,
+  clearMessages,
+  showWelcome
 } from "./ui.js";
 
 import {
-  getLanguageInstruction
-} from "./language.js";
+  getHistory,
+  saveHistory,
+  clearDraft
+} from "./storage.js";
 
 import {
-  cleanText
+  createId
 } from "./utils.js";
 
+let currentChatId = null;
 
-let sending = false;
+let conversation = [];
 
+function getAssistantText(data) {
+  if (!data) return "";
 
-/**
- * @returns {boolean}
- */
-export function isSending() {
-  return sending;
+  return (
+    data.reply ||
+    data.response ||
+    data.message ||
+    data.answer ||
+    data.content ||
+    data.data?.reply ||
+    data.data?.response ||
+    ""
+  );
 }
 
+function cleanHistory() {
+  return conversation
+    .filter(
+      (item) =>
+        item &&
+        (item.role === "user" || item.role === "assistant") &&
+        typeof item.content === "string"
+    )
+    .slice(-CONFIG.MAX_HISTORY_MESSAGES);
+}
 
-/**
- * Send a message to Atharv.
- *
- * @param {string} rawMessage
- * @returns {Promise<void>}
- */
-export async function sendMessage(
-  rawMessage
-) {
+function saveCurrentChat() {
+  if (!conversation.length) return;
 
-  if (sending) {
-    return;
-  }
-
-  const message =
-    cleanText(rawMessage);
-
-  if (!message) {
-    return;
-  }
-
-  sending = true;
-
-  hideError();
-  setLoading(true);
-
-  const previousHistory =
-    getHistory();
-
-  appendMessage(
-    "user",
-    message
+  const firstUser = conversation.find(
+    (item) => item.role === "user"
   );
 
-  addHistoryMessage({
+  const title =
+    firstUser?.content?.trim() ||
+    "New chat";
+
+  const history = getHistory();
+
+  const item = {
+    id: currentChatId || createId("chat"),
+    title: title.slice(0, 80),
+    messages: conversation,
+    updatedAt: Date.now()
+  };
+
+  currentChatId = item.id;
+
+  const filtered = history.filter(
+    (entry) => entry.id !== item.id
+  );
+
+  filtered.unshift(item);
+
+  saveHistory(filtered);
+}
+
+function buildPayload(message) {
+  return {
+    message,
+
+    history: cleanHistory(),
+
+    chatHistory: cleanHistory()
+  };
+}
+
+export async function sendMessage(message, options = {}) {
+  const text = String(message || "").trim();
+
+  if (!text) {
+    return;
+  }
+
+  if (text.length > CONFIG.MAX_MESSAGE_LENGTH) {
+    showError(
+      `Message is too long. Maximum ${CONFIG.MAX_MESSAGE_LENGTH} characters.`
+    );
+
+    return;
+  }
+
+  hideError();
+
+  appendUserMessage(text);
+
+  conversation.push({
     role: "user",
-    content: message
+    content: text
   });
 
-  const typing =
-    appendTyping();
+  setSending(true);
+
+  const thinking = showThinking();
 
   try {
+    let data;
 
-    const languageInstruction =
-      getLanguageInstruction(message);
-
-    let answer = "";
-
-    try {
-
-      await chatStream(
-        message,
-        previousHistory.slice(-6),
-        languageInstruction,
-
-        delta => {
-
-          if (!answer) {
-            typing.remove();
-
-            const assistant =
-              appendMessage(
-                "assistant",
-                ""
-              );
-
-            typing._assistant =
-              assistant;
-          }
-
-          answer += delta;
-
-          if (typing._assistant) {
-            updateMessage(
-              typing._assistant,
-              answer
-            );
-          }
-
-        },
-
-        () => {}
+    if (options.research) {
+      data = await sendResearch(
+        buildPayload(text)
       );
-
-    } catch (streamError) {
-
-      /*
-       * If streaming is unavailable, use
-       * normal /api/chat as a safe fallback.
-       */
-
-      if (typing.isConnected) {
-        typing.remove();
-      }
-
-      const result =
-        await chat(
-          message,
-          previousHistory.slice(-6),
-          languageInstruction
-        );
-
-      answer =
-        result?.answer ||
-        result?.response ||
-        result?.content ||
-        "";
-
-      if (!answer) {
-        throw new Error(
-          "Atharv could not generate a response."
-        );
-      }
-
-      appendMessage(
-        "assistant",
-        answer
+    } else {
+      data = await sendChat(
+        buildPayload(text)
       );
     }
 
-    if (!answer.trim()) {
+    removeThinking(thinking);
+
+    const reply = getAssistantText(data);
+
+    if (!reply) {
       throw new Error(
-        "Atharv returned an empty response."
+        "Atharv did not return a response."
       );
     }
 
-    addHistoryMessage({
+    appendAssistantMessage(reply);
+
+    conversation.push({
       role: "assistant",
-      content: answer
+      content: reply
     });
 
+    conversation = cleanHistory();
+
+    saveCurrentChat();
+    clearDraft();
+
   } catch (error) {
+    removeThinking(thinking);
 
-    if (typing.isConnected) {
-      typing.remove();
-    }
-
-    const messageText =
-      error?.message ||
-      "Atharv could not generate a response.";
+    console.error("CHAT ERROR:", error);
 
     showError(
-      `Atharv ⚠️ ${messageText}`
+      error?.message ||
+      "Response nahi mil paaya. Please try again."
     );
 
   } finally {
-
-    setLoading(false);
-
-    sending = false;
+    setSending(false);
   }
 }
 
-
-/**
- * Start a completely new local chat.
- */
 export function startNewChat() {
+  currentChatId = null;
 
-  saveHistory([]);
+  conversation = [];
 
-  const chatContainer =
-    document.getElementById(
-      "chatContainer"
-    );
+  clearMessages();
+  hideError();
+  clearDraft();
 
-  if (chatContainer) {
-    chatContainer.innerHTML = "";
+  const input = document.querySelector("#messageInput");
+
+  if (input) {
+    input.value = "";
+    input.focus();
+  }
+}
+
+export function loadChat(chat) {
+  if (!chat) return;
+
+  currentChatId = chat.id;
+
+  conversation = Array.isArray(chat.messages)
+    ? chat.messages.slice()
+    : [];
+
+  clearMessages();
+
+  for (const message of conversation) {
+    if (message.role === "user") {
+      appendUserMessage(message.content);
+    } else if (message.role === "assistant") {
+      appendAssistantMessage(message.content);
+    }
   }
 
-  document
-    .getElementById("welcome")
-    ?.classList.remove("hidden");
-
-  chatContainer
-    ?.classList.add("hidden");
-
-  document
-    .getElementById("messageInput")
-    ?.focus();
+  showWelcome(conversation.length === 0);
 }
