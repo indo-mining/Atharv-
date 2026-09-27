@@ -1,64 +1,68 @@
+"use strict";
+
+import { $ } from "./utils.js";
+import { CONFIG } from "./config.js";
+
 let deferredPrompt = null;
 
-
-/**
- * Register service worker.
- */
-export async function registerPWA() {
-
+export function registerPWA() {
   if (!("serviceWorker" in navigator)) {
     return;
   }
 
-  try {
+  window.addEventListener("load", async () => {
+    try {
+      await navigator.serviceWorker.register(
+        "/sw.js",
+        {
+          scope: "/"
+        }
+      );
 
-    await navigator.serviceWorker.register(
-      "/sw.js",
-      {
-        scope: "/"
-      }
-    );
-
-  } catch (error) {
-
-    console.warn(
-      "Service worker registration failed:",
-      error
-    );
-  }
+      console.log("Atharv PWA service worker registered.");
+    } catch (error) {
+      console.warn(
+        "PWA registration failed:",
+        error
+      );
+    }
+  });
 }
 
-
-/**
- * Listen for install prompt.
- *
- * @param {(event:Event)=>void} onAvailable
- */
-export function setupInstallPrompt(
-  onAvailable
-) {
+export function setupInstallPrompt() {
+  const button = $("#installButton");
 
   window.addEventListener(
     "beforeinstallprompt",
-    event => {
-
+    (event) => {
       event.preventDefault();
 
       deferredPrompt = event;
 
-      onAvailable?.(event);
+      if (button) {
+        button.hidden = false;
+      }
+    }
+  );
+
+  window.addEventListener(
+    "appinstalled",
+    () => {
+      deferredPrompt = null;
+
+      if (button) {
+        button.hidden = true;
+      }
+
+      localStorage.setItem(
+        CONFIG.STORAGE_KEYS.INSTALL_DISMISSED,
+        "1"
+      );
     }
   );
 }
 
-
-/**
- * Show browser install prompt.
- *
- * @returns {Promise<boolean>}
- */
 export async function installPWA() {
-
   if (!deferredPrompt) {
     return false;
   }
@@ -70,19 +74,11 @@ export async function installPWA() {
 
   deferredPrompt = null;
 
+  const button = $("#installButton");
+
+  if (button) {
+    button.hidden = true;
+  }
+
   return result?.outcome === "accepted";
-}
-
-
-/**
- * @returns {boolean}
- */
-export function isStandalone() {
-
-  return (
-    window.matchMedia(
-      "(display-mode: standalone)"
-    ).matches ||
-    window.navigator.standalone === true
-  );
 }
