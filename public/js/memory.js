@@ -1,136 +1,196 @@
+"use strict";
+
 import {
-  getMemory,
-  saveMemory
+  getMemories,
+  addMemory as apiAddMemory,
+  deleteMemory as apiDeleteMemory
 } from "./api.js";
 
-import { $ } from "./utils.js";
+import {
+  $,
+  escapeHtml
+} from "./utils.js";
 
+let memories = [];
 
-/**
- * Open memory modal.
- */
-export async function openMemory() {
+export function openMemory() {
+  const modal = $("#memoryModal");
 
-  const modal =
-    $("memoryModal");
+  if (!modal) return;
 
-  if (!modal) {
-    return;
-  }
+  modal.hidden = false;
 
-  modal.classList.remove("hidden");
+  document.body.classList.add("modal-open");
 
-  await loadMemory();
+  loadMemories();
+
+  setTimeout(() => {
+    $("#memoryInput")?.focus();
+  }, 50);
 }
 
-
-/**
- * Close memory modal.
- */
 export function closeMemory() {
+  const modal = $("#memoryModal");
 
-  $("memoryModal")
-    ?.classList.add("hidden");
+  if (!modal) return;
+
+  modal.hidden = true;
+
+  document.body.classList.remove("modal-open");
 }
 
+export async function loadMemories() {
+  const list = $("#memoryList");
 
-/**
- * Load memory from backend.
- */
-export async function loadMemory() {
+  if (!list) return;
 
-  const list =
-    $("memoryList");
-
-  if (!list) {
-    return;
-  }
-
-  list.textContent =
-    "Loading...";
+  list.innerHTML = `
+    <div class="memory-loading">
+      Loading memory...
+    </div>
+  `;
 
   try {
+    const data = await getMemories();
 
-    const result =
-      await getMemory();
+    memories =
+      data?.memories ||
+      data?.data?.memories ||
+      data?.items ||
+      data?.data ||
+      [];
 
-    const memories =
-      Array.isArray(result)
-        ? result
-        : result?.memories || [];
-
-    if (!memories.length) {
-
-      list.innerHTML =
-        "<div>No saved memories yet.</div>";
-
-      return;
+    if (!Array.isArray(memories)) {
+      memories = [];
     }
 
-    list.innerHTML = "";
-
-    memories.forEach(memory => {
-
-      const item =
-        document.createElement("div");
-
-      item.className =
-        "memory-item";
-
-      const text =
-        document.createElement("span");
-
-      text.textContent =
-        memory.memory ||
-        memory.text ||
-        String(memory);
-
-      item.appendChild(text);
-
-      list.appendChild(item);
-    });
+    renderMemories();
 
   } catch (error) {
+    console.error("MEMORY LOAD ERROR:", error);
 
-    list.textContent =
-      error?.message ||
-      "Memory is currently unavailable.";
+    list.innerHTML = `
+      <div class="memory-empty">
+        Memory could not be loaded right now.
+      </div>
+    `;
   }
 }
 
+function getMemoryId(item) {
+  return (
+    item.id ??
+    item.memory_id ??
+    item.memoryId
+  );
+}
 
-/**
- * Save a new memory.
- */
-export async function addMemory() {
+function getMemoryText(item) {
+  return (
+    item.memory ||
+    item.content ||
+    item.text ||
+    item.value ||
+    ""
+  );
+}
 
-  const input =
-    $("memoryInput");
+function renderMemories() {
+  const list = $("#memoryList");
 
-  if (!input) {
+  if (!list) return;
+
+  if (!memories.length) {
+    list.innerHTML = `
+      <div class="memory-empty">
+        No saved memories yet.
+      </div>
+    `;
+
     return;
   }
 
-  const value =
-    input.value.trim();
+  list.innerHTML = memories
+    .map((item) => {
+      const id = getMemoryId(item);
+      const text = getMemoryText(item);
 
-  if (!value) {
+      return `
+        <div class="memory-item">
+          <div class="memory-text">
+            ${escapeHtml(text)}
+          </div>
+
+          <button
+            type="button"
+            class="memory-delete"
+            data-memory-delete="${escapeHtml(String(id))}"
+          >
+            Delete
+          </button>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+export async function addMemory() {
+  const input = $("#memoryInput");
+
+  if (!input) return;
+
+  const text = input.value.trim();
+
+  if (!text) {
     return;
+  }
+
+  if (text.length > 1000) {
+    return;
+  }
+
+  const button = $("#addMemoryButton");
+
+  if (button) {
+    button.disabled = true;
   }
 
   try {
-
-    await saveMemory(value);
+    await apiAddMemory(text);
 
     input.value = "";
 
-    await loadMemory();
+    await loadMemories();
 
   } catch (error) {
+    console.error("MEMORY ADD ERROR:", error);
 
     alert(
       error?.message ||
-      "Could not save memory."
+      "Memory save nahi ho paayi."
+    );
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
+export async function deleteMemory(id) {
+  if (!id) return;
+
+  try {
+    await apiDeleteMemory(id);
+
+    await loadMemories();
+
+  } catch (error) {
+    console.error("MEMORY DELETE ERROR:", error);
+
+    alert(
+      error?.message ||
+      "Memory delete nahi ho paayi."
     );
   }
 }
