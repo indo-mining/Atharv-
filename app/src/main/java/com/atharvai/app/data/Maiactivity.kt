@@ -6,12 +6,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.atharvai.app.ui.AtharvApp
+import com.atharvai.app.ui.theme.AtharvTheme
 
 class MainActivity : ComponentActivity() {
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge()
@@ -20,13 +19,14 @@ class MainActivity : ComponentActivity() {
 
             val viewModel: AtharvViewModel =
                 viewModel(
-                    factory =
-                        AtharvViewModel.Factory(
-                            applicationContext
-                        )
+                    factory = AtharvViewModel.Factory(
+                        applicationContext
+                    )
                 )
 
-            AtharvApp(viewModel)
+            AtharvTheme {
+                AtharvApp(viewModel)
+            }
         }
     }
 }
