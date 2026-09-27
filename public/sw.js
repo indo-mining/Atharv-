@@ -1,149 +1,162 @@
-const CACHE_NAME =
-  "atharv-ai-v17";
+"use strict";
 
-const STATIC_ASSETS = [
+const CACHE_NAME = "atharv-ai-v17";
+
+const APP_SHELL = [
   "/",
   "/index.html",
   "/style.css",
-  "/app.js",
   "/manifest.json",
+  "/atharv-icon-192x192.png",
+  "/atharv-icon-512x512.png",
 
-  "/js/config.js",
+  "/js/app.js",
   "/js/api.js",
-  "/js/storage.js",
-  "/js/ui.js",
   "/js/chat.js",
+  "/js/config.js",
   "/js/language.js",
   "/js/memory.js",
   "/js/pwa.js",
+  "/js/storage.js",
+  "/js/ui.js",
   "/js/utils.js"
 ];
 
 
-/* =====================================================
-   INSTALL
-===================================================== */
-
 self.addEventListener(
   "install",
-  event => {
+  (event) => {
 
     event.waitUntil(
-      caches.open(CACHE_NAME)
-        .then(cache =>
-          cache.addAll(
-            STATIC_ASSETS
-          )
+      caches
+        .open(CACHE_NAME)
+        .then((cache) =>
+          cache.addAll(APP_SHELL)
+        )
+        .then(() =>
+          self.skipWaiting()
         )
     );
-
-    self.skipWaiting();
   }
 );
 
-
-/* =====================================================
-   ACTIVATE
-===================================================== */
 
 self.addEventListener(
   "activate",
-  event => {
+  (event) => {
 
     event.waitUntil(
-
-      caches.keys()
-        .then(keys =>
+      caches
+        .keys()
+        .then((keys) =>
           Promise.all(
             keys
               .filter(
-                key =>
+                (key) =>
                   key !== CACHE_NAME
               )
-              .map(
-                key =>
-                  caches.delete(key)
+              .map((key) =>
+                caches.delete(key)
               )
           )
         )
-
+        .then(() =>
+          self.clients.claim()
+        )
     );
-
-    self.clients.claim();
   }
 );
 
 
-/* =====================================================
-   FETCH
-===================================================== */
-
 self.addEventListener(
   "fetch",
-  event => {
+  (event) => {
 
     const request =
       event.request;
 
-    const url =
-      new URL(request.url);
-
     /*
-     * Never cache API requests.
-     * AI responses must always be fresh.
+     * API requests should always reach
+     * the live backend.
      */
-
     if (
-      url.pathname.startsWith(
-        "/api/"
-      ) ||
-      url.pathname === "/health"
+      new URL(request.url)
+        .pathname
+        .startsWith("/api/")
     ) {
       return;
     }
 
     /*
-     * Only GET requests.
+     * Navigation requests:
+     * network first, cached fallback.
      */
-
     if (
-      request.method !== "GET"
+      request.mode === "navigate"
     ) {
-      return;
-    }
 
-    event.respondWith(
+      event.respondWith(
+        fetch(request)
+          .then((response) => {
 
-      fetch(request)
-        .then(response => {
-
-          if (
-            response.ok &&
-            url.origin === location.origin
-          ) {
-
-            const clone =
+            const copy =
               response.clone();
 
-            caches.open(
-              CACHE_NAME
-            ).then(cache => {
-
-              cache.put(
-                request,
-                clone
+            caches
+              .open(CACHE_NAME)
+              .then((cache) =>
+                cache.put(
+                  request,
+                  copy
+                )
               );
 
-            });
-          }
+            return response;
+          })
+          .catch(() =>
+            caches.match(
+              "/index.html"
+            )
+          )
+      );
 
-          return response;
-        })
+      return;
+    }
 
-        .catch(() =>
-          caches.match(request)
+    /*
+     * Static files:
+     * cache first, network fallback.
+     */
+    event.respondWith(
+      caches
+        .match(request)
+        .then(
+          (cached) =>
+            cached ||
+            fetch(request)
+              .then((response) => {
+
+                if (
+                  response.ok &&
+                  request.method === "GET"
+                ) {
+
+                  const copy =
+                    response.clone();
+
+                  caches
+                    .open(CACHE_NAME)
+                    .then((cache) =>
+                      cache.put(
+                        request,
+                        copy
+                      )
+                    );
+                }
+
+                return response;
+              })
         )
-
     );
   }
 );
