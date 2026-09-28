@@ -47,44 +47,85 @@ import {
 } from "./api.js";
 
 
+/*
+=========================================================
+ ATHARV AI
+ FRONTEND APPLICATION
+ Version 17.0.1
+ --------------------------------------------------------
+ Compatible with:
+ - config.js v17
+ - storage.js v17.0.1
+ - Modular frontend
+ - Chat
+ - History
+ - Memory
+ - Attachments
+ - PWA
+=========================================================
+*/
+
+
 let selectedFile = null;
 
 
-/* ================= INITIALIZATION ================= */
+/* ======================================================
+   INITIALIZATION
+====================================================== */
 
 document.addEventListener(
   "DOMContentLoaded",
   init
 );
 
+
 async function init() {
+
   console.log(
-    `Atharv AI frontend ${CONFIG.VERSION} starting...`
+    `Atharv AI frontend ${CONFIG.APP.VERSION} starting...`
   );
 
-  bindEvents();
+  try {
 
-  restoreDraft();
+    bindEvents();
 
-  renderHistory(
-    getHistory()
-  );
+    restoreDraft();
 
-  registerPWA();
+    renderHistory(
+      getHistory()
+    );
 
-  setupInstallPrompt();
+    registerPWA();
 
-  updateVersion();
+    setupInstallPrompt();
 
-  setupTextarea();
+    updateVersion();
 
-  setupSuggestionButtons();
+    setupTextarea();
 
-  console.log("Atharv AI frontend ready.");
+    setupSuggestionButtons();
+
+    console.log(
+      "Atharv AI frontend ready."
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Atharv AI initialization failed:",
+      error
+    );
+
+    showError(
+      "Atharv AI initialize nahi ho paaya."
+    );
+  }
 }
 
 
-/* ================= EVENTS ================= */
+/* ======================================================
+   EVENTS
+====================================================== */
 
 function bindEvents() {
 
@@ -93,52 +134,67 @@ function bindEvents() {
     handleGlobalClick
   );
 
+
   $("#chatForm")?.addEventListener(
     "submit",
     handleSubmit
   );
+
 
   $("#fileInput")?.addEventListener(
     "change",
     handleFileChange
   );
 
+
   $("#messageInput")?.addEventListener(
     "input",
     handleDraftInput
   );
+
 
   $("#messageInput")?.addEventListener(
     "keydown",
     handleInputKeydown
   );
 
+
   $("#memoryModal")?.addEventListener(
     "click",
     (event) => {
+
       if (
-        event.target.id === "memoryModal"
+        event.target.id ===
+        "memoryModal"
       ) {
         closeMemory();
       }
+
     }
   );
+
 
   document.addEventListener(
     "keydown",
     (event) => {
+
       if (
         event.key === "Escape"
       ) {
+
         closeMemory();
+
         closeDrawer();
       }
+
     }
   );
 }
 
 
-/* ================= GLOBAL CLICK ================= */
+/* ======================================================
+   GLOBAL CLICK
+====================================================== */
 
 async function handleGlobalClick(event) {
 
@@ -147,94 +203,149 @@ async function handleGlobalClick(event) {
       "[data-action]"
     );
 
+
   if (actionElement) {
 
     const action =
       actionElement.dataset.action;
 
+
     switch (action) {
 
       case "new-chat":
+
         startNewChat();
+
         closeDrawer();
+
         return;
+
 
       case "home":
+
         startNewChat();
+
         closeDrawer();
+
         return;
+
 
       case "memory":
+
         openMemory();
+
         closeDrawer();
+
         return;
+
 
       case "close-memory":
+
         closeMemory();
+
         return;
+
 
       case "add-memory":
+
         await addMemory();
+
         return;
+
 
       case "open-drawer":
+
         openDrawer();
+
         return;
+
 
       case "close-drawer":
+
         closeDrawer();
+
         return;
+
 
       case "install":
+
         await installPWA();
+
         return;
+
 
       case "clear-history":
+
         handleClearHistory();
+
         return;
+
 
       case "attach":
+
         $("#fileInput")?.click();
+
         return;
 
+
       case "remove-attachment":
+
         removeSelectedFile();
+
         return;
+
     }
   }
 
+
+  /* ====================================================
+     SUGGESTIONS
+  ==================================================== */
 
   const suggestion =
     event.target.closest(
       "[data-suggestion]"
     );
 
+
   if (suggestion) {
 
     const text =
       suggestion.dataset.suggestion;
 
+
     const input =
       $("#messageInput");
 
+
     if (input) {
+
       input.value = text;
+
       input.focus();
+
+      autoResizeTextarea();
     }
 
     return;
   }
 
 
+  /* ====================================================
+     HISTORY
+  ==================================================== */
+
   const historyButton =
     event.target.closest(
       "[data-history-id]"
     );
 
+
   if (historyButton) {
 
     const id =
       historyButton.dataset.historyId;
+
 
     openHistoryChat(id);
 
@@ -244,21 +355,28 @@ async function handleGlobalClick(event) {
   }
 
 
+  /* ====================================================
+     MEMORY DELETE
+  ==================================================== */
+
   const memoryDelete =
     event.target.closest(
       "[data-memory-delete]"
     );
+
 
   if (memoryDelete) {
 
     const id =
       memoryDelete.dataset.memoryDelete;
 
+
     if (
       window.confirm(
         "Delete this memory?"
       )
     ) {
+
       await deleteMemory(id);
     }
 
@@ -266,74 +384,119 @@ async function handleGlobalClick(event) {
   }
 
 
+  /* ====================================================
+     COPY CODE
+  ==================================================== */
+
   const copyButton =
     event.target.closest(
       ".copy-code"
     );
+
 
   if (copyButton) {
 
     const encoded =
       copyButton.dataset.code;
 
+
     try {
+
       const code =
-        decodeURIComponent(encoded);
+        decodeURIComponent(
+          encoded
+        );
+
 
       await navigator.clipboard.writeText(
         code
       );
 
-      copyButton.textContent = "Copied";
+
+      copyButton.textContent =
+        "Copied";
+
 
       setTimeout(() => {
-        copyButton.textContent = "Copy";
+
+        copyButton.textContent =
+          "Copy";
+
       }, 1200);
 
-    } catch {
-      copyButton.textContent = "Failed";
+
+    } catch (error) {
+
+      console.warn(
+        "Copy failed:",
+        error
+      );
+
+      copyButton.textContent =
+        "Failed";
     }
 
     return;
   }
 
 
+  /* ====================================================
+     DRAWER OVERLAY
+  ==================================================== */
+
   if (
     event.target.matches(
       "[data-drawer-overlay]"
     )
   ) {
+
     closeDrawer();
   }
 }
 
 
-/* ================= CHAT ================= */
+/* ======================================================
+   CHAT SUBMIT
+====================================================== */
 
 async function handleSubmit(event) {
 
   event.preventDefault();
 
+
   const input =
     $("#messageInput");
 
-  if (!input) return;
+
+  if (!input) {
+    return;
+  }
+
 
   const message =
     input.value.trim();
 
-  if (!message) return;
+
+  if (!message) {
+
+    input.focus();
+
+    return;
+  }
+
 
   if (
     message.length >
-    CONFIG.MAX_MESSAGE_LENGTH
+    CONFIG.LIMITS.MAX_MESSAGE_LENGTH
   ) {
+
     showError(
-      `Maximum ${CONFIG.MAX_MESSAGE_LENGTH} characters allowed.`
+      `Maximum ${CONFIG.LIMITS.MAX_MESSAGE_LENGTH} characters allowed.`
     );
 
     return;
   }
+
 
   input.value = "";
 
@@ -341,26 +504,52 @@ async function handleSubmit(event) {
 
   hideError();
 
-  await sendMessage(
-    message,
-    {
-      file: selectedFile
-    }
-  );
 
-  removeSelectedFile();
+  try {
+
+    await sendMessage(
+      message,
+      {
+        file: selectedFile
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Message send failed:",
+      error
+    );
+
+    showError(
+      error?.message ||
+      "Message send nahi ho paaya."
+    );
+
+  } finally {
+
+    removeSelectedFile();
+  }
 }
 
 
-/* ================= DRAFT ================= */
+/* ======================================================
+   DRAFT
+====================================================== */
 
 const saveDraftDebounced =
   debounce(
-    (value) => saveDraft(value),
+    (value) => {
+
+      saveDraft(value);
+
+    },
     250
   );
 
+
 function handleDraftInput(event) {
+
   saveDraftDebounced(
     event.target.value
   );
@@ -368,24 +557,34 @@ function handleDraftInput(event) {
   autoResizeTextarea();
 }
 
+
 function restoreDraft() {
 
   const input =
     $("#messageInput");
 
-  if (!input) return;
+
+  if (!input) {
+    return;
+  }
+
 
   const draft =
     getDraft();
 
+
   if (draft) {
+
     input.value = draft;
+
     autoResizeTextarea();
   }
 }
 
 
-/* ================= KEYBOARD ================= */
+/* ======================================================
+   KEYBOARD
+====================================================== */
 
 function handleInputKeydown(event) {
 
@@ -401,20 +600,30 @@ function handleInputKeydown(event) {
 }
 
 
-/* ================= TEXTAREA ================= */
+/* ======================================================
+   TEXTAREA
+====================================================== */
 
 function setupTextarea() {
+
   autoResizeTextarea();
 }
+
 
 function autoResizeTextarea() {
 
   const textarea =
     $("#messageInput");
 
-  if (!textarea) return;
 
-  textarea.style.height = "auto";
+  if (!textarea) {
+    return;
+  }
+
+
+  textarea.style.height =
+    "auto";
+
 
   textarea.style.height =
     `${Math.min(
@@ -424,102 +633,147 @@ function autoResizeTextarea() {
 }
 
 
-/* ================= SUGGESTIONS ================= */
+/* ======================================================
+   SUGGESTIONS
+====================================================== */
 
 function setupSuggestionButtons() {
 
   $all(
     "[data-suggestion]"
-  ).forEach((button) => {
+  ).forEach(
+    (button) => {
 
-    button.addEventListener(
-      "click",
-      () => {
+      button.addEventListener(
+        "click",
+        () => {
 
-        const input =
-          $("#messageInput");
+          const input =
+            $("#messageInput");
 
-        if (!input) return;
 
-        input.value =
-          button.dataset.suggestion;
+          if (!input) {
+            return;
+          }
 
-        input.focus();
 
-        autoResizeTextarea();
-      }
-    );
-  });
+          input.value =
+            button.dataset.suggestion;
+
+
+          input.focus();
+
+          autoResizeTextarea();
+        }
+      );
+
+    }
+  );
 }
 
 
-/* ================= FILE ================= */
+/* ======================================================
+   FILE
+====================================================== */
 
 function handleFileChange(event) {
 
   const file =
     event.target.files?.[0];
 
+
   if (!file) {
+
     removeSelectedFile();
+
     return;
   }
+
 
   if (
     file.size >
-    CONFIG.MAX_FILE_SIZE
+    CONFIG.LIMITS.MAX_FILE_SIZE
   ) {
 
     showError(
-      "File is too large. Maximum file size is 10 MB."
+      "File is too large. Maximum file size is 5 MB."
     );
 
-    event.target.value = "";
+
+    event.target.value =
+      "";
+
 
     return;
   }
 
-  selectedFile = file;
 
-  showAttachment(file);
+  selectedFile =
+    file;
+
+
+  hideError();
+
+  showAttachment(
+    file
+  );
 }
+
 
 function removeSelectedFile() {
 
-  selectedFile = null;
+  selectedFile =
+    null;
+
 
   const input =
     $("#fileInput");
 
+
   if (input) {
-    input.value = "";
+
+    input.value =
+      "";
   }
+
 
   hideAttachment();
 }
 
 
-/* ================= HISTORY ================= */
+/* ======================================================
+   HISTORY
+====================================================== */
 
 function openHistoryChat(id) {
 
   const history =
     getHistory();
 
+
   const chat =
     history.find(
-      (item) => item.id === id
+      (item) =>
+        item.id === id
     );
 
-  if (!chat) return;
 
-  loadChat(chat);
+  if (!chat) {
+    return;
+  }
+
+
+  loadChat(
+    chat
+  );
+
 
   renderHistory(
     history,
     id
   );
 }
+
 
 function handleClearHistory() {
 
@@ -528,46 +782,63 @@ function handleClearHistory() {
       "Clear all recent chats from this device?"
     );
 
-  if (!confirmed) return;
+
+  if (!confirmed) {
+    return;
+  }
+
 
   clearHistory();
 
-  renderHistory([]);
+
+  renderHistory(
+    []
+  );
+
 
   startNewChat();
 }
 
 
-/* ================= DRAWER ================= */
+/* ======================================================
+   DRAWER
+====================================================== */
 
 function openDrawer() {
 
   const drawer =
     $("#drawer");
 
+
   const overlay =
     $("#drawerOverlay");
+
 
   drawer?.classList.add(
     "open"
   );
+
 
   overlay?.classList.add(
     "open"
   );
 }
 
+
 function closeDrawer() {
 
   const drawer =
     $("#drawer");
 
+
   const overlay =
     $("#drawerOverlay");
+
 
   drawer?.classList.remove(
     "open"
   );
+
 
   overlay?.classList.remove(
     "open"
@@ -575,26 +846,35 @@ function closeDrawer() {
 }
 
 
-/* ================= VERSION ================= */
+/* ======================================================
+   VERSION
+====================================================== */
 
 async function updateVersion() {
 
   const element =
     $("#version");
 
-  if (!element) return;
+
+  if (!element) {
+    return;
+  }
+
 
   try {
 
     const data =
       await getVersion();
 
+
     if (
       data?.version
     ) {
+
       element.textContent =
         `v${data.version}`;
     }
+
 
   } catch (error) {
 
@@ -603,7 +883,8 @@ async function updateVersion() {
       error
     );
 
+
     element.textContent =
-      `v${CONFIG.VERSION}`;
+      `v${CONFIG.APP.VERSION}`;
   }
 }
