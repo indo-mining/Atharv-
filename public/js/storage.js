@@ -1,348 +1,140 @@
 "use strict";
 
-import { CONFIG } from "./config.js";
-
 /*
 =========================================================
  ATHARV AI
- STORAGE MODULE
- Version 17.0.1
- --------------------------------------------------------
- Compatible with:
- - config.js v17
- - app.js v17
- - Local chat history
- - Draft messages
- - Session ID
- - User ID
+ FRONTEND CONFIGURATION
+ Version 17.0.2
 =========================================================
 */
 
 
-/* ======================================================
-   SAFE READ
-====================================================== */
+/* ================= STORAGE ================= */
 
-function read(key, fallback) {
-  try {
-    const value = localStorage.getItem(key);
+const STORAGE = Object.freeze({
 
-    if (value === null) {
-      return fallback;
-    }
+  HISTORY:
+    "atharv_chat_history_v17",
 
-    return JSON.parse(value);
+  SESSION_ID:
+    "atharv_session_id_v17",
 
-  } catch (error) {
+  USER_ID:
+    "atharv_user_id_v17",
 
-    console.warn(
-      "Storage read failed:",
-      error
-    );
+  DRAFT:
+    "atharv_draft_v17"
 
-    return fallback;
-  }
-}
+});
 
 
-/* ======================================================
-   SAFE WRITE
-====================================================== */
+/* ================= LIMITS ================= */
 
-function write(key, value) {
-  try {
+const LIMITS = Object.freeze({
 
-    localStorage.setItem(
-      key,
-      JSON.stringify(value)
-    );
+  MAX_HISTORY:
+    30,
 
-    return true;
+  MAX_MESSAGE_LENGTH:
+    12000,
 
-  } catch (error) {
+  MAX_FILE_SIZE:
+    5 * 1024 * 1024,
 
-    console.warn(
-      "Storage write failed:",
-      error
-    );
+  MAX_FILE_TEXT:
+    30000
 
-    return false;
-  }
-}
+});
 
 
-/* ======================================================
-   CHAT HISTORY
-====================================================== */
+/* ================= APP ================= */
 
-export function getHistory() {
+const APP = Object.freeze({
 
-  const history = read(
-    CONFIG.STORAGE.HISTORY,
-    []
-  );
+  NAME:
+    "Atharv AI",
 
-  return Array.isArray(history)
-    ? history
-    : [];
-}
+  VERSION:
+    "17.0.2"
 
+});
 
-export function saveHistory(history) {
 
-  const safeHistory =
-    Array.isArray(history)
-      ? history.slice(
-          0,
-          CONFIG.LIMITS.MAX_HISTORY
-        )
-      : [];
+/* ================= CONFIG ================= */
 
-  return write(
-    CONFIG.STORAGE.HISTORY,
-    safeHistory
-  );
-}
+export const CONFIG = Object.freeze({
 
+  API_BASE: "",
 
-export function clearHistory() {
 
-  try {
+  ENDPOINTS: Object.freeze({
 
-    localStorage.removeItem(
-      CONFIG.STORAGE.HISTORY
-    );
+    CHAT:
+      "/api/chat",
 
-    return true;
+    CHAT_STREAM:
+      "/api/chat/stream",
 
-  } catch (error) {
+    MEMORY:
+      "/api/memory",
 
-    console.warn(
-      "History clear failed:",
-      error
-    );
+    SEARCH:
+      "/api/search",
 
-    return false;
-  }
-}
+    WEATHER:
+      "/api/weather",
 
+    VERSION:
+      "/api/version",
 
-/* ======================================================
-   DRAFT
-====================================================== */
+    HEALTH:
+      "/health"
 
-export function getDraft() {
+  }),
 
-  try {
 
-    return (
-      localStorage.getItem(
-        CONFIG.STORAGE.DRAFT
-      ) || ""
-    );
+  /* Current structure */
 
-  } catch (error) {
+  STORAGE:
+    STORAGE,
 
-    console.warn(
-      "Draft read failed:",
-      error
-    );
 
-    return "";
-  }
-}
+  LIMITS:
+    LIMITS,
 
 
-export function saveDraft(value) {
+  APP:
+    APP,
 
-  try {
 
-    localStorage.setItem(
-      CONFIG.STORAGE.DRAFT,
-      String(value || "")
-    );
+  /* Compatibility with older modules */
 
-    return true;
+  STORAGE_KEYS:
+    STORAGE,
 
-  } catch (error) {
 
-    console.warn(
-      "Draft save failed:",
-      error
-    );
+  MAX_HISTORY_MESSAGES:
+    LIMITS.MAX_HISTORY,
 
-    return false;
-  }
-}
 
+  MAX_MESSAGE_LENGTH:
+    LIMITS.MAX_MESSAGE_LENGTH,
 
-export function clearDraft() {
 
-  try {
+  MAX_FILE_SIZE:
+    LIMITS.MAX_FILE_SIZE,
 
-    localStorage.removeItem(
-      CONFIG.STORAGE.DRAFT
-    );
 
-    return true;
+  VERSION:
+    APP.VERSION
 
-  } catch (error) {
+});
 
-    console.warn(
-      "Draft clear failed:",
-      error
-    );
 
-    return false;
-  }
-}
+/* ================= API URL ================= */
 
+export function apiUrl(endpoint) {
 
-/* ======================================================
-   SESSION ID
-====================================================== */
+  return `${CONFIG.API_BASE}${endpoint}`;
 
-export function getSessionId() {
-
-  try {
-
-    return (
-      localStorage.getItem(
-        CONFIG.STORAGE.SESSION_ID
-      ) || ""
-    );
-
-  } catch (error) {
-
-    console.warn(
-      "Session ID read failed:",
-      error
-    );
-
-    return "";
-  }
-}
-
-
-export function saveSessionId(sessionId) {
-
-  if (!sessionId) {
-    return false;
-  }
-
-  try {
-
-    localStorage.setItem(
-      CONFIG.STORAGE.SESSION_ID,
-      String(sessionId)
-    );
-
-    return true;
-
-  } catch (error) {
-
-    console.warn(
-      "Session ID save failed:",
-      error
-    );
-
-    return false;
-  }
-}
-
-
-export function clearSessionId() {
-
-  try {
-
-    localStorage.removeItem(
-      CONFIG.STORAGE.SESSION_ID
-    );
-
-    return true;
-
-  } catch (error) {
-
-    console.warn(
-      "Session ID clear failed:",
-      error
-    );
-
-    return false;
-  }
-}
-
-
-/* ======================================================
-   USER ID
-====================================================== */
-
-export function getUserId() {
-
-  try {
-
-    return (
-      localStorage.getItem(
-        CONFIG.STORAGE.USER_ID
-      ) || ""
-    );
-
-  } catch (error) {
-
-    console.warn(
-      "User ID read failed:",
-      error
-    );
-
-    return "";
-  }
-}
-
-
-export function saveUserId(userId) {
-
-  if (!userId) {
-    return false;
-  }
-
-  try {
-
-    localStorage.setItem(
-      CONFIG.STORAGE.USER_ID,
-      String(userId)
-    );
-
-    return true;
-
-  } catch (error) {
-
-    console.warn(
-      "User ID save failed:",
-      error
-    );
-
-    return false;
-  }
-}
-
-
-export function clearUserId() {
-
-  try {
-
-    localStorage.removeItem(
-      CONFIG.STORAGE.USER_ID
-    );
-
-    return true;
-
-  } catch (error) {
-
-    console.warn(
-      "User ID clear failed:",
-      error
-    );
-
-    return false;
-  }
 }
