@@ -2,13 +2,26 @@
 
 import { CONFIG } from "./config.js";
 
+/*
+=========================================================
+ ATHARV AI
+ STORAGE MODULE
+ Version 17.0.1
+ --------------------------------------------------------
+ Compatible with:
+ - config.js v17
+ - app.js v17
+ - Local chat history
+ - Draft messages
+ - Session ID
+ - User ID
+=========================================================
+*/
 
-/* =========================================================
-   ATHARV AI STORAGE
-   Version 17.0.1
-   Compatible with config.js v17
-========================================================= */
 
+/* ======================================================
+   SAFE READ
+====================================================== */
 
 function read(key, fallback) {
   try {
@@ -32,6 +45,10 @@ function read(key, fallback) {
 }
 
 
+/* ======================================================
+   SAFE WRITE
+====================================================== */
+
 function write(key, value) {
   try {
 
@@ -54,14 +71,20 @@ function write(key, value) {
 }
 
 
-/* ================= HISTORY ================= */
+/* ======================================================
+   CHAT HISTORY
+====================================================== */
 
 export function getHistory() {
 
-  return read(
+  const history = read(
     CONFIG.STORAGE.HISTORY,
     []
   );
+
+  return Array.isArray(history)
+    ? history
+    : [];
 }
 
 
@@ -104,7 +127,9 @@ export function clearHistory() {
 }
 
 
-/* ================= DRAFT ================= */
+/* ======================================================
+   DRAFT
+====================================================== */
 
 export function getDraft() {
 
@@ -137,12 +162,16 @@ export function saveDraft(value) {
       String(value || "")
     );
 
+    return true;
+
   } catch (error) {
 
     console.warn(
       "Draft save failed:",
       error
     );
+
+    return false;
   }
 }
 
@@ -155,24 +184,43 @@ export function clearDraft() {
       CONFIG.STORAGE.DRAFT
     );
 
+    return true;
+
   } catch (error) {
 
     console.warn(
       "Draft clear failed:",
       error
     );
+
+    return false;
   }
 }
 
 
-/* ================= SESSION ================= */
+/* ======================================================
+   SESSION ID
+====================================================== */
 
 export function getSessionId() {
 
-  return read(
-    CONFIG.STORAGE.SESSION_ID,
-    null
-  );
+  try {
+
+    return (
+      localStorage.getItem(
+        CONFIG.STORAGE.SESSION_ID
+      ) || ""
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "Session ID read failed:",
+      error
+    );
+
+    return "";
+  }
 }
 
 
@@ -182,10 +230,24 @@ export function saveSessionId(sessionId) {
     return false;
   }
 
-  return write(
-    CONFIG.STORAGE.SESSION_ID,
-    String(sessionId)
-  );
+  try {
+
+    localStorage.setItem(
+      CONFIG.STORAGE.SESSION_ID,
+      String(sessionId)
+    );
+
+    return true;
+
+  } catch (error) {
+
+    console.warn(
+      "Session ID save failed:",
+      error
+    );
+
+    return false;
+  }
 }
 
 
@@ -202,7 +264,7 @@ export function clearSessionId() {
   } catch (error) {
 
     console.warn(
-      "Session clear failed:",
+      "Session ID clear failed:",
       error
     );
 
@@ -211,14 +273,29 @@ export function clearSessionId() {
 }
 
 
-/* ================= USER ID ================= */
+/* ======================================================
+   USER ID
+====================================================== */
 
 export function getUserId() {
 
-  return read(
-    CONFIG.STORAGE.USER_ID,
-    null
-  );
+  try {
+
+    return (
+      localStorage.getItem(
+        CONFIG.STORAGE.USER_ID
+      ) || ""
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "User ID read failed:",
+      error
+    );
+
+    return "";
+  }
 }
 
 
@@ -228,10 +305,24 @@ export function saveUserId(userId) {
     return false;
   }
 
-  return write(
-    CONFIG.STORAGE.USER_ID,
-    String(userId)
-  );
+  try {
+
+    localStorage.setItem(
+      CONFIG.STORAGE.USER_ID,
+      String(userId)
+    );
+
+    return true;
+
+  } catch (error) {
+
+    console.warn(
+      "User ID save failed:",
+      error
+    );
+
+    return false;
+  }
 }
 
 
