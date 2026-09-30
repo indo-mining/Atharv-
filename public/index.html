@@ -54,13 +54,16 @@
                 type="button"
                 aria-label="Open menu"
                 aria-expanded="false"
+                aria-controls="atharvMenu"
             >
                 ☰
             </button>
 
+
             <div class="brand-mark">
                 A
             </div>
+
 
             <div class="brand-text">
 
@@ -93,6 +96,7 @@
     </header>
 
 
+
     <!-- =================================================
          MENU OVERLAY
          ================================================= -->
@@ -104,6 +108,7 @@
     ></div>
 
 
+
     <!-- =================================================
          MENU DRAWER
          ================================================= -->
@@ -112,18 +117,33 @@
         id="atharvMenu"
         class="menu-drawer"
         aria-hidden="true"
+        aria-label="Atharv menu"
     >
+
+        <!-- MENU HEADER -->
 
         <div class="menu-header">
 
             <div class="menu-brand">
-                <div class="menu-brand-mark">A</div>
+
+                <div class="menu-brand-mark">
+                    A
+                </div>
 
                 <div>
-                    <strong>ATHARV AI</strong>
-                    <small>Your AI</small>
+
+                    <strong>
+                        ATHARV AI
+                    </strong>
+
+                    <small>
+                        Your AI
+                    </small>
+
                 </div>
+
             </div>
+
 
             <button
                 id="menuClose"
@@ -137,10 +157,15 @@
         </div>
 
 
+
+        <!-- MENU CONTENT -->
+
         <div class="menu-content">
 
 
-            <!-- MAIN -->
+            <!-- =================================================
+                 MAIN
+                 ================================================= -->
 
             <section class="menu-section">
 
@@ -155,7 +180,9 @@
                     type="button"
                 >
 
-                    <span class="menu-item-icon">✚</span>
+                    <span class="menu-item-icon">
+                        ✚
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -172,13 +199,16 @@
                 </button>
 
 
+
                 <button
                     id="historyButton"
                     class="menu-item"
                     type="button"
                 >
 
-                    <span class="menu-item-icon">🕘</span>
+                    <span class="menu-item-icon">
+                        🕘
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -197,7 +227,10 @@
             </section>
 
 
-            <!-- TOOLS -->
+
+            <!-- =================================================
+                 TOOLS
+                 ================================================= -->
 
             <section class="menu-section">
 
@@ -213,7 +246,9 @@
                     aria-pressed="false"
                 >
 
-                    <span class="menu-item-icon">🌐</span>
+                    <span class="menu-item-icon">
+                        🌐
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -230,13 +265,16 @@
                 </button>
 
 
+
                 <button
                     id="memoryButton"
                     class="menu-item"
                     type="button"
                 >
 
-                    <span class="menu-item-icon">🧠</span>
+                    <span class="menu-item-icon">
+                        🧠
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -253,13 +291,16 @@
                 </button>
 
 
+
                 <button
                     id="menuAttachmentButton"
                     class="menu-item"
                     type="button"
                 >
 
-                    <span class="menu-item-icon">📎</span>
+                    <span class="menu-item-icon">
+                        📎
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -276,13 +317,16 @@
                 </button>
 
 
+
                 <button
                     id="menuVoiceButton"
                     class="menu-item"
                     type="button"
                 >
 
-                    <span class="menu-item-icon">🎙️</span>
+                    <span class="menu-item-icon">
+                        🎙️
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -301,7 +345,10 @@
             </section>
 
 
-            <!-- APP -->
+
+            <!-- =================================================
+                 APP
+                 ================================================= -->
 
             <section class="menu-section">
 
@@ -316,7 +363,9 @@
                     type="button"
                 >
 
-                    <span class="menu-item-icon">📱</span>
+                    <span class="menu-item-icon">
+                        📱
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -333,13 +382,16 @@
                 </button>
 
 
+
                 <button
                     id="settingsButton"
                     class="menu-item"
                     type="button"
                 >
 
-                    <span class="menu-item-icon">⚙️</span>
+                    <span class="menu-item-icon">
+                        ⚙️
+                    </span>
 
                     <span class="menu-item-text">
 
@@ -360,11 +412,15 @@
         </div>
 
 
+
+        <!-- MENU FOOTER -->
+
         <div class="menu-footer">
             ATHARV AI
         </div>
 
     </aside>
+
 
 
     <!-- =================================================
@@ -379,32 +435,42 @@
         >
 
 
-            <!-- WELCOME -->
+            <!-- =================================================
+                 WELCOME
+                 ================================================= -->
 
             <div id="welcome">
 
                 <div class="welcome-card">
 
+
                     <div class="welcome-logo">
                         A
                     </div>
 
+
                     <h1 class="welcome-title">
                         Your AI. Every Language. Every Question.
                     </h1>
+
 
                     <p class="welcome-description">
                         Ask anything and start a conversation with Atharv.
                     </p>
 
 
+
+                    <!-- SUGGESTIONS -->
+
                     <div class="suggestions">
+
 
                         <button
                             class="suggestion-card"
                             type="button"
                             data-prompt="Explain something interesting to me."
                         >
+
                             <div class="suggestion-title">
                                 💡 Explain something
                             </div>
@@ -412,7 +478,9 @@
                             <div class="suggestion-description">
                                 Get a clear explanation of any topic.
                             </div>
+
                         </button>
+
 
 
                         <button
@@ -420,6 +488,7 @@
                             type="button"
                             data-prompt="Help me learn something new."
                         >
+
                             <div class="suggestion-title">
                                 📚 Help me learn
                             </div>
@@ -427,7 +496,9 @@
                             <div class="suggestion-description">
                                 Learn step by step in simple language.
                             </div>
+
                         </button>
+
 
 
                         <button
@@ -435,6 +506,7 @@
                             type="button"
                             data-prompt="Write something for me."
                         >
+
                             <div class="suggestion-title">
                                 ✍️ Write for me
                             </div>
@@ -442,7 +514,9 @@
                             <div class="suggestion-description">
                                 Create messages, posts, ideas and more.
                             </div>
+
                         </button>
+
 
 
                         <button
@@ -450,6 +524,7 @@
                             type="button"
                             data-prompt="Help me with programming."
                         >
+
                             <div class="suggestion-title">
                                 💻 Help with coding
                             </div>
@@ -457,7 +532,9 @@
                             <div class="suggestion-description">
                                 Get help with programming and Python.
                             </div>
+
                         </button>
+
 
                     </div>
 
@@ -466,7 +543,10 @@
             </div>
 
 
-            <!-- MESSAGES -->
+
+            <!-- =================================================
+                 MESSAGES
+                 ================================================= -->
 
             <div
                 id="messages"
@@ -474,18 +554,26 @@
             ></div>
 
 
-            <!-- THINKING -->
+
+            <!-- =================================================
+                 THINKING
+                 ================================================= -->
 
             <div
                 id="thinking"
                 class="thinking hidden"
+                hidden
+                aria-live="polite"
+                aria-label="Atharv is thinking"
             >
 
                 <div class="thinking-row">
 
+
                     <div class="thinking-avatar">
                         A
                     </div>
+
 
                     <div class="thinking-bubble">
 
@@ -493,7 +581,7 @@
                         <span class="thinking-dot"></span>
                         <span class="thinking-dot"></span>
 
-                        <span>
+                        <span class="thinking-text">
                             Atharv is thinking...
                         </span>
 
@@ -506,6 +594,7 @@
         </section>
 
 
+
         <!-- =================================================
              ATTACHMENT INFO
              ================================================= -->
@@ -513,7 +602,9 @@
         <div
             id="attachmentInfo"
             class="attachment-list hidden"
+            hidden
         ></div>
+
 
 
         <!-- =================================================
@@ -527,6 +618,9 @@
                 class="composer"
                 autocomplete="off"
             >
+
+
+                <!-- ATTACHMENT -->
 
                 <button
                     id="attachmentButton"
@@ -547,6 +641,9 @@
                 >
 
 
+
+                <!-- MESSAGE INPUT -->
+
                 <textarea
                     id="messageInput"
                     rows="1"
@@ -559,6 +656,9 @@
                 ></textarea>
 
 
+
+                <!-- VOICE -->
+
                 <button
                     id="voiceButton"
                     class="composer-button voice-button"
@@ -569,6 +669,9 @@
                 </button>
 
 
+
+                <!-- SEND -->
+
                 <button
                     id="sendButton"
                     class="composer-button send-button"
@@ -578,6 +681,7 @@
                     ➤
                 </button>
 
+
             </form>
 
         </div>
@@ -585,7 +689,10 @@
     </main>
 
 
-    <!-- TOAST -->
+
+    <!-- =================================================
+         TOAST
+         ================================================= -->
 
     <div
         id="toast"
@@ -595,6 +702,7 @@
     ></div>
 
 
+
     <!-- =================================================
          MEMORY MODAL
          ================================================= -->
@@ -602,18 +710,30 @@
     <div
         id="memoryModal"
         class="modal hidden"
+        hidden
         aria-hidden="true"
     >
 
         <div class="modal-backdrop"></div>
 
-        <div class="modal-card">
+
+        <div
+            class="modal-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="memoryTitle"
+        >
+
 
             <div class="modal-header">
 
-                <h2 class="modal-title">
+                <h2
+                    id="memoryTitle"
+                    class="modal-title"
+                >
                     Memory
                 </h2>
+
 
                 <button
                     id="closeMemoryButton"
@@ -627,6 +747,7 @@
             </div>
 
 
+
             <div
                 id="memoryList"
                 class="memory-list"
@@ -638,6 +759,7 @@
 
             </div>
 
+
         </div>
 
     </div>
@@ -645,212 +767,10 @@
 </div>
 
 
-<!-- APP JS -->
 
-<script
-    type="module"
-    src="./app.js"
-></script>
-
-(() => {
-
-    "use strict";
-
-    const menu =
-        document.getElementById("atharvMenu");
-
-    const overlay =
-        document.getElementById("menuOverlay");
-
-    const menuButton =
-        document.getElementById("menuButton");
-
-    const menuClose =
-        document.getElementById("menuClose");
-
-
-    function openMenu() {
-
-        menu?.classList.add("open");
-        overlay?.classList.add("open");
-
-        menu?.setAttribute(
-            "aria-hidden",
-            "false"
-        );
-
-        overlay?.setAttribute(
-            "aria-hidden",
-            "false"
-        );
-
-        menuButton?.setAttribute(
-            "aria-expanded",
-            "true"
-        );
-
-        document.body.classList.add("menu-open");
-
-    }
-
-
-    function closeMenu() {
-
-        menu?.classList.remove("open");
-        overlay?.classList.remove("open");
-
-        menu?.setAttribute(
-            "aria-hidden",
-            "true"
-        );
-
-        overlay?.setAttribute(
-            "aria-hidden",
-            "true"
-        );
-
-        menuButton?.setAttribute(
-            "aria-expanded",
-            "false"
-        );
-
-        document.body.classList.remove("menu-open");
-
-    }
-
-
-    menuButton?.addEventListener(
-        "click",
-        openMenu
-    );
-
-
-    menuClose?.addEventListener(
-        "click",
-        closeMenu
-    );
-
-
-    overlay?.addEventListener(
-        "click",
-        closeMenu
-    );
-
-
-    document.addEventListener(
-        "keydown",
-        event => {
-
-            if (event.key === "Escape") {
-                closeMenu();
-            }
-
-        }
-    );
-
-
-    /*
-     * Menu attachment
-     */
-
-    document
-        .getElementById("menuAttachmentButton")
-        ?.addEventListener(
-            "click",
-            () => {
-
-                closeMenu();
-
-                document
-                    .getElementById("attachmentButton")
-                    ?.click();
-
-            }
-        );
-
-
-    /*
-     * Menu voice
-     */
-
-    document
-        .getElementById("menuVoiceButton")
-        ?.addEventListener(
-            "click",
-            () => {
-
-                closeMenu();
-
-                document
-                    .getElementById("voiceButton")
-                    ?.click();
-
-            }
-        );
-
-
-    /*
-     * Live search
-     * app.js handles actual toggle.
-     */
-
-    document
-        .getElementById("liveButton")
-        ?.addEventListener(
-            "click",
-            closeMenu
-        );
-
-
-    /*
-     * Other menu actions close the drawer.
-     */
-
-    document
-        .getElementById("newChatButton")
-        ?.addEventListener(
-            "click",
-            closeMenu
-        );
-
-
-    document
-        .getElementById("historyButton")
-        ?.addEventListener(
-            "click",
-            closeMenu
-        );
-
-
-    document
-        .getElementById("memoryButton")
-        ?.addEventListener(
-            "click",
-            closeMenu
-        );
-
-
-    document
-        .getElementById("installAppButton")
-        ?.addEventListener(
-            "click",
-            closeMenu
-        );
-
-
-    document
-        .getElementById("settingsButton")
-        ?.addEventListener(
-            "click",
-            closeMenu
-        );
-
-})();
-
-</script>
-
-
-<!-- APP JS -->
+<!-- =================================================
+     ATHARV AI APP
+     ================================================= -->
 
 <script
     type="module"
