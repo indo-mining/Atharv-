@@ -8,31 +8,19 @@
         content="width=device-width, initial-scale=1, viewport-fit=cover"
     >
 
-    <meta
-        name="theme-color"
-        content="#ffffff"
-    >
+    <meta name="theme-color" content="#ffffff">
 
     <meta
         name="description"
         content="Atharv AI — Your AI. Every Language. Every Question."
     >
 
-    <meta
-        name="mobile-web-app-capable"
-        content="yes"
-    >
-
-    <meta
-        name="apple-mobile-web-app-capable"
-        content="yes"
-    >
-
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
     <meta
         name="apple-mobile-web-app-status-bar-style"
         content="default"
     >
-
     <meta
         name="apple-mobile-web-app-title"
         content="Atharv AI"
@@ -40,10 +28,8 @@
 
     <title>Atharv AI</title>
 
-    <!-- PWA -->
     <link rel="manifest" href="/manifest.json">
 
-    <!-- App icon -->
     <link
         rel="icon"
         type="image/png"
@@ -55,10 +41,9 @@
         href="/icons/icon-192.png"
     >
 
-    <!-- Main stylesheet -->
     <link
         rel="stylesheet"
-        href="/css/style.css?v=17.1.2"
+        href="/css/style.css?v=17.2.0"
     >
 </head>
 
@@ -66,9 +51,8 @@
 
 <div id="app">
 
-    <!-- ==================================================
-         TOP BAR
-    =================================================== -->
+    <!-- ================= TOP BAR ================= -->
+
     <header class="topbar">
 
         <div class="brand">
@@ -81,6 +65,7 @@
             </div>
 
             <div class="brand-text">
+
                 <div class="brand-name">
                     ATHARV
                 </div>
@@ -88,6 +73,7 @@
                 <div class="brand-subtitle">
                     Your AI. Every Language. Every Question.
                 </div>
+
             </div>
 
         </div>
@@ -99,11 +85,13 @@
                 id="newChatButton"
                 class="header-button"
                 type="button"
-                aria-label="Start a new chat"
                 title="New chat"
+                aria-label="Start a new chat"
             >
                 <span aria-hidden="true">＋</span>
-                <span class="button-label">New Chat</span>
+                <span class="button-label">
+                    New Chat
+                </span>
             </button>
 
 
@@ -111,11 +99,13 @@
                 id="memoryButton"
                 class="header-button"
                 type="button"
-                aria-label="Open memory"
                 title="Memory"
+                aria-label="Open memory"
             >
                 <span aria-hidden="true">🧠</span>
-                <span class="button-label">Memory</span>
+                <span class="button-label">
+                    Memory
+                </span>
             </button>
 
         </div>
@@ -123,9 +113,8 @@
     </header>
 
 
-    <!-- ==================================================
-         MAIN
-    =================================================== -->
+    <!-- ================= MAIN ================= -->
+
     <main class="main">
 
         <section
@@ -134,9 +123,8 @@
             aria-label="Atharv AI conversation"
         >
 
-            <!-- ==========================================
-                 WELCOME SCREEN
-            =========================================== -->
+            <!-- ================= WELCOME ================= -->
+
             <section
                 id="welcome"
                 class="welcome"
@@ -161,9 +149,6 @@
                 </p>
 
 
-                <!-- ======================================
-                     SUGGESTIONS
-                ======================================= -->
                 <div class="suggestions">
 
                     <button
@@ -171,7 +156,6 @@
                         type="button"
                         data-prompt="Teach me something interesting in simple language."
                     >
-
                         <span
                             class="suggestion-icon"
                             aria-hidden="true"
@@ -185,7 +169,6 @@
                                 Discover a new concept
                             </small>
                         </span>
-
                     </button>
 
 
@@ -194,7 +177,6 @@
                         type="button"
                         data-prompt="Write a clean and simple programming solution for me."
                     >
-
                         <span
                             class="suggestion-icon"
                             aria-hidden="true"
@@ -208,7 +190,6 @@
                                 Build or debug code
                             </small>
                         </span>
-
                     </button>
 
 
@@ -217,7 +198,6 @@
                         type="button"
                         data-prompt="Search the web and give me the latest information."
                     >
-
                         <span
                             class="suggestion-icon"
                             aria-hidden="true"
@@ -231,7 +211,6 @@
                                 Find current information
                             </small>
                         </span>
-
                     </button>
 
 
@@ -240,7 +219,6 @@
                         type="button"
                         data-prompt="Help me solve this problem step by step."
                     >
-
                         <span
                             class="suggestion-icon"
                             aria-hidden="true"
@@ -254,7 +232,6 @@
                                 Step-by-step explanation
                             </small>
                         </span>
-
                     </button>
 
 
@@ -263,7 +240,6 @@
                         type="button"
                         data-prompt="What is the weather today?"
                     >
-
                         <span
                             class="suggestion-icon"
                             aria-hidden="true"
@@ -277,7 +253,6 @@
                                 Get weather information
                             </small>
                         </span>
-
                     </button>
 
 
@@ -286,7 +261,6 @@
                         type="button"
                         data-prompt="Help me write something professional and clear."
                     >
-
                         <span
                             class="suggestion-icon"
                             aria-hidden="true"
@@ -300,21 +274,16 @@
                                 Emails, posts and more
                             </small>
                         </span>
-
                     </button>
 
                 </div>
 
 
-                <!-- ======================================
-                     EXAMPLE PROMPTS
-                ======================================= -->
                 <div class="example-section">
 
                     <div class="example-title">
                         Try asking
                     </div>
-
 
                     <div class="example-chips">
 
@@ -326,7 +295,6 @@
                             Explain AI in simple Hindi
                         </button>
 
-
                         <button
                             class="example-chip"
                             type="button"
@@ -334,7 +302,6 @@
                         >
                             Python ka ek simple program banao
                         </button>
-
 
                         <button
                             class="example-chip"
@@ -351,9 +318,8 @@
             </section>
 
 
-            <!-- ==========================================
-                 CHAT MESSAGES
-            =========================================== -->
+            <!-- ================= MESSAGES ================= -->
+
             <div
                 id="messages"
                 class="messages"
@@ -363,15 +329,13 @@
             ></div>
 
 
-            <!-- ==========================================
-                 THINKING INDICATOR
-            =========================================== -->
+            <!-- ================= THINKING ================= -->
+
             <div
                 id="thinking"
                 class="thinking"
                 hidden
                 aria-live="polite"
-                aria-label="Atharv is thinking"
             >
 
                 <div class="thinking-inner">
@@ -394,9 +358,8 @@
             </div>
 
 
-            <!-- ==========================================
-                 COMPOSER
-            =========================================== -->
+            <!-- ================= COMPOSER ================= -->
+
             <div class="composer-area">
 
                 <form
@@ -407,14 +370,17 @@
                 >
 
                     <!-- Attachment -->
+
                     <button
                         id="attachmentButton"
                         class="composer-button attachment-button"
                         type="button"
-                        aria-label="Attach a file"
                         title="Attach file"
+                        aria-label="Attach a file"
                     >
-                        <span aria-hidden="true">＋</span>
+                        <span aria-hidden="true">
+                            ＋
+                        </span>
                     </button>
 
 
@@ -428,6 +394,7 @@
 
 
                     <!-- Input -->
+
                     <div class="input-wrapper">
 
                         <textarea
@@ -451,16 +418,16 @@
                     </div>
 
 
-                    <!-- Live Search -->
+                    <!-- Live -->
+
                     <button
                         id="liveButton"
                         class="composer-button live-button"
                         type="button"
+                        title="Live web search"
                         aria-label="Toggle live web search"
                         aria-pressed="false"
-                        title="Live web search"
                     >
-
                         <span
                             class="live-icon"
                             aria-hidden="true"
@@ -471,33 +438,35 @@
                         <span class="live-text">
                             Live
                         </span>
-
                     </button>
 
 
-                    <!-- Voice UI hook -->
+                    <!-- Voice -->
+
                     <button
                         id="voiceButton"
                         class="composer-button voice-button"
                         type="button"
-                        aria-label="Voice input"
                         title="Voice input"
+                        aria-label="Voice input"
+                        aria-pressed="false"
                     >
-                        <span aria-hidden="true">🎤</span>
+                        <span aria-hidden="true">
+                            🎤
+                        </span>
                     </button>
 
 
                     <!-- Send -->
+
                     <button
                         id="sendButton"
                         class="send-button"
                         type="submit"
-                        aria-label="Send message"
                         title="Send message"
+                        aria-label="Send message"
                     >
-                        <span
-                            aria-hidden="true"
-                        >
+                        <span aria-hidden="true">
                             ➤
                         </span>
                     </button>
@@ -516,9 +485,8 @@
     </main>
 
 
-    <!-- ==================================================
-         TOAST
-    =================================================== -->
+    <!-- ================= TOAST ================= -->
+
     <div
         id="toast"
         class="toast"
@@ -529,9 +497,8 @@
     ></div>
 
 
-    <!-- ==================================================
-         MEMORY MODAL
-    =================================================== -->
+    <!-- ================= MEMORY MODAL ================= -->
+
     <div
         id="memoryModal"
         class="modal"
@@ -568,8 +535,8 @@
                     id="closeMemoryButton"
                     class="modal-close"
                     type="button"
-                    aria-label="Close memory"
                     title="Close"
+                    aria-label="Close memory"
                 >
                     ×
                 </button>
@@ -581,140 +548,44 @@
                 id="memoryList"
                 class="memory-list"
             >
-
                 <div class="memory-empty">
                     No saved memories yet.
                 </div>
-
             </div>
 
         </div>
 
     </div>
 
-
 </div>
 
 
-<!-- ======================================================
-     APPLICATION
-======================================================= -->
-
 <script
-    src="/js/app.js?v=17.1.1"
+    src="/js/app.js?v=17.2.0"
     defer
 ></script>
 
 
-<!-- ======================================================
-     SERVICE WORKER
-======================================================= -->
-
 <script>
 (function () {
+
     if ("serviceWorker" in navigator) {
+
         window.addEventListener("load", function () {
+
             navigator.serviceWorker
                 .register("/service-worker.js?v=17.0.3")
                 .catch(function (error) {
+
                     console.warn(
                         "Service worker registration failed:",
                         error
                     );
+
                 });
+
         });
-    }
-})();
-</script>
 
-
-<!-- ======================================================
-     SMALL SAFE ENHANCEMENTS
-======================================================= -->
-
-<script>
-(function () {
-
-    /*
-     * Keep viewport height accurate on modern mobile browsers.
-     * CSS handles the actual layout.
-     */
-
-    function updateViewportHeight() {
-        document.documentElement.style.setProperty(
-            "--app-height",
-            window.innerHeight + "px"
-        );
-    }
-
-    updateViewportHeight();
-
-    window.addEventListener(
-        "resize",
-        updateViewportHeight,
-        { passive: true }
-    );
-
-    window.addEventListener(
-        "orientationchange",
-        updateViewportHeight,
-        { passive: true }
-    );
-
-
-    /*
-     * Prevent accidental form submission when the
-     * virtual keyboard is handling Enter.
-     * app.js remains responsible for actual sending.
-     */
-
-    const input = document.getElementById("messageInput");
-
-    if (input) {
-
-        input.addEventListener(
-            "input",
-            function () {
-
-                this.style.height = "auto";
-
-                const maxHeight =
-                    window.innerWidth <= 600
-                        ? 140
-                        : 220;
-
-                this.style.height =
-                    Math.min(
-                        this.scrollHeight,
-                        maxHeight
-                    ) + "px";
-
-            },
-            { passive: true }
-        );
-
-    }
-
-
-    /*
-     * Voice button placeholder.
-     *
-     * Actual voice functionality can be connected later
-     * without changing the HTML structure.
-     */
-
-    const voiceButton =
-        document.getElementById("voiceButton");
-
-    if (
-        voiceButton &&
-        !("SpeechRecognition" in window) &&
-        !("webkitSpeechRecognition" in window)
-    ) {
-        voiceButton.setAttribute(
-            "aria-label",
-            "Voice input is not supported in this browser"
-        );
     }
 
 })();
