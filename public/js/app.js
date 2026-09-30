@@ -47,31 +47,12 @@ import {
 } from "./api.js";
 
 
-/*
-=========================================================
- ATHARV AI
- FRONTEND APPLICATION
- Version 17.0.1
- --------------------------------------------------------
- Compatible with:
- - config.js v17
- - storage.js v17.0.1
- - Modular frontend
- - Chat
- - History
- - Memory
- - Attachments
- - PWA
-=========================================================
-*/
-
-
 let selectedFile = null;
 
+let currentMode = "normal";
 
-/* ======================================================
-   INITIALIZATION
-====================================================== */
+let submitting = false;
+
 
 document.addEventListener(
   "DOMContentLoaded",
@@ -82,8 +63,9 @@ document.addEventListener(
 async function init() {
 
   console.log(
-    `Atharv AI frontend ${CONFIG.APP.VERSION} starting...`
+    "Atharv AI frontend v17.0.2 starting..."
   );
+
 
   try {
 
@@ -99,22 +81,27 @@ async function init() {
 
     setupInstallPrompt();
 
-    updateVersion();
-
     setupTextarea();
 
     setupSuggestionButtons();
+
+    setupModes();
+
+    await updateVersion();
+
 
     console.log(
       "Atharv AI frontend ready."
     );
 
+
   } catch (error) {
 
     console.error(
-      "Atharv AI initialization failed:",
+      "Atharv initialization failed:",
       error
     );
+
 
     showError(
       "Atharv AI initialize nahi ho paaya."
@@ -123,9 +110,9 @@ async function init() {
 }
 
 
-/* ======================================================
+/* =====================================================
    EVENTS
-====================================================== */
+===================================================== */
 
 function bindEvents() {
 
@@ -135,10 +122,23 @@ function bindEvents() {
   );
 
 
-  $("#chatForm")?.addEventListener(
-    "submit",
-    handleSubmit
-  );
+  const form =
+    $("#chatForm");
+
+
+  if (form) {
+
+    form.addEventListener(
+      "submit",
+      handleSubmit
+    );
+
+  } else {
+
+    console.error(
+      "chatForm not found."
+    );
+  }
 
 
   $("#fileInput")?.addEventListener(
@@ -161,22 +161,22 @@ function bindEvents() {
 
   $("#memoryModal")?.addEventListener(
     "click",
-    (event) => {
+    event => {
 
       if (
         event.target.id ===
         "memoryModal"
       ) {
+
         closeMemory();
       }
-
     }
   );
 
 
   document.addEventListener(
     "keydown",
-    (event) => {
+    event => {
 
       if (
         event.key === "Escape"
@@ -186,17 +186,18 @@ function bindEvents() {
 
         closeDrawer();
       }
-
     }
   );
 }
 
 
-/* ======================================================
+/* =====================================================
    GLOBAL CLICK
-====================================================== */
+===================================================== */
 
-async function handleGlobalClick(event) {
+async function handleGlobalClick(
+  event
+) {
 
   const actionElement =
     event.target.closest(
@@ -232,7 +233,7 @@ async function handleGlobalClick(event) {
 
       case "memory":
 
-        openMemory();
+        await openMemory();
 
         closeDrawer();
 
@@ -293,14 +294,9 @@ async function handleGlobalClick(event) {
         removeSelectedFile();
 
         return;
-
     }
   }
 
-
-  /* ====================================================
-     SUGGESTIONS
-  ==================================================== */
 
   const suggestion =
     event.target.closest(
@@ -310,30 +306,28 @@ async function handleGlobalClick(event) {
 
   if (suggestion) {
 
-    const text =
-      suggestion.dataset.suggestion;
-
-
     const input =
       $("#messageInput");
 
 
     if (input) {
 
-      input.value = text;
+      input.value =
+        suggestion.dataset.suggestion;
 
       input.focus();
 
       autoResizeTextarea();
+
+      saveDraft(
+        input.value
+      );
     }
+
 
     return;
   }
 
-
-  /* ====================================================
-     HISTORY
-  ==================================================== */
 
   const historyButton =
     event.target.closest(
@@ -343,21 +337,15 @@ async function handleGlobalClick(event) {
 
   if (historyButton) {
 
-    const id =
-      historyButton.dataset.historyId;
-
-
-    openHistoryChat(id);
+    openHistoryChat(
+      historyButton.dataset.historyId
+    );
 
     closeDrawer();
 
     return;
   }
 
-
-  /* ====================================================
-     MEMORY DELETE
-  ==================================================== */
 
   const memoryDelete =
     event.target.closest(
@@ -367,26 +355,21 @@ async function handleGlobalClick(event) {
 
   if (memoryDelete) {
 
-    const id =
-      memoryDelete.dataset.memoryDelete;
-
-
     if (
       window.confirm(
         "Delete this memory?"
       )
     ) {
 
-      await deleteMemory(id);
+      await deleteMemory(
+        memoryDelete.dataset.memoryDelete
+      );
     }
+
 
     return;
   }
 
-
-  /* ====================================================
-     COPY CODE
-  ==================================================== */
 
   const copyButton =
     event.target.closest(
@@ -396,15 +379,11 @@ async function handleGlobalClick(event) {
 
   if (copyButton) {
 
-    const encoded =
-      copyButton.dataset.code;
-
-
     try {
 
       const code =
         decodeURIComponent(
-          encoded
+          copyButton.dataset.code
         );
 
 
@@ -417,32 +396,25 @@ async function handleGlobalClick(event) {
         "Copied";
 
 
-      setTimeout(() => {
-
-        copyButton.textContent =
-          "Copy";
-
-      }, 1200);
-
-
-    } catch (error) {
-
-      console.warn(
-        "Copy failed:",
-        error
+      setTimeout(
+        () => {
+          copyButton.textContent =
+            "Copy";
+        },
+        1200
       );
+
+
+    } catch {
 
       copyButton.textContent =
         "Failed";
     }
 
+
     return;
   }
 
-
-  /* ====================================================
-     DRAWER OVERLAY
-  ==================================================== */
 
   if (
     event.target.matches(
@@ -455,13 +427,22 @@ async function handleGlobalClick(event) {
 }
 
 
-/* ======================================================
-   CHAT SUBMIT
-====================================================== */
+/* =====================================================
+   SUBMIT
+===================================================== */
 
-async function handleSubmit(event) {
+async function handleSubmit(
+  event
+) {
 
   event.preventDefault();
+
+  event.stopPropagation();
+
+
+  if (submitting) {
+    return;
+  }
 
 
   const input =
@@ -469,6 +450,11 @@ async function handleSubmit(event) {
 
 
   if (!input) {
+
+    showError(
+      "Message input nahi mila."
+    );
+
     return;
   }
 
@@ -485,16 +471,41 @@ async function handleSubmit(event) {
   }
 
 
+  const maxLength =
+    CONFIG.MAX_MESSAGE_LENGTH ||
+    CONFIG.LIMITS?.MAX_MESSAGE_LENGTH ||
+    12000;
+
+
   if (
     message.length >
-    CONFIG.LIMITS.MAX_MESSAGE_LENGTH
+    maxLength
   ) {
 
     showError(
-      `Maximum ${CONFIG.LIMITS.MAX_MESSAGE_LENGTH} characters allowed.`
+      `Maximum ${maxLength} characters allowed.`
     );
 
     return;
+  }
+
+
+  submitting = true;
+
+
+  const sendButton =
+    $("#sendButton");
+
+
+  if (sendButton) {
+
+    sendButton.disabled =
+      true;
+
+    sendButton.setAttribute(
+      "aria-busy",
+      "true"
+    );
   }
 
 
@@ -510,9 +521,17 @@ async function handleSubmit(event) {
     await sendMessage(
       message,
       {
-        file: selectedFile
+        file:
+          selectedFile,
+
+        research:
+          currentMode === "live",
+
+        mode:
+          currentMode
       }
     );
+
 
   } catch (error) {
 
@@ -521,34 +540,159 @@ async function handleSubmit(event) {
       error
     );
 
+
     showError(
       error?.message ||
       "Message send nahi ho paaya."
     );
 
+
   } finally {
 
     removeSelectedFile();
+
+    submitting = false;
+
+
+    if (sendButton) {
+
+      sendButton.disabled =
+        false;
+
+      sendButton.removeAttribute(
+        "aria-busy"
+      );
+    }
+
+
+    input.focus();
   }
 }
 
 
-/* ======================================================
+/* =====================================================
+   KEYBOARD
+===================================================== */
+
+function handleInputKeydown(
+  event
+) {
+
+  if (
+    event.key !== "Enter"
+  ) {
+    return;
+  }
+
+
+  if (event.shiftKey) {
+    return;
+  }
+
+
+  event.preventDefault();
+
+  event.stopPropagation();
+
+
+  const form =
+    $("#chatForm");
+
+
+  if (
+    form &&
+    typeof form.requestSubmit ===
+      "function"
+  ) {
+
+    form.requestSubmit();
+
+  } else if (form) {
+
+    form.dispatchEvent(
+      new Event(
+        "submit",
+        {
+          bubbles: true,
+          cancelable: true
+        }
+      )
+    );
+  }
+}
+
+
+/* =====================================================
+   MODE
+===================================================== */
+
+function setupModes() {
+
+  const buttons =
+    $all(
+      "[data-mode]"
+    );
+
+
+  buttons.forEach(
+    button => {
+
+      button.addEventListener(
+        "click",
+        () => {
+
+          currentMode =
+            button.dataset.mode ||
+            "normal";
+
+
+          buttons.forEach(
+            item => {
+
+              item.classList.toggle(
+                "active",
+                item === button
+              );
+            }
+          );
+
+
+          const input =
+            $("#messageInput");
+
+
+          if (input) {
+
+            input.placeholder =
+              currentMode === "live"
+                ? "Ask Atharv Live..."
+                : "Message Atharv...";
+
+            input.focus();
+          }
+        }
+      );
+    }
+  );
+}
+
+
+/* =====================================================
    DRAFT
-====================================================== */
+===================================================== */
 
 const saveDraftDebounced =
   debounce(
-    (value) => {
-
+    value => {
       saveDraft(value);
-
     },
     250
   );
 
 
-function handleDraftInput(event) {
+function handleDraftInput(
+  event
+) {
 
   saveDraftDebounced(
     event.target.value
@@ -575,34 +719,17 @@ function restoreDraft() {
 
   if (draft) {
 
-    input.value = draft;
+    input.value =
+      draft;
 
     autoResizeTextarea();
   }
 }
 
 
-/* ======================================================
-   KEYBOARD
-====================================================== */
-
-function handleInputKeydown(event) {
-
-  if (
-    event.key === "Enter" &&
-    !event.shiftKey
-  ) {
-
-    event.preventDefault();
-
-    $("#chatForm")?.requestSubmit();
-  }
-}
-
-
-/* ======================================================
+/* =====================================================
    TEXTAREA
-====================================================== */
+===================================================== */
 
 function setupTextarea() {
 
@@ -633,16 +760,16 @@ function autoResizeTextarea() {
 }
 
 
-/* ======================================================
+/* =====================================================
    SUGGESTIONS
-====================================================== */
+===================================================== */
 
 function setupSuggestionButtons() {
 
   $all(
     "[data-suggestion]"
   ).forEach(
-    (button) => {
+    button => {
 
       button.addEventListener(
         "click",
@@ -661,22 +788,28 @@ function setupSuggestionButtons() {
             button.dataset.suggestion;
 
 
+          saveDraft(
+            input.value
+          );
+
+
           input.focus();
 
           autoResizeTextarea();
         }
       );
-
     }
   );
 }
 
 
-/* ======================================================
+/* =====================================================
    FILE
-====================================================== */
+===================================================== */
 
-function handleFileChange(event) {
+function handleFileChange(
+  event
+) {
 
   const file =
     event.target.files?.[0];
@@ -690,9 +823,15 @@ function handleFileChange(event) {
   }
 
 
+  const maxFile =
+    CONFIG.MAX_FILE_SIZE ||
+    CONFIG.LIMITS?.MAX_FILE_SIZE ||
+    5 * 1024 * 1024;
+
+
   if (
     file.size >
-    CONFIG.LIMITS.MAX_FILE_SIZE
+    maxFile
   ) {
 
     showError(
@@ -702,7 +841,6 @@ function handleFileChange(event) {
 
     event.target.value =
       "";
-
 
     return;
   }
@@ -741,11 +879,13 @@ function removeSelectedFile() {
 }
 
 
-/* ======================================================
+/* =====================================================
    HISTORY
-====================================================== */
+===================================================== */
 
-function openHistoryChat(id) {
+function openHistoryChat(
+  id
+) {
 
   const history =
     getHistory();
@@ -753,7 +893,7 @@ function openHistoryChat(id) {
 
   const chat =
     history.find(
-      (item) =>
+      item =>
         item.id === id
     );
 
@@ -763,10 +903,7 @@ function openHistoryChat(id) {
   }
 
 
-  loadChat(
-    chat
-  );
-
+  loadChat(chat);
 
   renderHistory(
     history,
@@ -777,78 +914,51 @@ function openHistoryChat(id) {
 
 function handleClearHistory() {
 
-  const confirmed =
-    window.confirm(
+  if (
+    !window.confirm(
       "Clear all recent chats from this device?"
-    );
+    )
+  ) {
 
-
-  if (!confirmed) {
     return;
   }
 
 
   clearHistory();
 
-
-  renderHistory(
-    []
-  );
-
+  renderHistory([]);
 
   startNewChat();
 }
 
 
-/* ======================================================
+/* =====================================================
    DRAWER
-====================================================== */
+===================================================== */
 
 function openDrawer() {
 
-  const drawer =
-    $("#drawer");
+  $("#drawer")
+    ?.classList.add("open");
 
-
-  const overlay =
-    $("#drawerOverlay");
-
-
-  drawer?.classList.add(
-    "open"
-  );
-
-
-  overlay?.classList.add(
-    "open"
-  );
+  $("#drawerOverlay")
+    ?.classList.add("open");
 }
 
 
 function closeDrawer() {
 
-  const drawer =
-    $("#drawer");
+  $("#drawer")
+    ?.classList.remove("open");
 
-
-  const overlay =
-    $("#drawerOverlay");
-
-
-  drawer?.classList.remove(
-    "open"
-  );
-
-
-  overlay?.classList.remove(
-    "open"
-  );
+  $("#drawerOverlay")
+    ?.classList.remove("open");
 }
 
 
-/* ======================================================
+/* =====================================================
    VERSION
-====================================================== */
+===================================================== */
 
 async function updateVersion() {
 
@@ -885,6 +995,6 @@ async function updateVersion() {
 
 
     element.textContent =
-      `v${CONFIG.APP.VERSION}`;
+      `v${CONFIG.APP?.VERSION || "17.0.2"}`;
   }
 }
