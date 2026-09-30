@@ -5,22 +5,6 @@
  ATHARV AI
  EXPRESS APPLICATION
  Version 17.0.2
- --------------------------------------------------------
- - ATHARV AI Web UI
- - Groq AI
- - Tavily Search
- - Neon PostgreSQL
- - Persistent Memory
- - Weather
- - Rate Limiting
- - Render Reverse Proxy Support
- - Helmet
- - CORS
- - Compression
- - Health
- - Version
- - SPA fallback
- - API never cached by frontend
 =========================================================
 */
 
@@ -41,15 +25,7 @@ const app = express();
 
 /*
 =========================================================
- RENDER / REVERSE PROXY
- --------------------------------------------------------
- Render sits behind a reverse proxy and sends:
- X-Forwarded-For
-
- express-rate-limit needs Express to trust the proxy,
- otherwise it can throw:
-
- ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+ RENDER REVERSE PROXY
 =========================================================
 */
 
@@ -84,7 +60,7 @@ app.use(
 
 /*
 =========================================================
- RATE LIMITING
+ RATE LIMIT
 =========================================================
 */
 
@@ -92,7 +68,7 @@ app.use(rateLimiter);
 
 /*
 =========================================================
- PUBLIC FRONTEND
+ PUBLIC
 =========================================================
 */
 
@@ -103,12 +79,11 @@ const publicPath = path.join(
 );
 
 /*
----------------------------------------------------------
+=========================================================
  SERVICE WORKER
  --------------------------------------------------------
- Never let the normal static cache aggressively cache
- service-worker.js.
----------------------------------------------------------
+ Never allow an old service worker to remain cached.
+=========================================================
 */
 
 app.get(
@@ -134,11 +109,9 @@ app.get(
 );
 
 /*
----------------------------------------------------------
+=========================================================
  STATIC FILES
- --------------------------------------------------------
- API responses must never be handled by this middleware.
----------------------------------------------------------
+=========================================================
 */
 
 app.use(
@@ -153,12 +126,6 @@ app.use(
     index: false,
 
     setHeaders: (res, filePath) => {
-      /*
-      -----------------------------------------------------
-      Never cache service worker.
-      -----------------------------------------------------
-      */
-
       if (
         filePath.endsWith(
           "service-worker.js"
@@ -169,12 +136,6 @@ app.use(
           "no-cache, no-store, must-revalidate"
         );
       }
-
-      /*
-      -----------------------------------------------------
-      API should never be served as static content.
-      -----------------------------------------------------
-      */
     }
   })
 );
@@ -186,7 +147,12 @@ app.use(
 */
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
+  res.setHeader(
+    "Cache-Control",
+    "no-store"
+  );
+
+  return res.status(200).json({
     success: true,
     ok: true,
     status: "OK",
@@ -216,7 +182,7 @@ app.get("/api/version", (req, res) => {
     "no-store"
   );
 
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
     version: config.version,
     name: "Atharv AI"
@@ -247,9 +213,6 @@ app.use(
 /*
 =========================================================
  API 404
- --------------------------------------------------------
- Important:
- API requests must NEVER fall through to index.html.
 =========================================================
 */
 
@@ -270,7 +233,7 @@ app.use(
 
 /*
 =========================================================
- ROOT WEBSITE
+ ROOT
 =========================================================
 */
 
@@ -309,23 +272,11 @@ app.get("/", (req, res) => {
 /*
 =========================================================
  SPA FALLBACK
- --------------------------------------------------------
- Frontend routes:
- /chat
- /home
- /settings
- etc.
 =========================================================
 */
 
 app.use(
   (req, res) => {
-
-    /*
-    -------------------------------------------------------
-    NON-GET REQUEST
-    -------------------------------------------------------
-    */
 
     if (req.method !== "GET") {
       return res.status(404).json({
@@ -333,12 +284,6 @@ app.use(
         error: "Route not found."
       });
     }
-
-    /*
-    -------------------------------------------------------
-    FRONTEND ROUTE
-    -------------------------------------------------------
-    */
 
     return res.sendFile(
       path.join(
@@ -352,7 +297,6 @@ app.use(
         }
       },
       (error) => {
-
         if (
           error &&
           !res.headersSent
@@ -364,11 +308,9 @@ app.use(
 
           res.status(404).json({
             success: false,
-            error:
-              "Page not found."
+            error: "Page not found."
           });
         }
-
       }
     );
   }
