@@ -3,27 +3,59 @@
 /*
 =========================================================
  ATHARV AI FRONTEND
- Version 17.0.3
- SIMPLE DIRECT FRONTEND
+ Version 17.1.0 ADVANCED
  --------------------------------------------------------
- FIXES:
- - Form navigation fixed
- - POST /api/chat guaranteed
- - No ES module dependency
- - Mobile composer fixed
- - Live mode
- - Local chat history
- - Stable user ID
- - Memory API
- - No service-worker dependency for chat
+ Compatible with:
+ - index.html v17.0.3+
+ - style.css v17.1.0+
+ - Direct non-module frontend
+ - /api/chat
+ - /api/chat/research
+ - /api/memory
+ - Mobile Android / PWA
+
+ FEATURES
+ --------------------------------------------------------
+ ✓ Stable chat sending
+ ✓ Live research mode
+ ✓ Local chat history
+ ✓ Stable user ID
+ ✓ Memory API
+ ✓ Stop generation
+ ✓ Regenerate response
+ ✓ Copy response
+ ✓ Edit user message
+ ✓ Markdown rendering
+ ✓ Code blocks
+ ✓ Copy code
+ ✓ Chat export
+ ✓ Clear chat
+ ✓ Attachment preparation
+ ✓ Better errors
+ ✓ Request cancellation
+ ✓ Auto scroll
+ ✓ Mobile composer
+ ✓ Future AI modes foundation
 =========================================================
 */
 
 (function () {
 
+  /* =====================================================
+     CONFIG
+  ===================================================== */
+
   const API_BASE = "";
 
   const MAX_MESSAGE_LENGTH = 12000;
+
+  const MAX_HISTORY = 30;
+
+  const SEND_HISTORY = 12;
+
+  const REQUEST_TIMEOUT = 120000;
+
+  const MAX_FILE_SIZE = 20 * 1024 * 1024;
 
   const USER_KEY = "atharv_user_id_v17";
 
@@ -31,6 +63,12 @@
 
   const LIVE_KEY = "atharv_live_mode_v17";
 
+  const MODE_KEY = "atharv_ai_mode_v17";
+
+
+  /* =====================================================
+     STATE
+  ===================================================== */
 
   let conversation = [];
 
@@ -38,30 +76,48 @@
 
   let liveMode = false;
 
+  let currentMode = "auto";
+
+  let currentController = null;
+
+  let toastTimer = null;
+
+  let selectedFile = null;
+
 
   /* =====================================================
      DOM
   ===================================================== */
 
-  const form = document.getElementById("chatForm");
+  const form =
+    document.getElementById("chatForm");
 
-  const input = document.getElementById("messageInput");
+  const input =
+    document.getElementById("messageInput");
 
-  const sendButton = document.getElementById("sendButton");
+  const sendButton =
+    document.getElementById("sendButton");
 
-  const messages = document.getElementById("messages");
+  const messages =
+    document.getElementById("messages");
 
-  const welcome = document.getElementById("welcome");
+  const welcome =
+    document.getElementById("welcome");
 
-  const thinking = document.getElementById("thinking");
+  const thinking =
+    document.getElementById("thinking");
 
-  const liveButton = document.getElementById("liveButton");
+  const liveButton =
+    document.getElementById("liveButton");
 
-  const newChatButton = document.getElementById("newChatButton");
+  const newChatButton =
+    document.getElementById("newChatButton");
 
-  const memoryButton = document.getElementById("memoryButton");
+  const memoryButton =
+    document.getElementById("memoryButton");
 
-  const memoryModal = document.getElementById("memoryModal");
+  const memoryModal =
+    document.getElementById("memoryModal");
 
   const closeMemoryButton =
     document.getElementById("closeMemoryButton");
@@ -102,7 +158,8 @@
 
   function getUserId() {
 
-    let id = localStorage.getItem(USER_KEY);
+    let id =
+      localStorage.getItem(USER_KEY);
 
     if (id) {
       return id;
@@ -112,10 +169,12 @@
 
       if (
         globalThis.crypto &&
-        typeof globalThis.crypto.randomUUID === "function"
+        typeof globalThis.crypto.randomUUID ===
+          "function"
       ) {
 
-        id = globalThis.crypto.randomUUID();
+        id =
+          globalThis.crypto.randomUUID();
 
       } else {
 
@@ -140,7 +199,10 @@
           .slice(2);
     }
 
-    localStorage.setItem(USER_KEY, id);
+    localStorage.setItem(
+      USER_KEY,
+      id
+    );
 
     return id;
   }
@@ -155,19 +217,35 @@
     try {
 
       const raw =
-        localStorage.getItem(HISTORY_KEY);
+        localStorage.getItem(
+          HISTORY_KEY
+        );
 
       if (!raw) {
         return [];
       }
 
-      const parsed = JSON.parse(raw);
+      const parsed =
+        JSON.parse(raw);
 
       if (!Array.isArray(parsed)) {
         return [];
       }
 
-      return parsed.slice(-30);
+      return parsed
+        .filter(function (item) {
+
+          return (
+            item &&
+            (
+              item.role === "user" ||
+              item.role === "assistant"
+            ) &&
+            typeof item.content === "string"
+          );
+
+        })
+        .slice(-MAX_HISTORY);
 
     } catch (error) {
 
@@ -188,7 +266,7 @@
       localStorage.setItem(
         HISTORY_KEY,
         JSON.stringify(
-          conversation.slice(-30)
+          conversation.slice(-MAX_HISTORY)
         )
       );
 
@@ -209,22 +287,301 @@
   function escapeHtml(value) {
 
     return String(value)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 
 
   /* =====================================================
-     RENDER
+     MARKDOWN
+     Safe lightweight renderer
   ===================================================== */
 
-  function renderMessage(role, content) {
+  function renderMarkdown(value) {
+
+    let text =
+      escapeHtml(value || "");
+
+
+    /*
+     CODE BLOCKS
+    */
+
+    const codeBlocks = [];
+
+    text =
+      text.replace(
+        /```([a-zA-Z0-9_+-]*)\n?([\s\S]*?)```/g,
+        function (
+          full,
+          language,
+          code
+        ) {
+
+          const id =
+            "atharv-code-" +
+            codeBlocks.length;
+
+          codeBlocks.push({
+            id: id,
+            code: code
+          });
+
+          return (
+            '<div class="atharv-code-block">' +
+
+              '<div class="atharv-code-header">' +
+
+                '<span>' +
+                  escapeHtml(
+                    language ||
+                    "code"
+                  ) +
+                '</span>' +
+
+                '<button ' +
+                  'type="button" ' +
+                  'class="atharv-copy-code" ' +
+                  'data-code-id="' +
+                  id +
+                  '">' +
+                  'Copy' +
+                '</button>' +
+
+              '</div>' +
+
+              '<pre><code id="' +
+                id +
+                '">' +
+                code +
+              '</code></pre>' +
+
+            '</div>'
+          );
+        }
+      );
+
+
+    /*
+     INLINE CODE
+    */
+
+    text =
+      text.replace(
+        /`([^`\n]+)`/g,
+        "<code>$1</code>"
+      );
+
+
+    /*
+     HEADINGS
+    */
+
+    text =
+      text.replace(
+        /^### (.+)$/gm,
+        "<h4>$1</h4>"
+      );
+
+    text =
+      text.replace(
+        /^## (.+)$/gm,
+        "<h3>$1</h3>"
+      );
+
+    text =
+      text.replace(
+        /^# (.+)$/gm,
+        "<h2>$1</h2>"
+      );
+
+
+    /*
+     BOLD
+    */
+
+    text =
+      text.replace(
+        /\*\*(.+?)\*\*/g,
+        "<strong>$1</strong>"
+      );
+
+
+    /*
+     ITALIC
+    */
+
+    text =
+      text.replace(
+        /(^|[^\*])\*([^*\n]+)\*/g,
+        "$1<em>$2</em>"
+      );
+
+
+    /*
+     UNORDERED LIST
+    */
+
+    text =
+      text.replace(
+        /^[•*-] (.+)$/gm,
+        "<li>$1</li>"
+      );
+
+    text =
+      text.replace(
+        /(<li>.*<\/li>)/gs,
+        "<ul>$1</ul>"
+      );
+
+
+    /*
+     ORDERED LIST
+    */
+
+    text =
+      text.replace(
+        /^\d+\.\s+(.+)$/gm,
+        "<li>$1</li>"
+      );
+
+
+    /*
+     LINKS
+     */
+
+    text =
+      text.replace(
+        /(https?:\/\/[^\s<]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+      );
+
+
+    /*
+     NEW LINES
+    */
+
+    text =
+      text.replace(
+        /\n/g,
+        "<br>"
+      );
+
+
+    /*
+     Restore code block line breaks
+    */
+
+    text =
+      text.replace(
+        /<pre><code([^>]*)>([\s\S]*?)<\/code><\/pre>/g,
+        function (
+          full,
+          attrs,
+          code
+        ) {
+
+          return (
+            "<pre><code" +
+            attrs +
+            ">" +
+            code.replace(
+              /<br>/g,
+              "\n"
+            ) +
+            "</code></pre>"
+          );
+        }
+      );
+
+
+    return text;
+  }
+
+
+  /* =====================================================
+     COPY TEXT
+  ===================================================== */
+
+  async function copyText(text) {
+
+    try {
+
+      if (
+        navigator.clipboard &&
+        typeof navigator.clipboard.writeText ===
+          "function"
+      ) {
+
+        await navigator.clipboard.writeText(
+          text
+        );
+
+      } else {
+
+        const textarea =
+          document.createElement("textarea");
+
+        textarea.value = text;
+
+        textarea.style.position =
+          "fixed";
+
+        textarea.style.opacity =
+          "0";
+
+        document.body.appendChild(
+          textarea
+        );
+
+        textarea.select();
+
+        document.execCommand(
+          "copy"
+        );
+
+        textarea.remove();
+      }
+
+      showToast(
+        "Copied."
+      );
+
+    } catch (error) {
+
+      console.error(
+        "Copy error:",
+        error
+      );
+
+      showToast(
+        "Copy nahi ho paaya."
+      );
+    }
+  }
+
+
+  /* =====================================================
+     RENDER MESSAGE
+  ===================================================== */
+
+  function renderMessage(
+    role,
+    content,
+    options
+  ) {
+
+    options =
+      options || {};
+
 
     const wrapper =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     wrapper.className =
       role === "user"
@@ -233,7 +590,9 @@
 
 
     const bubble =
-      document.createElement("div");
+      document.createElement(
+        "div"
+      );
 
     bubble.className =
       role === "user"
@@ -241,40 +600,245 @@
         : "message assistant-message";
 
 
-    bubble.innerHTML =
-      escapeHtml(content)
-        .replace(/\n/g, "<br>");
+    if (role === "user") {
+
+      bubble.textContent =
+        content || "";
+
+    } else {
+
+      bubble.innerHTML =
+        renderMarkdown(
+          content || ""
+        );
+    }
 
 
-    wrapper.appendChild(bubble);
+    wrapper.appendChild(
+      bubble
+    );
 
-    messages.appendChild(wrapper);
+
+    /*
+     MESSAGE ACTIONS
+    */
+
+    const actions =
+      document.createElement(
+        "div"
+      );
+
+    actions.className =
+      "atharv-message-actions";
+
+
+    if (
+      role === "assistant" &&
+      content
+    ) {
+
+      const copyButton =
+        document.createElement(
+          "button"
+        );
+
+      copyButton.type =
+        "button";
+
+      copyButton.className =
+        "atharv-message-action";
+
+      copyButton.textContent =
+        "Copy";
+
+      copyButton.addEventListener(
+        "click",
+        function () {
+
+          copyText(
+            content
+          );
+
+        }
+      );
+
+      actions.appendChild(
+        copyButton
+      );
+    }
+
+
+    if (
+      role === "user" &&
+      !options.disableEdit
+    ) {
+
+      const editButton =
+        document.createElement(
+          "button"
+        );
+
+      editButton.type =
+        "button";
+
+      editButton.className =
+        "atharv-message-action";
+
+      editButton.textContent =
+        "Edit";
+
+      editButton.addEventListener(
+        "click",
+        function () {
+
+          editUserMessage(
+            content
+          );
+
+        }
+      );
+
+      actions.appendChild(
+        editButton
+      );
+    }
+
+
+    if (
+      role === "assistant" &&
+      !options.disableRegenerate
+    ) {
+
+      const regenerateButton =
+        document.createElement(
+          "button"
+        );
+
+      regenerateButton.type =
+        "button";
+
+      regenerateButton.className =
+        "atharv-message-action";
+
+      regenerateButton.textContent =
+        "Regenerate";
+
+      regenerateButton.addEventListener(
+        "click",
+        function () {
+
+          regenerateLastResponse();
+
+        }
+      );
+
+      actions.appendChild(
+        regenerateButton
+      );
+    }
+
+
+    if (
+      actions.children.length
+    ) {
+
+      wrapper.appendChild(
+        actions
+      );
+    }
+
+
+    messages.appendChild(
+      wrapper
+    );
+
+
+    /*
+     CODE COPY BUTTONS
+    */
+
+    wrapper
+      .querySelectorAll(
+        ".atharv-copy-code"
+      )
+      .forEach(
+        function (button) {
+
+          button.addEventListener(
+            "click",
+            function () {
+
+              const codeId =
+                button.dataset.codeId;
+
+              const code =
+                document.getElementById(
+                  codeId
+                );
+
+              if (!code) {
+                return;
+              }
+
+              copyText(
+                code.textContent
+              );
+
+            }
+          );
+
+        }
+      );
+
 
     scrollBottom();
   }
 
 
+  /* =====================================================
+     RENDER CONVERSATION
+  ===================================================== */
+
   function renderConversation() {
 
     messages.innerHTML = "";
 
-    if (conversation.length === 0) {
 
-      welcome.classList.remove("hidden");
+    if (
+      !conversation.length
+    ) {
+
+      if (welcome) {
+        welcome.classList.remove(
+          "hidden"
+        );
+      }
 
       return;
     }
 
-    welcome.classList.add("hidden");
+
+    if (welcome) {
+      welcome.classList.add(
+        "hidden"
+      );
+    }
 
 
-    conversation.forEach(function (item) {
+    conversation.forEach(
+      function (item) {
 
-      if (
-        item &&
-        (item.role === "user" ||
-         item.role === "assistant")
-      ) {
+        if (
+          !item ||
+          !(
+            item.role === "user" ||
+            item.role === "assistant"
+          )
+        ) {
+
+          return;
+        }
+
 
         renderMessage(
           item.role,
@@ -282,8 +846,8 @@
         );
 
       }
+    );
 
-    });
 
     scrollBottom();
   }
@@ -295,14 +859,18 @@
 
   function scrollBottom() {
 
-    setTimeout(function () {
+    setTimeout(
+      function () {
 
-      window.scrollTo({
-        top: document.body.scrollHeight,
-        behavior: "smooth"
-      });
+        window.scrollTo({
+          top:
+            document.body.scrollHeight,
+          behavior: "smooth"
+        });
 
-    }, 30);
+      },
+      30
+    );
   }
 
 
@@ -312,7 +880,13 @@
 
   function showThinking() {
 
-    thinking.classList.remove("hidden");
+    if (!thinking) {
+      return;
+    }
+
+    thinking.classList.remove(
+      "hidden"
+    );
 
     scrollBottom();
   }
@@ -320,7 +894,13 @@
 
   function hideThinking() {
 
-    thinking.classList.add("hidden");
+    if (!thinking) {
+      return;
+    }
+
+    thinking.classList.add(
+      "hidden"
+    );
   }
 
 
@@ -328,27 +908,44 @@
      TOAST
   ===================================================== */
 
-  let toastTimer = null;
-
-  function showToast(message) {
+  function showToast(
+    message
+  ) {
 
     if (!toast) {
-      alert(message);
+
+      console.log(
+        message
+      );
+
       return;
     }
 
-    toast.textContent = message;
 
-    toast.classList.add("show");
+    toast.textContent =
+      message;
 
-    clearTimeout(toastTimer);
+    toast.classList.add(
+      "show"
+    );
+
+
+    clearTimeout(
+      toastTimer
+    );
+
 
     toastTimer =
-      setTimeout(function () {
+      setTimeout(
+        function () {
 
-        toast.classList.remove("show");
+          toast.classList.remove(
+            "show"
+          );
 
-      }, 3000);
+        },
+        2800
+      );
   }
 
 
@@ -358,45 +955,87 @@
 
   async function apiRequest(
     url,
-    options
+    options,
+    externalSignal
   ) {
+
+    options =
+      options || {};
+
 
     const controller =
       new AbortController();
 
+
+    currentController =
+      controller;
+
+
     const timeout =
-      setTimeout(function () {
+      setTimeout(
+        function () {
+
+          controller.abort();
+
+        },
+        REQUEST_TIMEOUT
+      );
+
+
+    if (externalSignal) {
+
+      if (
+        externalSignal.aborted
+      ) {
 
         controller.abort();
 
-      }, 120000);
+      } else {
+
+        externalSignal.addEventListener(
+          "abort",
+          function () {
+
+            controller.abort();
+
+          },
+          {
+            once: true
+          }
+        );
+      }
+    }
 
 
     try {
 
-      const response =
-        await fetch(
-          API_BASE + url,
-          {
-            ...options,
+      const requestOptions =
+        {
+          ...options,
 
-            signal:
-              controller.signal,
+          signal:
+            controller.signal,
 
-            cache: "no-store",
+          cache:
+            "no-store",
 
-            credentials: "same-origin",
+          credentials:
+            "same-origin",
 
-            headers: {
+          headers:
+            {
               "Content-Type":
                 "application/json",
 
-              ...(options &&
-                options.headers
-                ? options.headers
-                : {})
+              ...(options.headers || {})
             }
-          }
+        };
+
+
+      const response =
+        await fetch(
+          API_BASE + url,
+          requestOptions
         );
 
 
@@ -404,7 +1043,8 @@
         await response.text();
 
 
-      let data = null;
+      let data =
+        null;
 
 
       try {
@@ -416,13 +1056,14 @@
 
       } catch (error) {
 
-        data = {
-          success: false,
-          error:
-            text ||
-            "Invalid server response."
-        };
+        data =
+          {
+            success: false,
 
+            error:
+              text ||
+              "Invalid server response."
+          };
       }
 
 
@@ -438,33 +1079,49 @@
                 data.error ||
                 data.message
               )
-            : "Server error: " +
-              response.status
+            : (
+                "Server error: " +
+                response.status
+              )
         );
-
       }
 
 
       return data;
 
+
     } catch (error) {
 
       if (
         error &&
-        error.name === "AbortError"
+        error.name ===
+          "AbortError"
       ) {
 
         throw new Error(
-          "Atharv response timeout. Please try again."
+          "REQUEST_ABORTED"
         );
-
       }
+
 
       throw error;
 
+
     } finally {
 
-      clearTimeout(timeout);
+      clearTimeout(
+        timeout
+      );
+
+
+      if (
+        currentController ===
+        controller
+      ) {
+
+        currentController =
+          null;
+      }
     }
   }
 
@@ -473,46 +1130,49 @@
      EXTRACT AI REPLY
   ===================================================== */
 
-  function extractReply(data) {
+  function extractReply(
+    data
+  ) {
 
     if (!data) {
       return "";
     }
 
 
-    const possible = [
+    const possible =
+      [
 
-      data.reply,
+        data.reply,
 
-      data.response,
+        data.response,
 
-      data.answer,
+        data.answer,
 
-      data.message,
+        data.message,
 
-      data.content,
+        data.content,
 
-      data.text,
+        data.text,
 
-      data.result &&
-        data.result.reply,
+        data.result &&
+          data.result.reply,
 
-      data.result &&
-        data.result.answer,
+        data.result &&
+          data.result.answer,
 
-      data.result &&
-        data.result.response,
+        data.result &&
+          data.result.response,
 
-      data.data &&
-        data.data.reply,
+        data.data &&
+          data.data.reply,
 
-      data.data &&
-        data.data.answer,
+        data.data &&
+          data.data.answer,
 
-      data.data &&
-        data.data.response
+        data.data &&
+          data.data.response
 
-    ];
+      ];
 
 
     for (
@@ -522,7 +1182,8 @@
     ) {
 
       if (
-        typeof possible[i] === "string" &&
+        typeof possible[i] ===
+          "string" &&
         possible[i].trim()
       ) {
 
@@ -536,59 +1197,117 @@
 
 
   /* =====================================================
-     SEND CHAT
+     BUILD HISTORY
   ===================================================== */
 
-  async function sendToAtharv(message) {
+  function buildHistory() {
 
-    const history =
-      conversation
-        .slice(-12)
-        .map(function (item) {
+    return conversation
+      .slice(-SEND_HISTORY)
+      .map(
+        function (item) {
 
           return {
-            role: item.role,
-            content: item.content
+            role:
+              item.role,
+
+            content:
+              item.content
           };
 
-        });
+        }
+      );
+  }
+
+
+  /* =====================================================
+     SEND TO ATHARV
+  ===================================================== */
+
+  async function sendToAtharv(
+    message
+  ) {
+
+    const history =
+      buildHistory();
 
 
     let endpoint =
       "/api/chat";
 
-    let body;
 
+    let body =
+      {
+        message:
+          message,
+
+        history:
+          history,
+
+        chatHistory:
+          history,
+
+        userId:
+          getUserId(),
+
+        mode:
+          currentMode,
+
+        live:
+          liveMode
+      };
+
+
+    /*
+     LIVE RESEARCH
+    */
 
     if (liveMode) {
 
       endpoint =
         "/api/chat/research";
 
-      body = {
 
-        query: message,
+      body =
+        {
+          query:
+            message,
 
-        message: message,
+          message:
+            message,
 
-        userId: getUserId()
+          userId:
+            getUserId(),
 
-      };
+          history:
+            history,
 
-    } else {
+          mode:
+            "research"
+        };
+    }
 
-      body = {
 
-        message: message,
+    /*
+     OPTIONAL ATTACHMENT METADATA
 
-        history: history,
+     This does NOT pretend that the backend
+     understands the file. It only sends metadata.
+    */
 
-        chatHistory: history,
+    if (selectedFile) {
 
-        userId: getUserId()
+      body.attachment =
+        {
+          name:
+            selectedFile.name,
 
-      };
+          type:
+            selectedFile.type,
 
+          size:
+            selectedFile.size
+        };
     }
 
 
@@ -603,10 +1322,13 @@
       await apiRequest(
         endpoint,
         {
-          method: "POST",
+          method:
+            "POST",
 
           body:
-            JSON.stringify(body)
+            JSON.stringify(
+              body
+            )
         }
       );
 
@@ -618,7 +1340,9 @@
 
 
     const reply =
-      extractReply(data);
+      extractReply(
+        data
+      );
 
 
     if (!reply) {
@@ -627,6 +1351,7 @@
         "ATHARV EMPTY RESPONSE:",
         data
       );
+
 
       throw new Error(
         "Atharv ne koi response nahi diya."
@@ -639,10 +1364,12 @@
 
 
   /* =====================================================
-     SEND MESSAGE
+     HANDLE SEND
   ===================================================== */
 
-  async function handleSend() {
+  async function handleSend(
+    customMessage
+  ) {
 
     if (sending) {
       return;
@@ -650,7 +1377,10 @@
 
 
     const message =
-      input.value.trim();
+      typeof customMessage ===
+        "string"
+        ? customMessage.trim()
+        : input.value.trim();
 
 
     if (!message) {
@@ -681,21 +1411,31 @@
     sending = true;
 
 
-    sendButton.disabled = true;
+    if (sendButton) {
+      sendButton.disabled =
+        true;
+    }
 
-    input.disabled = true;
+    input.disabled =
+      true;
 
 
-    welcome.classList.add("hidden");
+    if (welcome) {
+      welcome.classList.add(
+        "hidden"
+      );
+    }
 
 
-    conversation.push({
+    conversation.push(
+      {
+        role:
+          "user",
 
-      role: "user",
-
-      content: message
-
-    });
+        content:
+          message
+      }
+    );
 
 
     saveHistory();
@@ -723,13 +1463,15 @@
         );
 
 
-      conversation.push({
+      conversation.push(
+        {
+          role:
+            "assistant",
 
-        role: "assistant",
-
-        content: reply
-
-      });
+          content:
+            reply
+        }
+      );
 
 
       saveHistory();
@@ -741,6 +1483,9 @@
       );
 
 
+      clearSelectedFile();
+
+
     } catch (error) {
 
       console.error(
@@ -749,17 +1494,33 @@
       );
 
 
-      renderMessage(
-        "assistant",
-        "Sorry, response nahi mil paaya. " +
-        (error.message || "Please try again.")
-      );
+      if (
+        error.message ===
+        "REQUEST_ABORTED"
+      ) {
+
+        renderMessage(
+          "assistant",
+          "Response stopped."
+        );
+
+      } else {
+
+        renderMessage(
+          "assistant",
+          "Sorry, response nahi mil paaya.\n\n" +
+          (
+            error.message ||
+            "Please try again."
+          )
+        );
 
 
-      showToast(
-        error.message ||
-        "Message send nahi hua."
-      );
+        showToast(
+          error.message ||
+          "Message send nahi hua."
+        );
+      }
 
 
     } finally {
@@ -767,15 +1528,76 @@
       hideThinking();
 
 
-      sending = false;
+      sending =
+        false;
 
-      sendButton.disabled = false;
 
-      input.disabled = false;
+      if (sendButton) {
+        sendButton.disabled =
+          false;
+      }
+
+
+      input.disabled =
+        false;
+
 
       input.focus();
 
+
+      currentController =
+        null;
     }
+  }
+
+
+  /* =====================================================
+     STOP GENERATION
+  ===================================================== */
+
+  function stopGeneration() {
+
+    if (
+      currentController
+    ) {
+
+      currentController.abort();
+
+      currentController =
+        null;
+
+      showToast(
+        "Response stopped."
+      );
+    }
+  }
+
+
+  /*
+   Allow clicking the send button while sending
+   to stop the current request.
+
+   Normal state = Send
+   Sending state = Stop
+  */
+
+  if (sendButton) {
+
+    sendButton.addEventListener(
+      "click",
+      function (event) {
+
+        if (sending) {
+
+          event.preventDefault();
+
+          stopGeneration();
+
+        }
+
+      },
+      true
+    );
   }
 
 
@@ -787,18 +1609,16 @@
     "submit",
     function (event) {
 
-      /*
-      VERY IMPORTANT:
-      Browser ko ?message=... par navigate
-      karne se rokta hai.
-      */
-
       event.preventDefault();
 
       event.stopPropagation();
 
 
-      handleSend();
+      if (!sending) {
+
+        handleSend();
+
+      }
 
     },
     false
@@ -820,6 +1640,7 @@
 
         event.preventDefault();
 
+
         if (!sending) {
 
           handleSend();
@@ -838,13 +1659,16 @@
 
   function autoResize() {
 
-    input.style.height = "auto";
+    input.style.height =
+      "auto";
+
 
     input.style.height =
       Math.min(
         input.scrollHeight,
         140
-      ) + "px";
+      ) +
+      "px";
   }
 
 
@@ -867,21 +1691,39 @@
 
     if (liveMode) {
 
-      liveButton.textContent =
-        "🌐 Live ON";
+      liveButton.innerHTML =
+        '<span class="live-icon">◉</span>' +
+        '<span class="live-text">Live ON</span>';
 
       liveButton.classList.add(
         "active"
       );
 
+      liveButton.setAttribute(
+        "aria-pressed",
+        "true"
+      );
+
+      liveButton.title =
+        "Live research enabled";
+
     } else {
 
-      liveButton.textContent =
-        "🌐 Live";
+      liveButton.innerHTML =
+        '<span class="live-icon">◉</span>' +
+        '<span class="live-text">Live</span>';
 
       liveButton.classList.remove(
         "active"
       );
+
+      liveButton.setAttribute(
+        "aria-pressed",
+        "false"
+      );
+
+      liveButton.title =
+        "Live research";
     }
   }
 
@@ -901,18 +1743,133 @@
       "click",
       function () {
 
-        liveMode = !liveMode;
+        liveMode =
+          !liveMode;
+
 
         localStorage.setItem(
           LIVE_KEY,
-          String(liveMode)
+          String(
+            liveMode
+          )
         );
 
+
         updateLiveButton();
+
+
+        showToast(
+          liveMode
+            ? "Live research ON"
+            : "Live research OFF"
+        );
 
       }
     );
   }
+
+
+  /* =====================================================
+     AI MODE FOUNDATION
+  ===================================================== */
+
+  function loadMode() {
+
+    const saved =
+      localStorage.getItem(
+        MODE_KEY
+      );
+
+
+    const allowed =
+      [
+        "auto",
+        "chat",
+        "research",
+        "study",
+        "coding",
+        "creative"
+      ];
+
+
+    if (
+      allowed.includes(
+        saved
+      )
+    ) {
+
+      currentMode =
+        saved;
+
+    } else {
+
+      currentMode =
+        "auto";
+    }
+  }
+
+
+  loadMode();
+
+
+  /*
+   Public helper for future UI.
+  */
+
+  window.AtharvAI =
+    window.AtharvAI || {};
+
+
+  window.AtharvAI.setMode =
+    function (mode) {
+
+      const allowed =
+        [
+          "auto",
+          "chat",
+          "research",
+          "study",
+          "coding",
+          "creative"
+        ];
+
+
+      if (
+        !allowed.includes(
+          mode
+        )
+      ) {
+
+        return false;
+      }
+
+
+      currentMode =
+        mode;
+
+
+      localStorage.setItem(
+        MODE_KEY,
+        mode
+      );
+
+
+      showToast(
+        "Mode: " +
+        mode
+      );
+
+
+      return true;
+    };
+
+
+  window.AtharvAI.getMode =
+    function () {
+
+      return currentMode;
+
+    };
 
 
   /* =====================================================
@@ -925,19 +1882,41 @@
       "click",
       function () {
 
-        conversation = [];
+        if (sending) {
+
+          showToast(
+            "Pehle current response stop karein."
+          );
+
+          return;
+        }
+
+
+        conversation =
+          [];
+
 
         localStorage.removeItem(
           HISTORY_KEY
         );
 
+
+        clearSelectedFile();
+
+
         renderConversation();
+
 
         input.value = "";
 
         autoResize();
 
         input.focus();
+
+
+        showToast(
+          "New chat started."
+        );
 
       }
     );
@@ -949,29 +1928,91 @@
   ===================================================== */
 
   document
-    .querySelectorAll(".suggestion")
-    .forEach(function (button) {
+    .querySelectorAll(
+      ".suggestion"
+    )
+    .forEach(
+      function (button) {
 
-      button.addEventListener(
-        "click",
-        function () {
+        button.addEventListener(
+          "click",
+          function () {
 
-          input.value =
-            button.textContent.trim();
+            const text =
+              button
+                .querySelector(
+                  ".suggestion-content"
+                );
 
-          autoResize();
 
-          input.focus();
+            input.value =
+              text
+                ? text.textContent.trim()
+                : button.textContent.trim();
 
-        }
-      );
 
-    });
+            autoResize();
+
+            input.focus();
+
+          }
+        );
+
+      }
+    );
+
+
+  /* =====================================================
+     EXAMPLE CHIPS
+  ===================================================== */
+
+  document
+    .querySelectorAll(
+      ".example-chip"
+    )
+    .forEach(
+      function (button) {
+
+        button.addEventListener(
+          "click",
+          function () {
+
+            input.value =
+              button.textContent.trim();
+
+            autoResize();
+
+            input.focus();
+
+          }
+        );
+
+      }
+    );
 
 
   /* =====================================================
      ATTACHMENT
   ===================================================== */
+
+  function clearSelectedFile() {
+
+    selectedFile =
+      null;
+
+
+    if (fileInput) {
+      fileInput.value =
+        "";
+    }
+
+
+    if (attachmentInfo) {
+      attachmentInfo.textContent =
+        "";
+    }
+  }
+
 
   if (
     attachmentButton &&
@@ -981,6 +2022,16 @@
     attachmentButton.addEventListener(
       "click",
       function () {
+
+        if (sending) {
+
+          showToast(
+            "Response complete hone dein."
+          );
+
+          return;
+        }
+
 
         fileInput.click();
 
@@ -1002,15 +2053,97 @@
         }
 
 
+        if (
+          file.size >
+          MAX_FILE_SIZE
+        ) {
+
+          showToast(
+            "File 20 MB se chhoti honi chahiye."
+          );
+
+
+          clearSelectedFile();
+
+          return;
+        }
+
+
+        selectedFile =
+          file;
+
+
         if (attachmentInfo) {
+
+          const size =
+            formatFileSize(
+              file.size
+            );
+
 
           attachmentInfo.textContent =
             "📎 " +
-            file.name;
+            file.name +
+            " • " +
+            size;
 
         }
 
+
+        showToast(
+          "File attached: " +
+          file.name
+        );
+
       }
+    );
+  }
+
+
+  function formatFileSize(
+    bytes
+  ) {
+
+    if (
+      !Number.isFinite(
+        bytes
+      )
+    ) {
+
+      return "";
+    }
+
+
+    if (
+      bytes <
+      1024
+    ) {
+
+      return (
+        bytes +
+        " B"
+      );
+    }
+
+
+    if (
+      bytes <
+      1024 * 1024
+    ) {
+
+      return (
+        (bytes / 1024)
+          .toFixed(1) +
+        " KB"
+      );
+    }
+
+
+    return (
+      (bytes /
+        (1024 * 1024))
+        .toFixed(1) +
+      " MB"
     );
   }
 
@@ -1020,6 +2153,11 @@
   ===================================================== */
 
   async function loadMemory() {
+
+    if (!memoryList) {
+      return;
+    }
+
 
     memoryList.textContent =
       "Loading...";
@@ -1038,7 +2176,8 @@
           "/api/memory?userId=" +
           userId,
           {
-            method: "GET"
+            method:
+              "GET"
           }
         );
 
@@ -1055,8 +2194,10 @@
 
 
       if (
-        !Array.isArray(memories) ||
-        memories.length === 0
+        !Array.isArray(
+          memories
+        ) ||
+        !memories.length
       ) {
 
         memoryList.innerHTML =
@@ -1066,7 +2207,8 @@
       }
 
 
-      memoryList.innerHTML = "";
+      memoryList.innerHTML =
+        "";
 
 
       memories.forEach(
@@ -1077,12 +2219,14 @@
               "div"
             );
 
+
           item.className =
             "memory-item";
 
 
           const text =
-            typeof memory === "string"
+            typeof memory ===
+              "string"
               ? memory
               : (
                   memory.memory ||
@@ -1092,7 +2236,8 @@
 
 
           item.textContent =
-            "🧠 " + text;
+            "🧠 " +
+            text;
 
 
           memoryList.appendChild(
@@ -1123,9 +2268,15 @@
       "click",
       function () {
 
+        if (!memoryModal) {
+          return;
+        }
+
+
         memoryModal.classList.remove(
           "hidden"
         );
+
 
         loadMemory();
 
@@ -1172,6 +2323,350 @@
 
 
   /* =====================================================
+     EDIT USER MESSAGE
+  ===================================================== */
+
+  function editUserMessage(
+    content
+  ) {
+
+    if (sending) {
+
+      showToast(
+        "Current response complete hone dein."
+      );
+
+      return;
+    }
+
+
+    input.value =
+      content || "";
+
+
+    autoResize();
+
+    input.focus();
+
+
+    showToast(
+      "Message edit karein aur Send dabayein."
+    );
+  }
+
+
+  /* =====================================================
+     REGENERATE
+  ===================================================== */
+
+  async function regenerateLastResponse() {
+
+    if (sending) {
+      return;
+    }
+
+
+    let lastUserIndex =
+      -1;
+
+
+    for (
+      let i =
+        conversation.length - 1;
+      i >= 0;
+      i--
+    ) {
+
+      if (
+        conversation[i] &&
+        conversation[i].role ===
+          "user"
+      ) {
+
+        lastUserIndex =
+          i;
+
+        break;
+      }
+    }
+
+
+    if (
+      lastUserIndex === -1
+    ) {
+
+      showToast(
+        "Regenerate karne ke liye message nahi hai."
+      );
+
+      return;
+    }
+
+
+    const userMessage =
+      conversation[
+        lastUserIndex
+      ].content;
+
+
+    /*
+     Remove last assistant response
+     */
+
+    if (
+      conversation.length >
+        lastUserIndex + 1 &&
+      conversation[
+        conversation.length - 1
+      ].role === "assistant"
+    ) {
+
+      conversation.pop();
+    }
+
+
+    /*
+     Remove rendered conversation
+     and rebuild.
+    */
+
+    saveHistory();
+
+    renderConversation();
+
+
+    /*
+     Re-send without adding
+     another user message.
+    */
+
+    sending =
+      true;
+
+
+    if (sendButton) {
+      sendButton.disabled =
+        true;
+    }
+
+    input.disabled =
+      true;
+
+
+    showThinking();
+
+
+    try {
+
+      const reply =
+        await sendToAtharv(
+          userMessage
+        );
+
+
+      conversation.push(
+        {
+          role:
+            "assistant",
+
+          content:
+            reply
+        }
+      );
+
+
+      saveHistory();
+
+
+      renderConversation();
+
+
+    } catch (error) {
+
+      console.error(
+        "Regenerate error:",
+        error
+      );
+
+
+      showToast(
+        error.message ||
+        "Regenerate failed."
+      );
+
+
+    } finally {
+
+      hideThinking();
+
+
+      sending =
+        false;
+
+
+      if (sendButton) {
+        sendButton.disabled =
+          false;
+      }
+
+
+      input.disabled =
+        false;
+
+      input.focus();
+    }
+  }
+
+
+  /* =====================================================
+     EXPORT CHAT
+  ===================================================== */
+
+  function exportChat() {
+
+    if (
+      !conversation.length
+    ) {
+
+      showToast(
+        "Export karne ke liye chat empty hai."
+      );
+
+      return;
+    }
+
+
+    const lines =
+      conversation.map(
+        function (item) {
+
+          const role =
+            item.role === "user"
+              ? "You"
+              : "Atharv";
+
+
+          return (
+            role +
+            ":\n" +
+            item.content +
+            "\n"
+          );
+        }
+      );
+
+
+    const text =
+      "ATHARV AI CHAT\n" +
+      "====================\n\n" +
+      lines.join(
+        "\n"
+      );
+
+
+    const blob =
+      new Blob(
+        [text],
+        {
+          type:
+            "text/plain;charset=utf-8"
+        }
+      );
+
+
+    const url =
+      URL.createObjectURL(
+        blob
+      );
+
+
+    const link =
+      document.createElement(
+        "a"
+      );
+
+
+    link.href =
+      url;
+
+    link.download =
+      "atharv-chat-" +
+      new Date()
+        .toISOString()
+        .slice(0, 10) +
+      ".txt";
+
+
+    document.body.appendChild(
+      link
+    );
+
+
+    link.click();
+
+
+    link.remove();
+
+
+    URL.revokeObjectURL(
+      url
+    );
+
+
+    showToast(
+      "Chat exported."
+    );
+  }
+
+
+  /*
+   Public export helper.
+   Can later be connected to Settings.
+  */
+
+  window.AtharvAI.exportChat =
+    exportChat;
+
+
+  /* =====================================================
+     CLEAR CHAT HELPER
+  ===================================================== */
+
+  window.AtharvAI.clearChat =
+    function () {
+
+      if (sending) {
+        return false;
+      }
+
+
+      conversation =
+        [];
+
+
+      localStorage.removeItem(
+        HISTORY_KEY
+      );
+
+
+      clearSelectedFile();
+
+
+      renderConversation();
+
+
+      input.value = "";
+
+      autoResize();
+
+      input.focus();
+
+
+      return true;
+    };
+
+
+  /* =====================================================
      INITIALIZE
   ===================================================== */
 
@@ -1185,6 +2680,9 @@
   autoResize();
 
 
+  loadMode();
+
+
   input.focus();
 
 
@@ -1193,11 +2691,25 @@
   );
 
   console.log(
-    " ATHARV AI 17.0.3 FRONTEND"
+    " ATHARV AI 17.1.0 FRONTEND"
   );
 
   console.log(
-    " Chat handler loaded successfully."
+    " Advanced frontend loaded."
+  );
+
+  console.log(
+    " Chat handler: READY"
+  );
+
+  console.log(
+    " Live mode:",
+    liveMode
+  );
+
+  console.log(
+    " AI mode:",
+    currentMode
   );
 
   console.log(
