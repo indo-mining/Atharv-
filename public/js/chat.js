@@ -8,405 +8,315 @@ import {
 } from "./api.js";
 
 import {
-  appendUserMessage,
-  appendAssistantMessage,
-  showThinking,
-  removeThinking,
-  setSending,
-  showError,
-  hideError,
-  clearMessages,
-  showWelcome
-} from "./ui.js";
-
-import {
-  getHistory,
-  saveHistory,
+  getUserId,
+  getChatHistory,
+  saveChatHistory,
+  saveDraft,
   clearDraft
 } from "./storage.js";
 
-import {
-  createId
-} from "./utils.js";
-
-
-let currentChatId = null;
 
 let conversation = [];
-
 let sending = false;
+let liveMode = false;
 
 
-function getAssistantText(data) {
+/* =====================================================
+   INIT
+===================================================== */
 
-  if (!data) {
-    return "";
+export function initChat() {
+  conversation =
+    getChatHistory();
+
+  if (
+    !Array.isArray(conversation)
+  ) {
+    conversation = [];
   }
 
-
-  return (
-    data.reply ||
-    data.response ||
-    data.message ||
-    data.answer ||
-    data.content ||
-    data.data?.reply ||
-    data.data?.response ||
-    ""
-  );
+  return conversation;
 }
 
+
+/* =====================================================
+   STATE
+===================================================== */
+
+export function isSending() {
+  return sending;
+}
+
+export function setLiveMode(value) {
+  liveMode =
+    Boolean(value);
+}
+
+export function getLiveMode() {
+  return liveMode;
+}
+
+
+/* =====================================================
+   HISTORY
+===================================================== */
 
 function cleanHistory() {
-
   return conversation
+    .slice(-CONFIG.MAX_HISTORY_MESSAGES)
+    .map(item => ({
+      role:
+        item.role === "assistant"
+          ? "assistant"
+          : "user",
+
+      content:
+        String(
+          item.content || ""
+        ).slice(0, 5000)
+    }))
     .filter(
-      item =>
-        item &&
-        (
-          item.role === "user" ||
-          item.role === "assistant"
-        ) &&
-        typeof item.content === "string"
-    )
-    .slice(
-      -(
-        CONFIG.MAX_HISTORY_MESSAGES ||
-        CONFIG.LIMITS?.MAX_HISTORY_MESSAGES ||
-        12
-      )
+      item => item.content.trim()
     );
 }
 
 
-function saveCurrentChat() {
+/* =====================================================
+   ADD MESSAGE
+===================================================== */
 
-  if (!conversation.length) {
-    return;
-  }
-
-
-  const firstUser =
-    conversation.find(
-      item =>
-        item.role === "user"
-    );
-
-
-  const title =
-    firstUser?.content?.trim() ||
-    "New chat";
-
-
-  const history =
-    getHistory();
-
-
-  const item = {
-
-    id:
-      currentChatId ||
-      createId("chat"),
-
-    title:
-      title.slice(0, 80),
-
-    messages:
-      cleanHistory(),
-
-    updatedAt:
-      Date.now()
-
-  };
-
-
-  currentChatId =
-    item.id;
-
-
-  const filtered =
-    history.filter(
-      entry =>
-        entry.id !== item.id
-    );
-
-
-  filtered.unshift(item);
-
-  saveHistory(filtered);
-}
-
-
-function buildPayload(
-  message,
-  options = {}
+export function addMessage(
+  role,
+  content
 ) {
-
-  const history =
-    cleanHistory();
-
-
-  return {
-
-    message,
-
-    history,
-
-    chatHistory:
-      history,
-
-    research:
-      Boolean(options.research),
-
-    mode:
-      options.research
-        ? "live"
-        : "chat"
-
-  };
+  conversation.push({
+    role,
+    content,
+    timestamp:
+      Date.now()
+  });
 }
 
+
+/* =====================================================
+   GET HISTORY
+===================================================== */
+
+export function getConversation() {
+  return [...conversation];
+}
+
+
+/* =====================================================
+   SEND
+===================================================== */
 
 export async function sendMessage(
   message,
   options = {}
 ) {
-
   const text =
-    String(message || "").trim();
-
+    String(
+      message || ""
+    ).trim();
 
   if (!text) {
-    return;
+    throw new Error(
+      "Message is empty."
+    );
   }
-
-
-  if (sending) {
-    return;
-  }
-
-
-  const maxLength =
-    CONFIG.MAX_MESSAGE_LENGTH ||
-    CONFIG.LIMITS?.MAX_MESSAGE_LENGTH ||
-    12000;
-
 
   if (
     text.length >
-    maxLength
+    CONFIG.MAX_MESSAGE_LENGTH
   ) {
-
-    showError(
-      `Message is too long. Maximum ${maxLength} characters.`
+    throw new Error(
+      `Message maximum ${CONFIG.MAX_MESSAGE_LENGTH} characters hai.`
     );
-
-    return;
   }
 
+  /*
+  -------------------------------------------------------
+  Duplicate send protection
+  -------------------------------------------------------
+  */
+
+  if (sending) {
+    return null;
+  }
 
   sending = true;
 
-  hideError();
-
-
-  appendUserMessage(
-    text
-  );
-
-
-  conversation.push({
-    role: "user",
-    content: text
-  });
-
-
-  setSending(true);
-
-
-  const thinking =
-    showThinking();
-
-
   try {
 
-    const payload =
-      buildPayload(
-        text,
-        options
-      );
+    /*
+    -----------------------------------------------------
+    Save user message
+    -----------------------------------------------------
+    */
 
+    addMessage(
+      "user",
+      text
+    );
 
-    let data;
+    saveChatHistory(
+      conversation
+    );
 
+    saveDraft("");
+
+    /*
+    -----------------------------------------------------
+    IMPORTANT:
+    userId is automatically included inside api.js
+    -----------------------------------------------------
+    */
+
+    let result;
 
     if (
-      options.research ||
-      options.mode === "live"
+      options.live === true ||
+      liveMode === true
     ) {
 
-      data =
-        await sendResearch(
-          payload
-        );
+      result =
+        await sendResearch({
+          message: text
+        });
 
     } else {
 
-      data =
-        await sendChat(
-          payload
-        );
+      result =
+        await sendChat({
+          message: text,
+          history:
+            cleanHistory()
+        });
     }
 
-
-    removeThinking(
-      thinking
-    );
-
+    /*
+    -----------------------------------------------------
+    EXTRACT RESPONSE
+    -----------------------------------------------------
+    */
 
     const reply =
-      getAssistantText(
-        data
-      );
-
+      extractReply(result);
 
     if (!reply) {
-
       throw new Error(
-        "Atharv did not return a response."
+        "Atharv ne empty response diya."
       );
     }
 
-
-    appendAssistantMessage(
+    addMessage(
+      "assistant",
       reply
     );
 
-
-    conversation.push({
-
-      role:
-        "assistant",
-
-      content:
-        reply
-
-    });
-
-
-    conversation =
-      cleanHistory();
-
-
-    saveCurrentChat();
-
-    clearDraft();
-
-
-  } catch (error) {
-
-    removeThinking(
-      thinking
+    saveChatHistory(
+      conversation
     );
 
-
-    console.error(
-      "CHAT ERROR:",
-      error
-    );
-
-
-    showError(
-      error?.message ||
-      "Response nahi mil paaya. Please try again."
-    );
+    return {
+      reply,
+      raw: result
+    };
 
   } finally {
-
-    setSending(false);
-
     sending = false;
   }
 }
 
 
-export function startNewChat() {
+/* =====================================================
+   RESPONSE PARSER
+===================================================== */
 
-  currentChatId = null;
+function extractReply(data) {
 
-  conversation = [];
-
-  clearMessages();
-
-  hideError();
-
-  clearDraft();
-
-
-  const input =
-    document.querySelector(
-      "#messageInput"
-    );
-
-
-  if (input) {
-
-    input.value = "";
-
-    input.focus();
-  }
-}
-
-
-export function loadChat(
-  chat
-) {
-
-  if (!chat) {
-    return;
+  if (!data) {
+    return "";
   }
 
+  const candidates = [
+    data.reply,
+    data.response,
+    data.message,
+    data.answer,
+    data.content,
+    data.text,
 
-  currentChatId =
-    chat.id;
+    data.data?.reply,
+    data.data?.response,
+    data.data?.message,
+    data.data?.answer,
+    data.data?.content,
 
-
-  conversation =
-    Array.isArray(
-      chat.messages
-    )
-      ? chat.messages.slice()
-      : [];
-
-
-  clearMessages();
-
+    data.result?.reply,
+    data.result?.response,
+    data.result?.answer,
+    data.result?.content
+  ];
 
   for (
-    const message
-    of conversation
+    const candidate of candidates
   ) {
 
     if (
-      message.role === "user"
+      typeof candidate ===
+      "string" &&
+      candidate.trim()
     ) {
-
-      appendUserMessage(
-        message.content
-      );
-
-    } else if (
-      message.role === "assistant"
-    ) {
-
-      appendAssistantMessage(
-        message.content
-      );
+      return candidate.trim();
     }
   }
 
+  /*
+  -------------------------------------------------------
+  Research APIs sometimes return answer/result.
+  -------------------------------------------------------
+  */
 
-  showWelcome(
-    conversation.length === 0
-  );
+  if (
+    typeof data.result ===
+    "string"
+  ) {
+    return data.result.trim();
+  }
+
+  if (
+    typeof data.raw ===
+    "string"
+  ) {
+    return data.raw.trim();
+  }
+
+  return "";
+}
+
+
+/* =====================================================
+   CLEAR CHAT ONLY
+===================================================== */
+
+export function clearConversation() {
+  conversation = [];
+
+  /*
+  IMPORTANT:
+  PostgreSQL memory is NOT touched.
+  */
+
+  saveChatHistory([]);
+}
+
+
+/* =====================================================
+   USER ID
+===================================================== */
+
+export function getCurrentUserId() {
+  return getUserId();
 }
