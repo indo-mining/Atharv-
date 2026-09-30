@@ -2,7 +2,6 @@
 <html lang="en">
 
 <head>
-
     <meta charset="UTF-8">
 
     <meta
@@ -30,601 +29,107 @@
         content="yes"
     >
 
-    <meta
-        name="apple-mobile-web-app-status-bar-style"
-        content="default"
-    >
-
     <title>ATHARV AI</title>
 
-    <link
-        rel="manifest"
-        href="./manifest.json"
-    >
-
-    <link
-        rel="stylesheet"
-        href="./style.css"
-    >
-
+    <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="./style.css">
 </head>
 
 
 <body>
 
-<!-- =================================================
-     HEADER
-     ================================================= -->
-
-<header class="atharv-header">
-
-    <div class="header-left">
-
-        <button
-            id="menuButton"
-            class="menu-button"
-            type="button"
-            aria-label="Open menu"
-            aria-expanded="false"
-        >
-            ☰
-        </button>
-
-
-        <div class="atharv-brand">
-
-            <div class="atharv-brand-title">
-                ATHARV
-            </div>
-
-            <div class="atharv-brand-subtitle">
-                Your AI. Every Language. Every Question.
-            </div>
-
-        </div>
-
-    </div>
-
-
-    <div class="header-right">
-
-        <button
-            id="profileButton"
-            class="header-action"
-            type="button"
-            aria-label="Profile"
-        >
-            👤
-        </button>
-
-    </div>
-
-</header>
-
-
-<!-- =================================================
-     MENU OVERLAY
-     ================================================= -->
-
-<div
-    id="menuOverlay"
-    class="menu-overlay"
-    aria-hidden="true"
-></div>
-
-
-<!-- =================================================
-     SIDE MENU
-     ================================================= -->
-
-<aside
-    id="atharvMenu"
-    class="menu-drawer"
-    aria-hidden="true"
->
-
-    <div class="menu-header">
-
-        <strong>
-            ATHARV
-        </strong>
-
-        <button
-            id="menuClose"
-            class="menu-close"
-            type="button"
-            aria-label="Close menu"
-        >
-            ✕
-        </button>
-
-    </div>
-
-
-    <div class="menu-content">
-
-
-        <!-- ================= MAIN ================= -->
-
-        <div class="menu-section">
-
-            <div class="menu-section-title">
-                Main
-            </div>
-
-
-            <button
-                id="newChatButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    ✚
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        New Chat
-                    </span>
-
-                    <span class="menu-item-description">
-                        Start a fresh conversation
-                    </span>
-
-                </span>
-
-            </button>
-
-
-            <button
-                id="historyButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    🕘
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Chat History
-                    </span>
-
-                    <span class="menu-item-description">
-                        Previous conversations
-                    </span>
-
-                </span>
-
-            </button>
-
-        </div>
-
-
-        <!-- ================= TOOLS ================= -->
-
-        <div class="menu-section">
-
-            <div class="menu-section-title">
-                Tools
-            </div>
-
-
-            <button
-                id="liveButton"
-                class="menu-item"
-                type="button"
-                aria-pressed="false"
-            >
-
-                <span class="menu-item-icon">
-                    🌐
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Live Search
-                    </span>
-
-                    <span class="menu-item-description">
-                        Search current information
-                    </span>
-
-                </span>
-
-            </button>
-
-
-            <button
-                id="memoryButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    🧠
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Memory
-                    </span>
-
-                    <span class="menu-item-description">
-                        View saved memories
-                    </span>
-
-                </span>
-
-            </button>
-
-
-            <button
-                id="menuAttachmentButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    📎
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Attach File
-                    </span>
-
-                    <span class="menu-item-description">
-                        Add an image or document
-                    </span>
-
-                </span>
-
-            </button>
-
-
-            <button
-                id="menuVoiceButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    🎙️
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Voice Input
-                    </span>
-
-                    <span class="menu-item-description">
-                        Talk to Atharv
-                    </span>
-
-                </span>
-
-            </button>
-
-        </div>
-
-
-        <!-- ================= APP ================= -->
-
-        <div class="menu-section">
-
-            <div class="menu-section-title">
-                App
-            </div>
-
-
-            <button
-                id="installAppButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    📱
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Install Atharv
-                    </span>
-
-                    <span class="menu-item-description">
-                        Add Atharv to your device
-                    </span>
-
-                </span>
-
-            </button>
-
-
-            <button
-                id="settingsButton"
-                class="menu-item"
-                type="button"
-            >
-
-                <span class="menu-item-icon">
-                    ⚙️
-                </span>
-
-                <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Settings
-                    </span>
-
-                    <span class="menu-item-description">
-                        App preferences
-                    </span>
-
-                </span>
-
-            </button>
-
-        </div>
-
-    </div>
-
-
-    <div class="menu-footer">
-        ATHARV AI
-    </div>
-
-</aside>
-
-
-<!-- =================================================
-     CHAT PAGE
-     ================================================= -->
-
-<main class="chat-page">
-
+<div class="app">
 
     <!-- =================================================
-         CHAT CONTAINER
+         TOP BAR
          ================================================= -->
 
-    <section
-        id="chatContainer"
-        class="chat-container"
-    >
+    <header class="topbar">
 
+        <div class="brand">
 
-        <!-- ================= WELCOME ================= -->
+            <button
+                id="menuButton"
+                class="icon-btn menu-button"
+                type="button"
+                aria-label="Open menu"
+                aria-expanded="false"
+            >
+                ☰
+            </button>
 
-        <div
-            id="welcome"
-            class="welcome"
-        >
-
-            <div class="welcome-logo">
-                ATHARV
+            <div class="brand-mark">
+                A
             </div>
 
-            <h1>
-                Your AI. Every Language. Every Question.
-            </h1>
+            <div class="brand-text">
 
-            <p>
-                Ask anything and start a conversation.
-            </p>
+                <div class="brand-title">
+                    ATHARV AI
+                </div>
 
-
-            <div class="suggestions">
-
-                <button
-                    type="button"
-                    data-prompt="Explain something interesting to me."
-                >
-                    💡 Explain something
-                </button>
-
-
-                <button
-                    type="button"
-                    data-prompt="Help me learn something new."
-                >
-                    📚 Help me learn
-                </button>
-
-
-                <button
-                    type="button"
-                    data-prompt="Write something for me."
-                >
-                    ✍️ Write for me
-                </button>
+                <div class="brand-subtitle">
+                    Your AI. Every Language. Every Question.
+                </div>
 
             </div>
 
         </div>
 
 
-        <!-- =================================================
-             MESSAGES
-             app.js v18.0.0 REQUIRED
-             ================================================= -->
+        <div class="top-actions">
 
-        <div
-            id="messages"
-            class="messages"
-        ></div>
-
-
-        <!-- =================================================
-             THINKING
-             ================================================= -->
-
-        <div
-            id="thinking"
-            class="thinking hidden"
-        >
-
-            <div class="thinking-dots">
-
-                <span></span>
-                <span></span>
-                <span></span>
-
-            </div>
-
-            <span>
-                Atharv is thinking...
-            </span>
+            <button
+                id="profileButton"
+                class="icon-btn"
+                type="button"
+                aria-label="Profile"
+            >
+                👤
+            </button>
 
         </div>
 
-    </section>
+    </header>
 
 
     <!-- =================================================
-         ATTACHMENT INFO
+         MENU OVERLAY
          ================================================= -->
 
     <div
-        id="attachmentInfo"
-        class="attachment-info hidden"
+        id="menuOverlay"
+        class="menu-overlay"
+        aria-hidden="true"
     ></div>
 
 
     <!-- =================================================
-         BOTTOM COMPOSER
-
-         EXACT STRUCTURE:
-
-         ＋ | Message Atharv… | 🎙️ | ➤
-
-         Is section ko intentionally change nahi kiya gaya.
+         MENU DRAWER
          ================================================= -->
 
-    <div class="composer-wrapper">
-
-        <form
-            id="chatForm"
-            class="composer"
-            autocomplete="off"
-        >
-
-
-            <!-- ATTACHMENT -->
-
-            <button
-                id="attachmentButton"
-                class="composer-side-button"
-                type="button"
-                aria-label="Attach file"
-            >
-                ＋
-            </button>
-
-
-            <input
-                id="fileInput"
-                type="file"
-                hidden
-                multiple
-                accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json"
-            >
-
-
-            <!-- MESSAGE -->
-
-            <textarea
-                id="messageInput"
-                class="message-input"
-                rows="1"
-                maxlength="12000"
-                placeholder="Message Atharv…"
-                aria-label="Message Atharv"
-            ></textarea>
-
-
-            <!-- VOICE -->
-
-            <button
-                id="voiceButton"
-                class="voice-button"
-                type="button"
-                aria-label="Voice input"
-            >
-                🎙️
-            </button>
-
-
-            <!-- SEND -->
-
-            <button
-                id="sendButton"
-                class="send-button"
-                type="submit"
-                aria-label="Send message"
-            >
-                ➤
-            </button>
-
-        </form>
-
-    </div>
-
-</main>
-
-
-<!-- =================================================
-     TOAST
-     ================================================= -->
-
-<div
-    id="toast"
-    class="toast"
-    role="status"
-    aria-live="polite"
-></div>
-
-
-<!-- =================================================
-     MEMORY MODAL
-     ================================================= -->
-
-<div
-    id="memoryModal"
-    class="modal hidden"
-    aria-hidden="true"
->
-
-    <div class="modal-backdrop"></div>
-
-
-    <div
-        class="modal-card"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="memoryTitle"
+    <aside
+        id="atharvMenu"
+        class="menu-drawer"
+        aria-hidden="true"
     >
 
-        <div class="modal-header">
+        <div class="menu-header">
 
-            <h2 id="memoryTitle">
-                Memory
-            </h2>
+            <div class="menu-brand">
+                <div class="menu-brand-mark">A</div>
+
+                <div>
+                    <strong>ATHARV AI</strong>
+                    <small>Your AI</small>
+                </div>
+            </div>
 
             <button
-                id="closeMemoryButton"
+                id="menuClose"
+                class="icon-btn"
                 type="button"
-                aria-label="Close memory"
+                aria-label="Close menu"
             >
                 ✕
             </button>
@@ -632,13 +137,505 @@
         </div>
 
 
-        <div
-            id="memoryList"
-            class="memory-list"
+        <div class="menu-content">
+
+
+            <!-- MAIN -->
+
+            <section class="menu-section">
+
+                <div class="menu-section-title">
+                    MAIN
+                </div>
+
+
+                <button
+                    id="newChatButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">✚</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            New Chat
+                        </span>
+
+                        <span class="menu-item-description">
+                            Start a fresh conversation
+                        </span>
+
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="historyButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">🕘</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Chat History
+                        </span>
+
+                        <span class="menu-item-description">
+                            Previous conversations
+                        </span>
+
+                    </span>
+
+                </button>
+
+            </section>
+
+
+            <!-- TOOLS -->
+
+            <section class="menu-section">
+
+                <div class="menu-section-title">
+                    TOOLS
+                </div>
+
+
+                <button
+                    id="liveButton"
+                    class="menu-item"
+                    type="button"
+                    aria-pressed="false"
+                >
+
+                    <span class="menu-item-icon">🌐</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Live Search
+                        </span>
+
+                        <span class="menu-item-description">
+                            Search current information
+                        </span>
+
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="memoryButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">🧠</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Memory
+                        </span>
+
+                        <span class="menu-item-description">
+                            View saved memories
+                        </span>
+
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="menuAttachmentButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">📎</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Attach File
+                        </span>
+
+                        <span class="menu-item-description">
+                            Add an image or document
+                        </span>
+
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="menuVoiceButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">🎙️</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Voice Input
+                        </span>
+
+                        <span class="menu-item-description">
+                            Talk to Atharv
+                        </span>
+
+                    </span>
+
+                </button>
+
+            </section>
+
+
+            <!-- APP -->
+
+            <section class="menu-section">
+
+                <div class="menu-section-title">
+                    APP
+                </div>
+
+
+                <button
+                    id="installAppButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">📱</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Install Atharv
+                        </span>
+
+                        <span class="menu-item-description">
+                            Add Atharv to your device
+                        </span>
+
+                    </span>
+
+                </button>
+
+
+                <button
+                    id="settingsButton"
+                    class="menu-item"
+                    type="button"
+                >
+
+                    <span class="menu-item-icon">⚙️</span>
+
+                    <span class="menu-item-text">
+
+                        <span class="menu-item-title">
+                            Settings
+                        </span>
+
+                        <span class="menu-item-description">
+                            App preferences
+                        </span>
+
+                    </span>
+
+                </button>
+
+            </section>
+
+        </div>
+
+
+        <div class="menu-footer">
+            ATHARV AI
+        </div>
+
+    </aside>
+
+
+    <!-- =================================================
+         MAIN CHAT
+         ================================================= -->
+
+    <main class="main">
+
+        <section
+            id="chatContainer"
+            class="chat-shell"
         >
 
-            <div class="memory-empty">
-                Loading memory...
+
+            <!-- WELCOME -->
+
+            <div id="welcome">
+
+                <div class="welcome-card">
+
+                    <div class="welcome-logo">
+                        A
+                    </div>
+
+                    <h1 class="welcome-title">
+                        Your AI. Every Language. Every Question.
+                    </h1>
+
+                    <p class="welcome-description">
+                        Ask anything and start a conversation with Atharv.
+                    </p>
+
+
+                    <div class="suggestions">
+
+                        <button
+                            class="suggestion-card"
+                            type="button"
+                            data-prompt="Explain something interesting to me."
+                        >
+                            <div class="suggestion-title">
+                                💡 Explain something
+                            </div>
+
+                            <div class="suggestion-description">
+                                Get a clear explanation of any topic.
+                            </div>
+                        </button>
+
+
+                        <button
+                            class="suggestion-card"
+                            type="button"
+                            data-prompt="Help me learn something new."
+                        >
+                            <div class="suggestion-title">
+                                📚 Help me learn
+                            </div>
+
+                            <div class="suggestion-description">
+                                Learn step by step in simple language.
+                            </div>
+                        </button>
+
+
+                        <button
+                            class="suggestion-card"
+                            type="button"
+                            data-prompt="Write something for me."
+                        >
+                            <div class="suggestion-title">
+                                ✍️ Write for me
+                            </div>
+
+                            <div class="suggestion-description">
+                                Create messages, posts, ideas and more.
+                            </div>
+                        </button>
+
+
+                        <button
+                            class="suggestion-card"
+                            type="button"
+                            data-prompt="Help me with programming."
+                        >
+                            <div class="suggestion-title">
+                                💻 Help with coding
+                            </div>
+
+                            <div class="suggestion-description">
+                                Get help with programming and Python.
+                            </div>
+                        </button>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            <!-- MESSAGES -->
+
+            <div
+                id="messages"
+                class="messages"
+            ></div>
+
+
+            <!-- THINKING -->
+
+            <div
+                id="thinking"
+                class="thinking hidden"
+            >
+
+                <div class="thinking-row">
+
+                    <div class="thinking-avatar">
+                        A
+                    </div>
+
+                    <div class="thinking-bubble">
+
+                        <span class="thinking-dot"></span>
+                        <span class="thinking-dot"></span>
+                        <span class="thinking-dot"></span>
+
+                        <span>
+                            Atharv is thinking...
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =================================================
+             ATTACHMENT INFO
+             ================================================= -->
+
+        <div
+            id="attachmentInfo"
+            class="attachment-list hidden"
+        ></div>
+
+
+        <!-- =================================================
+             COMPOSER
+             ================================================= -->
+
+        <div class="composer-area">
+
+            <form
+                id="chatForm"
+                class="composer"
+                autocomplete="off"
+            >
+
+                <button
+                    id="attachmentButton"
+                    class="composer-button attach-button"
+                    type="button"
+                    aria-label="Attach file"
+                >
+                    ＋
+                </button>
+
+
+                <input
+                    id="fileInput"
+                    type="file"
+                    hidden
+                    multiple
+                    accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json"
+                >
+
+
+                <textarea
+                    id="messageInput"
+                    rows="1"
+                    maxlength="12000"
+                    placeholder="Message Atharv…"
+                    aria-label="Message Atharv"
+                    autocomplete="off"
+                    autocorrect="on"
+                    spellcheck="true"
+                ></textarea>
+
+
+                <button
+                    id="voiceButton"
+                    class="composer-button voice-button"
+                    type="button"
+                    aria-label="Voice input"
+                >
+                    🎙️
+                </button>
+
+
+                <button
+                    id="sendButton"
+                    class="composer-button send-button"
+                    type="submit"
+                    aria-label="Send message"
+                >
+                    ➤
+                </button>
+
+            </form>
+
+        </div>
+
+    </main>
+
+
+    <!-- TOAST -->
+
+    <div
+        id="toast"
+        class="toast"
+        role="status"
+        aria-live="polite"
+    ></div>
+
+
+    <!-- =================================================
+         MEMORY MODAL
+         ================================================= -->
+
+    <div
+        id="memoryModal"
+        class="modal hidden"
+        aria-hidden="true"
+    >
+
+        <div class="modal-backdrop"></div>
+
+        <div class="modal-card">
+
+            <div class="modal-header">
+
+                <h2 class="modal-title">
+                    Memory
+                </h2>
+
+                <button
+                    id="closeMemoryButton"
+                    class="icon-btn"
+                    type="button"
+                    aria-label="Close memory"
+                >
+                    ✕
+                </button>
+
+            </div>
+
+
+            <div
+                id="memoryList"
+                class="memory-list"
+            >
+
+                <div class="memory-empty">
+                    Loading memory...
+                </div>
+
             </div>
 
         </div>
@@ -649,7 +646,7 @@
 
 
 <!-- =================================================
-     MENU JAVASCRIPT
+     MENU SCRIPT
      ================================================= -->
 
 <script>
@@ -657,7 +654,6 @@
 (() => {
 
     "use strict";
-
 
     const menu =
         document.getElementById("atharvMenu");
@@ -674,13 +670,15 @@
 
     function openMenu() {
 
-        if (!menu) return;
-
-        menu.classList.add("open");
-
+        menu?.classList.add("open");
         overlay?.classList.add("open");
 
-        menu.setAttribute(
+        menu?.setAttribute(
+            "aria-hidden",
+            "false"
+        );
+
+        overlay?.setAttribute(
             "aria-hidden",
             "false"
         );
@@ -690,22 +688,22 @@
             "true"
         );
 
-        document.body.classList.add(
-            "menu-open"
-        );
+        document.body.classList.add("menu-open");
 
     }
 
 
     function closeMenu() {
 
-        if (!menu) return;
-
-        menu.classList.remove("open");
-
+        menu?.classList.remove("open");
         overlay?.classList.remove("open");
 
-        menu.setAttribute(
+        menu?.setAttribute(
+            "aria-hidden",
+            "true"
+        );
+
+        overlay?.setAttribute(
             "aria-hidden",
             "true"
         );
@@ -715,9 +713,7 @@
             "false"
         );
 
-        document.body.classList.remove(
-            "menu-open"
-        );
+        document.body.classList.remove("menu-open");
 
     }
 
@@ -742,14 +738,10 @@
 
     document.addEventListener(
         "keydown",
-        (event) => {
+        event => {
 
-            if (
-                event.key === "Escape"
-            ) {
-
+            if (event.key === "Escape") {
                 closeMenu();
-
             }
 
         }
@@ -757,10 +749,8 @@
 
 
     /*
-    ==================================================
-    MENU ATTACHMENT
-    ==================================================
-    */
+     * Menu attachment
+     */
 
     document
         .getElementById("menuAttachmentButton")
@@ -770,24 +760,17 @@
 
                 closeMenu();
 
-                const button =
-                    document.getElementById(
-                        "attachmentButton"
-                    );
-
-                if (button) {
-                    button.click();
-                }
+                document
+                    .getElementById("attachmentButton")
+                    ?.click();
 
             }
         );
 
 
     /*
-    ==================================================
-    MENU VOICE
-    ==================================================
-    */
+     * Menu voice
+     */
 
     document
         .getElementById("menuVoiceButton")
@@ -797,119 +780,76 @@
 
                 closeMenu();
 
-                const button =
-                    document.getElementById(
-                        "voiceButton"
-                    );
-
-                if (button) {
-                    button.click();
-                }
+                document
+                    .getElementById("voiceButton")
+                    ?.click();
 
             }
         );
 
 
     /*
-    ==================================================
-    MENU LIVE SEARCH
-    app.js itself handles the actual toggle.
-    We ONLY close the menu here.
-    ==================================================
-    */
+     * Live search
+     * app.js handles actual toggle.
+     */
 
     document
         .getElementById("liveButton")
         ?.addEventListener(
             "click",
-            () => {
-
-                closeMenu();
-
-            }
+            closeMenu
         );
 
 
     /*
-    ==================================================
-    MOBILE KEYBOARD
-    Does not modify the composer.
-    ==================================================
-    */
+     * Other menu actions close the drawer.
+     */
 
-    if (window.visualViewport) {
-
-        window.visualViewport.addEventListener(
-            "resize",
-            () => {
-
-                requestAnimationFrame(() => {
-
-                    const container =
-                        document.getElementById(
-                            "chatContainer"
-                        );
-
-                    if (!container) return;
-
-                    if (
-                        document.activeElement ===
-                        document.getElementById(
-                            "messageInput"
-                        )
-                    ) {
-
-                        container.scrollTop =
-                            container.scrollHeight;
-
-                    }
-
-                });
-
-            }
+    document
+        .getElementById("newChatButton")
+        ?.addEventListener(
+            "click",
+            closeMenu
         );
 
-    }
 
-
-    /*
-    ==================================================
-    KEEP INPUT VISIBLE WHEN KEYBOARD OPENS
-    ==================================================
-    */
-
-    const input =
-        document.getElementById(
-            "messageInput"
+    document
+        .getElementById("historyButton")
+        ?.addEventListener(
+            "click",
+            closeMenu
         );
 
-    input?.addEventListener(
-        "focus",
-        () => {
 
-            setTimeout(() => {
+    document
+        .getElementById("memoryButton")
+        ?.addEventListener(
+            "click",
+            closeMenu
+        );
 
-                input.scrollIntoView({
-                    block: "nearest",
-                    behavior: "smooth"
-                });
 
-            }, 250);
+    document
+        .getElementById("installAppButton")
+        ?.addEventListener(
+            "click",
+            closeMenu
+        );
 
-        }
-    );
 
+    document
+        .getElementById("settingsButton")
+        ?.addEventListener(
+            "click",
+            closeMenu
+        );
 
 })();
 
 </script>
 
 
-<!-- =================================================
-     ATHARV AI APP
-     IMPORTANT:
-     app.js AFTER ALL DOM ELEMENTS
-     ================================================= -->
+<!-- APP JS -->
 
 <script
     type="module"
