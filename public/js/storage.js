@@ -1,140 +1,224 @@
 "use strict";
 
-/*
-=========================================================
- ATHARV AI
- FRONTEND CONFIGURATION
- Version 17.0.2
-=========================================================
-*/
+
+const HISTORY_KEY =
+  "atharv_chat_history_v17";
+
+const OLD_HISTORY_KEYS = [
+  "atharv_chat_history",
+  "atharv_history",
+  "chat_history"
+];
 
 
-/* ================= STORAGE ================= */
-
-const STORAGE = Object.freeze({
-
-  HISTORY:
-    "atharv_chat_history_v17",
-
-  SESSION_ID:
-    "atharv_session_id_v17",
-
-  USER_ID:
-    "atharv_user_id_v17",
-
-  DRAFT:
-    "atharv_draft_v17"
-
-});
+const DRAFT_KEY =
+  "atharv_chat_draft_v17";
 
 
-/* ================= LIMITS ================= */
+function safeParse(
+  value,
+  fallback
+) {
 
-const LIMITS = Object.freeze({
+  try {
 
-  MAX_HISTORY:
-    30,
+    return JSON.parse(value);
 
-  MAX_MESSAGE_LENGTH:
-    12000,
+  } catch {
 
-  MAX_FILE_SIZE:
-    5 * 1024 * 1024,
-
-  MAX_FILE_TEXT:
-    30000
-
-});
+    return fallback;
+  }
+}
 
 
-/* ================= APP ================= */
+export function getHistory() {
 
-const APP = Object.freeze({
+  try {
 
-  NAME:
-    "Atharv AI",
-
-  VERSION:
-    "17.0.2"
-
-});
+    const current =
+      localStorage.getItem(
+        HISTORY_KEY
+      );
 
 
-/* ================= CONFIG ================= */
+    if (current) {
 
-export const CONFIG = Object.freeze({
-
-  API_BASE: "",
-
-
-  ENDPOINTS: Object.freeze({
-
-    CHAT:
-      "/api/chat",
-
-    CHAT_STREAM:
-      "/api/chat/stream",
-
-    MEMORY:
-      "/api/memory",
-
-    SEARCH:
-      "/api/search",
-
-    WEATHER:
-      "/api/weather",
-
-    VERSION:
-      "/api/version",
-
-    HEALTH:
-      "/health"
-
-  }),
+      const parsed =
+        safeParse(
+          current,
+          []
+        );
 
 
-  /* Current structure */
-
-  STORAGE:
-    STORAGE,
-
-
-  LIMITS:
-    LIMITS,
+      return Array.isArray(
+        parsed
+      )
+        ? parsed
+        : [];
+    }
 
 
-  APP:
-    APP,
+    for (
+      const key
+      of OLD_HISTORY_KEYS
+    ) {
+
+      const old =
+        localStorage.getItem(
+          key
+        );
 
 
-  /* Compatibility with older modules */
-
-  STORAGE_KEYS:
-    STORAGE,
-
-
-  MAX_HISTORY_MESSAGES:
-    LIMITS.MAX_HISTORY,
+      if (!old) {
+        continue;
+      }
 
 
-  MAX_MESSAGE_LENGTH:
-    LIMITS.MAX_MESSAGE_LENGTH,
+      const parsed =
+        safeParse(
+          old,
+          []
+        );
 
 
-  MAX_FILE_SIZE:
-    LIMITS.MAX_FILE_SIZE,
+      if (
+        Array.isArray(parsed)
+      ) {
+
+        localStorage.setItem(
+          HISTORY_KEY,
+          JSON.stringify(parsed)
+        );
 
 
-  VERSION:
-    APP.VERSION
+        return parsed;
+      }
+    }
 
-});
+
+    return [];
+
+  } catch (error) {
+
+    console.warn(
+      "History read failed:",
+      error
+    );
+
+    return [];
+  }
+}
 
 
-/* ================= API URL ================= */
+export function saveHistory(
+  history
+) {
 
-export function apiUrl(endpoint) {
+  try {
 
-  return `${CONFIG.API_BASE}${endpoint}`;
+    const safe =
+      Array.isArray(history)
+        ? history
+        : [];
 
+
+    localStorage.setItem(
+      HISTORY_KEY,
+      JSON.stringify(safe)
+    );
+
+  } catch (error) {
+
+    console.warn(
+      "History save failed:",
+      error
+    );
+  }
+}
+
+
+export function clearHistory() {
+
+  try {
+
+    localStorage.removeItem(
+      HISTORY_KEY
+    );
+
+    /*
+     * Purposely DO NOT delete
+     * memory keys here.
+     *
+     * Chat history and Atharv
+     * Memory are separate.
+     */
+
+  } catch (error) {
+
+    console.warn(
+      "History clear failed:",
+      error
+    );
+  }
+}
+
+
+export function getDraft() {
+
+  try {
+
+    return (
+      localStorage.getItem(
+        DRAFT_KEY
+      ) || ""
+    );
+
+  } catch {
+
+    return "";
+  }
+}
+
+
+export function saveDraft(
+  value
+) {
+
+  try {
+
+    if (
+      String(value || "").trim()
+    ) {
+
+      localStorage.setItem(
+        DRAFT_KEY,
+        String(value)
+      );
+
+    } else {
+
+      localStorage.removeItem(
+        DRAFT_KEY
+      );
+    }
+
+  } catch (error) {
+
+    console.warn(
+      "Draft save failed:",
+      error
+    );
+  }
+}
+
+
+export function clearDraft() {
+
+  try {
+
+    localStorage.removeItem(
+      DRAFT_KEY
+    );
+
+  } catch {}
 }
