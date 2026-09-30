@@ -1,169 +1,43 @@
-/**
- * ========================================================
- * ATHARV AI
- * FRONTEND CONFIGURATION
- * Version 17.0.2
- * ========================================================
- */
-
 "use strict";
 
 
-/* ========================================================
-   STORAGE KEYS
-======================================================== */
+export const CONFIG = {
 
-const STORAGE_KEYS = Object.freeze({
+  API_BASE: "",
 
-  HISTORY:
-    "atharv_chat_history_v17",
-
-  SESSION_ID:
-    "atharv_session_id_v17",
-
-  USER_ID:
-    "atharv_user_id_v17",
-
-  DRAFT:
-    "atharv_draft_v17"
-
-});
+  API_TIMEOUT: 90000,
 
 
-/* ========================================================
-   LIMITS
-======================================================== */
+  APP: {
 
-const LIMITS = Object.freeze({
+    NAME:
+      "Atharv AI",
 
-  MAX_HISTORY:
-    30,
+    VERSION:
+      "17.0.2"
+
+  },
+
 
   MAX_MESSAGE_LENGTH:
     12000,
 
-  MAX_FILE_SIZE:
-    5 * 1024 * 1024,
-
-  MAX_FILE_TEXT:
-    30000
-
-});
-
-
-/* ========================================================
-   APP
-======================================================== */
-
-const APP = Object.freeze({
-
-  NAME:
-    "Atharv AI",
-
-  VERSION:
-    "17.0.2"
-
-});
-
-
-/* ========================================================
-   CONFIG
-======================================================== */
-
-export const CONFIG = Object.freeze({
-
-  API_BASE:
-    "",
-
-
-  ENDPOINTS: Object.freeze({
-
-    CHAT:
-      "/api/chat",
-
-    CHAT_STREAM:
-      "/api/chat/stream",
-
-    MEMORY:
-      "/api/memory",
-
-    SEARCH:
-      "/api/search",
-
-    WEATHER:
-      "/api/weather",
-
-    VERSION:
-      "/api/version",
-
-    HEALTH:
-      "/health"
-
-  }),
-
-
-  /*
-   * Current structure
-   */
-
-  STORAGE:
-    STORAGE_KEYS,
-
-
-  /*
-   * Compatibility with older modules
-   */
-
-  STORAGE_KEYS:
-    STORAGE_KEYS,
-
-
-  /*
-   * Current limits
-   */
-
-  LIMITS:
-    LIMITS,
-
-
-  /*
-   * Compatibility with older modules
-   */
 
   MAX_HISTORY_MESSAGES:
-    LIMITS.MAX_HISTORY,
-
-  MAX_MESSAGE_LENGTH:
-    LIMITS.MAX_MESSAGE_LENGTH,
-
-  MAX_FILE_SIZE:
-    LIMITS.MAX_FILE_SIZE,
+    12,
 
 
-  /*
-   * App information
-   */
+  LIMITS: {
 
-  APP:
-    APP,
+    MAX_MESSAGE_LENGTH:
+      12000,
 
+    MAX_HISTORY_MESSAGES:
+      12,
 
-  /*
-   * Compatibility with older modules
-   */
+    MAX_FILE_SIZE:
+      5 * 1024 * 1024
 
-  VERSION:
-    APP.VERSION
+  }
 
-});
-
-
-/* ========================================================
-   API URL
-======================================================== */
-
-export function apiUrl(endpoint) {
-
-  return `${CONFIG.API_BASE}${endpoint}`;
-
-}
+};
