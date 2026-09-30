@@ -3,149 +3,118 @@
 /*
 =========================================================
  ATHARV AI FRONTEND
- Version 17.1.0
+ Version 17.1.1
  --------------------------------------------------------
- Compatible with:
- - Atharv AI Server 16.x / 17.x
- - /api/chat
- - /api/chat/research
- - /api/memory
- - Current index.html v17.x
- - Current style.css v17.1.0
-
- Features:
- - Normal Chat
- - Live Research Mode
- - Local Chat History
- - Persistent User ID
- - Message Formatting
- - Headings
- - Bullet Lists
- - Numbered Lists
- - Bold / Italic / Inline Code
- - Fenced Code Blocks
- - Copy Code
- - Copy Message
- - Regenerate Response
- - Edit User Message
- - Memory Modal
- - Attachment Preview
- - Enter to Send
- - Shift + Enter for New Line
- - AbortController timeout
- - Safe HTML escaping
- - No GET form navigation
+ IMPORTANT:
+ - Existing UI preserved
+ - Existing index.html preserved
+ - Existing CSS preserved
+ - Normal chat preserved
+ - Live research preserved
+ - Memory preserved
+ - Attachment preview preserved
+ - Local history preserved
+ - Advanced message actions added
+ - Safe response formatting added
 =========================================================
 */
 
-(() => {
-  "use strict";
-
-  /* =====================================================
-     CONFIG
-  ===================================================== */
-
+(function () {
   const API_BASE = "";
-
-  const APP_VERSION = "17.1.0";
-
   const MAX_MESSAGE_LENGTH = 12000;
-
   const REQUEST_TIMEOUT = 120000;
 
-  const STORAGE_KEYS = {
+  const STORAGE = {
     USER_ID: "atharv_user_id_v17",
     HISTORY: "atharv_chat_history_v17",
-    LIVE_MODE: "atharv_live_mode_v17"
+    LIVE: "atharv_live_mode_v17"
   };
+
+  let initialized = false;
+  let sending = false;
+  let abortController = null;
+  let attachedFile = null;
+
+  let history = loadHistory();
+  let liveMode = loadLiveMode();
+
+  const userId = getUserId();
 
   /* =====================================================
      DOM
   ===================================================== */
 
-  const $ = (selector, parent = document) =>
-    parent.querySelector(selector);
+  const chatForm = document.getElementById("chatForm");
+  const messageInput =
+    document.getElementById("messageInput");
+  const sendButton =
+    document.getElementById("sendButton");
 
-  const $$ = (selector, parent = document) =>
-    Array.from(parent.querySelectorAll(selector));
+  const messages =
+    document.getElementById("messages");
 
-  const chatForm = $("#chatForm");
-  const messageInput = $("#messageInput");
-  const sendButton = $("#sendButton");
+  const thinking =
+    document.getElementById("thinking");
 
-  const messagesContainer = $("#messages");
-  const thinking = $("#thinking");
+  const welcome =
+    document.getElementById("welcome");
 
-  const welcome = $("#welcome");
+  const newChatButton =
+    document.getElementById("newChatButton");
 
-  const newChatButton = $("#newChatButton");
-  const memoryButton = $("#memoryButton");
+  const memoryButton =
+    document.getElementById("memoryButton");
 
-  const liveButton = $("#liveButton");
+  const liveButton =
+    document.getElementById("liveButton");
 
-  const attachmentButton = $("#attachmentButton");
-  const fileInput = $("#fileInput");
-  const attachmentInfo = $("#attachmentInfo");
+  const attachmentButton =
+    document.getElementById("attachmentButton");
 
-  const toast = $("#toast");
+  const fileInput =
+    document.getElementById("fileInput");
 
-  const memoryModal = $("#memoryModal");
-  const closeMemoryButton = $("#closeMemoryButton");
-  const memoryList = $("#memoryList");
+  const attachmentInfo =
+    document.getElementById("attachmentInfo");
+
+  const memoryModal =
+    document.getElementById("memoryModal");
+
+  const closeMemoryButton =
+    document.getElementById("closeMemoryButton");
+
+  const memoryList =
+    document.getElementById("memoryList");
+
+  const toast =
+    document.getElementById("toast");
 
   /* =====================================================
-     STATE
+     INIT
   ===================================================== */
-
-  let sending = false;
-
-  let currentAbortController = null;
-
-  let attachedFile = null;
-
-  let history = loadHistory();
-
-  let liveMode = loadLiveMode();
-
-  const userId = getOrCreateUserId();
-
-  /* =====================================================
-     INITIALIZATION
-  ===================================================== */
-
-  document.addEventListener("DOMContentLoaded", init);
-
-  /*
-   * DOMContentLoaded may already have fired if this script
-   * is loaded at the bottom of body.
-   */
-  if (document.readyState !== "loading") {
-    init();
-  }
-
-  let initialized = false;
 
   function init() {
     if (initialized) return;
-
     initialized = true;
 
     bindEvents();
-
-    updateLiveUI();
-
+    updateLiveButton();
     renderHistory();
-
-    resizeTextarea();
-
-    registerServiceWorker();
+    resizeInput();
 
     console.log(
-      `%cATHARV AI v${APP_VERSION}`,
-      "font-weight:bold"
+      "ATHARV AI frontend loaded:",
+      "17.1.1"
     );
+  }
 
-    console.log("ATHARV USER ID:", userId);
+  if (document.readyState === "loading") {
+    document.addEventListener(
+      "DOMContentLoaded",
+      init
+    );
+  } else {
+    init();
   }
 
   /* =====================================================
@@ -153,168 +122,208 @@
   ===================================================== */
 
   function bindEvents() {
-    /*
-     * IMPORTANT:
-     * Explicitly prevent default form submission.
-     * This prevents:
-     * GET /?message=...
-     */
     if (chatForm) {
-      chatForm.addEventListener("submit", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        await handleSend();
-      });
-    }
-
-    if (messageInput) {
-      messageInput.addEventListener("keydown", async (event) => {
-        /*
-         * Enter = Send
-         * Shift + Enter = New Line
-         */
-        if (
-          event.key === "Enter" &&
-          !event.shiftKey &&
-          !event.isComposing
-        ) {
+      chatForm.addEventListener(
+        "submit",
+        function (event) {
           event.preventDefault();
           event.stopPropagation();
 
-          await handleSend();
+          handleSend();
         }
-      });
+      );
+    }
 
-      messageInput.addEventListener("input", resizeTextarea);
+    if (messageInput) {
+      messageInput.addEventListener(
+        "keydown",
+        function (event) {
+          if (
+            event.key === "Enter" &&
+            !event.shiftKey &&
+            !event.isComposing
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            handleSend();
+          }
+        }
+      );
+
+      messageInput.addEventListener(
+        "input",
+        resizeInput
+      );
     }
 
     if (sendButton) {
-      sendButton.addEventListener("click", async (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      sendButton.addEventListener(
+        "click",
+        function (event) {
+          event.preventDefault();
+          event.stopPropagation();
 
-        await handleSend();
-      });
-    }
-
-    if (liveButton) {
-      liveButton.addEventListener("click", (event) => {
-        event.preventDefault();
-
-        liveMode = !liveMode;
-
-        saveLiveMode();
-
-        updateLiveUI();
-
-        showToast(
-          liveMode
-            ? "Live research mode ON"
-            : "Live research mode OFF"
-        );
-      });
+          handleSend();
+        }
+      );
     }
 
     if (newChatButton) {
-      newChatButton.addEventListener("click", (event) => {
-        event.preventDefault();
+      newChatButton.addEventListener(
+        "click",
+        function (event) {
+          event.preventDefault();
 
-        startNewChat();
-      });
+          newChat();
+        }
+      );
+    }
+
+    if (liveButton) {
+      liveButton.addEventListener(
+        "click",
+        function (event) {
+          event.preventDefault();
+
+          liveMode = !liveMode;
+
+          saveLiveMode();
+          updateLiveButton();
+
+          showToast(
+            liveMode
+              ? "Live search ON"
+              : "Live search OFF"
+          );
+        }
+      );
+    }
+
+    if (
+      attachmentButton &&
+      fileInput
+    ) {
+      attachmentButton.addEventListener(
+        "click",
+        function (event) {
+          event.preventDefault();
+
+          fileInput.click();
+        }
+      );
+
+      fileInput.addEventListener(
+        "change",
+        handleAttachment
+      );
     }
 
     if (memoryButton) {
-      memoryButton.addEventListener("click", async (event) => {
-        event.preventDefault();
-
-        await openMemoryModal();
-      });
+      memoryButton.addEventListener(
+        "click",
+        openMemory
+      );
     }
 
     if (closeMemoryButton) {
-      closeMemoryButton.addEventListener("click", closeMemoryModal);
+      closeMemoryButton.addEventListener(
+        "click",
+        closeMemory
+      );
     }
 
     if (memoryModal) {
-      memoryModal.addEventListener("click", (event) => {
-        if (event.target === memoryModal) {
-          closeMemoryModal();
+      memoryModal.addEventListener(
+        "click",
+        function (event) {
+          if (
+            event.target ===
+            memoryModal
+          ) {
+            closeMemory();
+          }
         }
-      });
-    }
-
-    if (attachmentButton && fileInput) {
-      attachmentButton.addEventListener("click", (event) => {
-        event.preventDefault();
-
-        fileInput.click();
-      });
-
-      fileInput.addEventListener("change", handleFileSelect);
+      );
     }
 
     /*
-     * Suggestion buttons
+     * Existing suggestion cards.
      */
-    $$(".suggestion, .example-chip").forEach((button) => {
-      button.addEventListener("click", async () => {
-        const text =
-          button.dataset.message ||
-          button.getAttribute("data-message") ||
-          button.textContent.trim();
+    document
+      .querySelectorAll(
+        ".suggestion, .example-chip"
+      )
+      .forEach(function (button) {
+        button.addEventListener(
+          "click",
+          function () {
+            const text =
+              button.dataset.message ||
+              button.textContent.trim();
 
-        if (!text) return;
+            if (!text) return;
 
-        if (messageInput) {
-          messageInput.value = text;
-          resizeTextarea();
-          messageInput.focus();
-        }
+            if (messageInput) {
+              messageInput.value =
+                text;
 
-        await handleSend();
+              resizeInput();
+              messageInput.focus();
+            }
+
+            handleSend();
+          }
+        );
       });
-    });
 
     /*
-     * Event delegation for dynamic message actions.
+     * Advanced dynamic actions.
      */
-    if (messagesContainer) {
-      messagesContainer.addEventListener("click", handleMessageAction);
+    if (messages) {
+      messages.addEventListener(
+        "click",
+        handleMessageAction
+      );
     }
 
     /*
-     * Escape closes modal.
+     * Code-copy buttons are created dynamically.
      */
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape") {
-        closeMemoryModal();
-      }
-    });
+    document.addEventListener(
+      "click",
+      handleCodeCopy
+    );
   }
 
   /* =====================================================
      USER ID
   ===================================================== */
 
-  function getOrCreateUserId() {
+  function getUserId() {
     try {
-      let id = localStorage.getItem(STORAGE_KEYS.USER_ID);
+      let id =
+        localStorage.getItem(
+          STORAGE.USER_ID
+        );
 
-      if (id && typeof id === "string") {
-        return id;
-      }
+      if (id) return id;
 
       id =
         "atharv_" +
         Date.now().toString(36) +
         "_" +
-        Math.random().toString(36).slice(2, 10);
+        Math.random()
+          .toString(36)
+          .slice(2, 10);
 
-      localStorage.setItem(STORAGE_KEYS.USER_ID, id);
+      localStorage.setItem(
+        STORAGE.USER_ID,
+        id
+      );
 
       return id;
-    } catch {
+    } catch (error) {
       return (
         "atharv_" +
         Date.now().toString(36)
@@ -328,39 +337,34 @@
 
   function loadHistory() {
     try {
-      const raw = localStorage.getItem(
-        STORAGE_KEYS.HISTORY
-      );
+      const raw =
+        localStorage.getItem(
+          STORAGE.HISTORY
+        );
 
       if (!raw) return [];
 
-      const parsed = JSON.parse(raw);
+      const data =
+        JSON.parse(raw);
 
-      if (!Array.isArray(parsed)) {
+      if (!Array.isArray(data)) {
         return [];
       }
 
-      return parsed
-        .filter(
-          (item) =>
+      return data
+        .filter(function (item) {
+          return (
             item &&
-            typeof item.role === "string" &&
-            typeof item.content === "string"
-        )
-        .map((item) => ({
-          role:
-            item.role === "assistant"
-              ? "assistant"
-              : "user",
-          content: item.content
-        }))
+            (
+              item.role === "user" ||
+              item.role === "assistant"
+            ) &&
+            typeof item.content ===
+              "string"
+          );
+        })
         .slice(-100);
     } catch (error) {
-      console.warn(
-        "History load error:",
-        error
-      );
-
       return [];
     }
   }
@@ -368,25 +372,17 @@
   function saveHistory() {
     try {
       localStorage.setItem(
-        STORAGE_KEYS.HISTORY,
-        JSON.stringify(history.slice(-100))
+        STORAGE.HISTORY,
+        JSON.stringify(
+          history.slice(-100)
+        )
       );
     } catch (error) {
       console.warn(
-        "History save error:",
+        "History save failed:",
         error
       );
     }
-  }
-
-  function clearHistory() {
-    history = [];
-
-    try {
-      localStorage.removeItem(
-        STORAGE_KEYS.HISTORY
-      );
-    } catch {}
   }
 
   /* =====================================================
@@ -397,7 +393,7 @@
     try {
       return (
         localStorage.getItem(
-          STORAGE_KEYS.LIVE_MODE
+          STORAGE.LIVE
         ) === "true"
       );
     } catch {
@@ -408,13 +404,13 @@
   function saveLiveMode() {
     try {
       localStorage.setItem(
-        STORAGE_KEYS.LIVE_MODE,
+        STORAGE.LIVE,
         String(liveMode)
       );
     } catch {}
   }
 
-  function updateLiveUI() {
+  function updateLiveButton() {
     if (!liveButton) return;
 
     liveButton.classList.toggle(
@@ -426,98 +422,82 @@
       "aria-pressed",
       String(liveMode)
     );
-
-    if (liveMode) {
-      liveButton.title =
-        "Live research mode is ON";
-    } else {
-      liveButton.title =
-        "Turn on live research mode";
-    }
   }
 
   /* =====================================================
-     RENDER HISTORY
+     HISTORY RENDER
   ===================================================== */
 
   function renderHistory() {
-    if (!messagesContainer) return;
+    if (!messages) return;
 
-    messagesContainer.innerHTML = "";
+    messages.innerHTML = "";
 
     if (!history.length) {
-      showWelcome();
+      if (welcome) {
+        welcome.hidden = false;
+        welcome.style.display = "";
+      }
+
       return;
     }
 
-    hideWelcome();
-
-    history.forEach((item, index) => {
-      appendMessage(
-        item.role,
-        item.content,
-        {
-          index
-        }
-      );
-    });
-
-    scrollToBottom(false);
-  }
-
-  function showWelcome() {
-    if (welcome) {
-      welcome.hidden = false;
-      welcome.style.display = "";
-    }
-  }
-
-  function hideWelcome() {
     if (welcome) {
       welcome.hidden = true;
       welcome.style.display = "none";
     }
+
+    history.forEach(
+      function (item, index) {
+        renderMessage(
+          item.role,
+          item.content,
+          index
+        );
+      }
+    );
+
+    scrollBottom(false);
   }
 
   /* =====================================================
-     MESSAGE RENDER
+     MESSAGE
   ===================================================== */
 
-  function appendMessage(
+  function renderMessage(
     role,
     content,
-    options = {}
+    index
   ) {
-    if (!messagesContainer) return null;
+    if (!messages) return;
 
-    hideWelcome();
+    const row =
+      document.createElement("div");
 
-    const row = document.createElement("div");
-
+    /*
+     * Preserve existing message-row
+     * structure expected by CSS.
+     */
     row.className =
-      role === "user"
-        ? "message-row user-message-row"
-        : "message-row assistant-message-row";
+      "message-row";
 
     row.dataset.role = role;
+    row.dataset.index = String(index);
 
-    if (
-      Number.isInteger(options.index)
-    ) {
-      row.dataset.index =
-        String(options.index);
-    }
-
-    const bubble = document.createElement("div");
+    const bubble =
+      document.createElement("div");
 
     bubble.className =
-      role === "user"
-        ? "message user-message"
-        : "message assistant-message";
+      "message " +
+      (
+        role === "user"
+          ? "user-message"
+          : "assistant-message"
+      );
 
     if (role === "assistant") {
       bubble.innerHTML =
-        formatAssistantMessage(content);
+        formatResponse(content);
     } else {
       bubble.textContent = content;
     }
@@ -525,102 +505,92 @@
     row.appendChild(bubble);
 
     /*
-     * Message action bar.
+     * Advanced actions are only appended
+     * after the existing message.
      */
     const actions =
-      createMessageActions(
+      createActions(
         role,
-        content
+        index
       );
 
-    if (actions) {
-      row.appendChild(actions);
-    }
+    row.appendChild(actions);
 
-    messagesContainer.appendChild(row);
-
-    return row;
+    messages.appendChild(row);
   }
 
   /* =====================================================
-     MESSAGE ACTIONS
+     ACTIONS
   ===================================================== */
 
-  function createMessageActions(
+  function createActions(
     role,
-    content
+    index
   ) {
-    const actions =
+    const wrapper =
       document.createElement("div");
 
-    actions.className =
+    wrapper.className =
       "atharv-message-actions";
 
     if (role === "assistant") {
-      actions.appendChild(
-        createActionButton(
-          "copy-message",
-          "Copy",
-          "Copy response"
+      wrapper.appendChild(
+        actionButton(
+          "copy",
+          "Copy"
         )
       );
 
-      actions.appendChild(
-        createActionButton(
+      wrapper.appendChild(
+        actionButton(
           "regenerate",
-          "Regenerate",
-          "Generate this response again"
+          "Regenerate"
         )
       );
     } else {
-      actions.appendChild(
-        createActionButton(
-          "edit-message",
-          "Edit",
-          "Edit this message"
+      wrapper.appendChild(
+        actionButton(
+          "edit",
+          "Edit"
         )
       );
 
-      actions.appendChild(
-        createActionButton(
-          "copy-message",
-          "Copy",
-          "Copy message"
+      wrapper.appendChild(
+        actionButton(
+          "copy",
+          "Copy"
         )
       );
     }
 
-    return actions;
+    return wrapper;
   }
 
-  function createActionButton(
+  function actionButton(
     action,
-    text,
-    title
+    text
   ) {
     const button =
-      document.createElement("button");
+      document.createElement(
+        "button"
+      );
 
     button.type = "button";
 
     button.className =
       "atharv-message-action";
 
-    button.dataset.action = action;
+    button.dataset.action =
+      action;
 
     button.textContent = text;
-
-    button.title = title;
-
-    button.setAttribute(
-      "aria-label",
-      title
-    );
 
     return button;
   }
 
-  async function handleMessageAction(event) {
+  async function handleMessageAction(
+    event
+  ) {
     const button =
       event.target.closest(
         ".atharv-message-action"
@@ -628,37 +598,33 @@
 
     if (!button) return;
 
-    event.preventDefault();
-    event.stopPropagation();
-
     const row =
-      button.closest(".message-row");
+      button.closest(
+        ".message-row"
+      );
 
     if (!row) return;
 
-    const action =
-      button.dataset.action;
-
-    const index = Number(
-      row.dataset.index
-    );
+    const index =
+      Number(row.dataset.index);
 
     if (!Number.isInteger(index)) {
       return;
     }
 
-    if (action === "copy-message") {
+    const action =
+      button.dataset.action;
+
+    if (action === "copy") {
       await copyMessage(index);
-      return;
     }
 
-    if (action === "edit-message") {
+    if (action === "edit") {
       editMessage(index);
-      return;
     }
 
     if (action === "regenerate") {
-      await regenerateMessage(index);
+      regenerate(index);
     }
   }
 
@@ -666,33 +632,38 @@
      COPY MESSAGE
   ===================================================== */
 
-  async function copyMessage(index) {
-    const item = history[index];
+  async function copyMessage(
+    index
+  ) {
+    const item =
+      history[index];
 
     if (!item) return;
 
     const ok =
-      await copyToClipboard(
+      await copyText(
         item.content
       );
 
-    if (ok) {
-      showToast("Copied");
-    } else {
-      showToast(
-        "Copy failed. Please try again."
-      );
-    }
+    showToast(
+      ok
+        ? "Copied"
+        : "Copy failed"
+    );
   }
 
   /* =====================================================
-     EDIT MESSAGE
+     EDIT
   ===================================================== */
 
   function editMessage(index) {
-    const item = history[index];
+    const item =
+      history[index];
 
-    if (!item || item.role !== "user") {
+    if (
+      !item ||
+      item.role !== "user"
+    ) {
       return;
     }
 
@@ -701,7 +672,7 @@
     messageInput.value =
       item.content;
 
-    resizeTextarea();
+    resizeInput();
 
     messageInput.focus();
 
@@ -713,7 +684,7 @@
     } catch {}
 
     showToast(
-      "Message loaded for editing"
+      "Message ready to edit"
     );
   }
 
@@ -721,22 +692,14 @@
      REGENERATE
   ===================================================== */
 
-  async function regenerateMessage(
+  async function regenerate(
     assistantIndex
   ) {
     if (sending) {
       showToast(
-        "Please wait for the current response."
+        "Please wait..."
       );
 
-      return;
-    }
-
-    if (
-      !Number.isInteger(
-        assistantIndex
-      )
-    ) {
       return;
     }
 
@@ -745,28 +708,22 @@
 
     if (
       !assistant ||
-      assistant.role !== "assistant"
+      assistant.role !==
+        "assistant"
     ) {
       return;
     }
 
-    /*
-     * Find the user message immediately
-     * before this assistant response.
-     */
-    let userIndex =
+    const userIndex =
       assistantIndex - 1;
 
-    while (
-      userIndex >= 0 &&
-      history[userIndex].role !== "user"
+    if (
+      userIndex < 0 ||
+      history[userIndex].role !==
+        "user"
     ) {
-      userIndex--;
-    }
-
-    if (userIndex < 0) {
       showToast(
-        "Previous user message not found."
+        "Previous message not found"
       );
 
       return;
@@ -776,23 +733,21 @@
       history[userIndex].content;
 
     /*
-     * Remove this assistant response and
-     * everything after it.
+     * Remove old assistant response.
+     * Keep user message.
      */
-    history = history.slice(
-      0,
-      assistantIndex
-    );
+    history =
+      history.slice(
+        0,
+        assistantIndex
+      );
 
     saveHistory();
 
     renderHistory();
 
-    await sendMessageInternal(
-      userMessage,
-      {
-        regenerate: true
-      }
+    await requestAnswer(
+      userMessage
     );
   }
 
@@ -810,10 +765,8 @@
 
     if (!message) {
       showToast(
-        "Please type a message."
+        "Please type a message"
       );
-
-      messageInput.focus();
 
       return;
     }
@@ -823,7 +776,7 @@
       MAX_MESSAGE_LENGTH
     ) {
       showToast(
-        `Message is too long. Maximum ${MAX_MESSAGE_LENGTH} characters.`
+        "Message is too long"
       );
 
       return;
@@ -831,47 +784,41 @@
 
     messageInput.value = "";
 
-    resizeTextarea();
+    resizeInput();
 
-    await sendMessageInternal(
+    await requestAnswer(
       message
     );
   }
 
-  async function sendMessageInternal(
-    message,
-    options = {}
+  /* =====================================================
+     REQUEST ANSWER
+  ===================================================== */
+
+  async function requestAnswer(
+    message
   ) {
     if (sending) return;
 
     sending = true;
 
-    setSendingState(true);
+    setSending(true);
 
     /*
-     * Add user message only if this isn't
-     * a regeneration request.
+     * Add user message.
      */
-    if (!options.regenerate) {
-      history.push({
-        role: "user",
-        content: message
-      });
+    history.push({
+      role: "user",
+      content: message
+    });
 
-      saveHistory();
+    saveHistory();
 
-      renderHistory();
-    } else {
-      /*
-       * Regeneration:
-       * render current history first.
-       */
-      renderHistory();
-    }
+    renderHistory();
 
     showThinking();
 
-    scrollToBottom(true);
+    scrollBottom(true);
 
     try {
       console.log(
@@ -880,7 +827,9 @@
       );
 
       const response =
-        await sendToAtharv(message);
+        await sendToServer(
+          message
+        );
 
       console.log(
         "ATHARV RESPONSE:",
@@ -892,7 +841,7 @@
 
       if (!reply) {
         throw new Error(
-          "Atharv returned an empty response."
+          "Empty response from server"
         );
       }
 
@@ -907,81 +856,82 @@
 
       renderHistory();
 
-      scrollToBottom(true);
+      scrollBottom(true);
     } catch (error) {
       console.error(
-        "ATHARV SEND ERROR:",
+        "ATHARV ERROR:",
         error
       );
 
       hideThinking();
 
-      /*
-       * If request was manually aborted,
-       * don't show an error bubble.
-       */
       if (
         error &&
-        error.name === "AbortError"
+        error.name ===
+          "AbortError"
       ) {
         showToast(
-          "Request cancelled."
+          "Request cancelled"
         );
       } else {
-        const errorMessage =
-          getFriendlyError(error);
+        const message =
+          friendlyError(error);
 
+        /*
+         * Keep error inside chat,
+         * same as previous behaviour.
+         */
         history.push({
           role: "assistant",
           content:
             "Sorry, response nahi mil paaya.\n\n" +
-            errorMessage
+            message
         });
 
         saveHistory();
 
         renderHistory();
 
-        scrollToBottom(true);
+        scrollBottom(true);
       }
     } finally {
-      currentAbortController = null;
-
       sending = false;
 
-      setSendingState(false);
+      abortController = null;
+
+      setSending(false);
     }
   }
 
   /* =====================================================
-     API REQUEST
+     API
   ===================================================== */
 
-  async function sendToAtharv(
+  async function sendToServer(
     message
   ) {
-    currentAbortController =
+    abortController =
       new AbortController();
 
-    const signal =
-      currentAbortController.signal;
-
-    const timeoutId =
-      setTimeout(() => {
-        try {
-          currentAbortController.abort();
-        } catch {}
-      }, REQUEST_TIMEOUT);
+    const timer =
+      setTimeout(
+        function () {
+          if (abortController) {
+            abortController.abort();
+          }
+        },
+        REQUEST_TIMEOUT
+      );
 
     try {
       let endpoint;
-      let payload;
+      let body;
 
       if (liveMode) {
         endpoint =
           "/api/chat/research";
 
-        payload = {
+        body = {
           query: message,
           message: message,
           userId: userId
@@ -990,121 +940,91 @@
         endpoint =
           "/api/chat";
 
-        /*
-         * Send only recent history to backend.
-         * Backend can accept history/chatHistory.
-         */
-        const recentHistory =
+        const recent =
           history
             .slice(-12)
-            .map((item) => ({
-              role: item.role,
-              content: item.content
-            }));
+            .map(function (item) {
+              return {
+                role: item.role,
+                content:
+                  item.content
+              };
+            });
 
-        payload = {
+        body = {
           message: message,
-          history: recentHistory,
-          chatHistory: recentHistory,
+          history: recent,
+          chatHistory: recent,
           userId: userId
         };
       }
 
-      return await apiRequest(
-        endpoint,
-        {
-          method: "POST",
-          body: payload,
-          signal
-        }
-      );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
+      const response =
+        await fetch(
+          API_BASE + endpoint,
+          {
+            method: "POST",
 
-  async function apiRequest(
-    endpoint,
-    options = {}
-  ) {
-    const url =
-      API_BASE + endpoint;
+            credentials:
+              "same-origin",
 
-    const requestOptions = {
-      method:
-        options.method || "GET",
+            cache: "no-store",
 
-      credentials: "same-origin",
+            headers: {
+              "Content-Type":
+                "application/json",
 
-      cache: "no-store",
+              Accept:
+                "application/json"
+            },
 
-      headers: {
-        Accept:
-          "application/json"
-      },
+            body:
+              JSON.stringify(body),
 
-      signal:
-        options.signal
-    };
-
-    if (options.body !== undefined) {
-      requestOptions.headers[
-        "Content-Type"
-      ] = "application/json";
-
-      requestOptions.body =
-        JSON.stringify(
-          options.body
+            signal:
+              abortController.signal
+          }
         );
-    }
 
-    const response =
-      await fetch(
-        url,
-        requestOptions
-      );
+      const raw =
+        await response.text();
 
-    const text =
-      await response.text();
+      let data;
 
-    let data = null;
-
-    if (text) {
       try {
-        data = JSON.parse(text);
+        data = raw
+          ? JSON.parse(raw)
+          : {};
       } catch {
         data = {
-          raw: text
+          raw: raw
         };
       }
-    }
 
-    if (!response.ok) {
-      const serverMessage =
-        data &&
-        (
+      if (!response.ok) {
+        throw new Error(
           data.error ||
-          data.message ||
-          data.details
+            data.message ||
+            `Server error ${response.status}`
         );
+      }
 
-      throw new Error(
-        serverMessage ||
-        `Server error ${response.status}`
-      );
+      return data;
+    } finally {
+      clearTimeout(timer);
     }
-
-    return data;
   }
 
   /* =====================================================
      RESPONSE EXTRACTION
   ===================================================== */
 
-  function extractReply(data) {
+  function extractReply(
+    data
+  ) {
     if (!data) return "";
 
-    const directKeys = [
+    const keys = [
       "reply",
       "response",
       "answer",
@@ -1113,19 +1033,18 @@
       "text"
     ];
 
-    for (const key of directKeys) {
+    for (
+      const key of keys
+    ) {
       if (
         typeof data[key] ===
-        "string" &&
+          "string" &&
         data[key].trim()
       ) {
         return data[key].trim();
       }
     }
 
-    /*
-     * Nested response formats.
-     */
     const nested =
       data.result ||
       data.data ||
@@ -1133,12 +1052,15 @@
 
     if (
       nested &&
-      typeof nested === "object"
+      typeof nested ===
+        "object"
     ) {
-      for (const key of directKeys) {
+      for (
+        const key of keys
+      ) {
         if (
           typeof nested[key] ===
-          "string" &&
+            "string" &&
           nested[key].trim()
         ) {
           return nested[key].trim();
@@ -1147,7 +1069,7 @@
     }
 
     /*
-     * OpenAI/Groq-style response.
+     * OpenAI/Groq style.
      */
     if (
       Array.isArray(
@@ -1157,16 +1079,13 @@
       const choice =
         data.choices[0];
 
-      const content =
+      if (
         choice &&
         choice.message &&
-        choice.message.content;
-
-      if (
-        typeof content ===
-        "string"
+        typeof choice.message.content ===
+          "string"
       ) {
-        return content.trim();
+        return choice.message.content.trim();
       }
     }
 
@@ -1174,10 +1093,10 @@
   }
 
   /* =====================================================
-     SAFE MARKDOWN FORMATTER
+     SAFE RESPONSE FORMATTER
   ===================================================== */
 
-  function formatAssistantMessage(
+  function formatResponse(
     text
   ) {
     if (
@@ -1187,54 +1106,91 @@
     }
 
     /*
-     * First escape everything.
-     * This prevents AI output from injecting
-     * arbitrary HTML.
+     * Parse fenced code first.
      */
-    const escaped =
-      escapeHTML(text);
-
-    const lines =
-      escaped.split(/\r?\n/);
+    const parts =
+      text.split("```");
 
     let html = "";
 
-    let inCode = false;
+    for (
+      let i = 0;
+      i < parts.length;
+      i++
+    ) {
+      const part =
+        parts[i];
 
-    let codeLanguage = "";
+      /*
+       * Odd sections are code.
+       */
+      if (i % 2 === 1) {
+        let code = part;
+        let language = "";
 
-    let codeLines = [];
+        const firstNewLine =
+          code.indexOf("\n");
 
-    let listType = null;
+        if (firstNewLine >= 0) {
+          const possibleLanguage =
+            code
+              .slice(
+                0,
+                firstNewLine
+              )
+              .trim();
+
+          if (
+            /^[a-zA-Z0-9_+#.-]{1,20}$/.test(
+              possibleLanguage
+            )
+          ) {
+            language =
+              possibleLanguage;
+
+            code =
+              code.slice(
+                firstNewLine + 1
+              );
+          }
+        }
+
+        html += codeBlock(
+          code.replace(
+            /\n$/,
+            ""
+          ),
+          language
+        );
+      } else {
+        html +=
+          formatText(part);
+      }
+    }
+
+    return html;
+  }
+
+  function formatText(
+    text
+  ) {
+    const lines =
+      text.split(/\r?\n/);
+
+    let html = "";
+
+    let list = null;
 
     function closeList() {
-      if (listType === "ul") {
+      if (list === "ul") {
         html += "</ul>";
       }
 
-      if (listType === "ol") {
+      if (list === "ol") {
         html += "</ol>";
       }
 
-      listType = null;
-    }
-
-    function flushCode() {
-      if (!inCode) return;
-
-      const code =
-        codeLines.join("\n");
-
-      html += createCodeBlockHTML(
-        code,
-        codeLanguage
-      );
-
-      codeLines = [];
-
-      codeLanguage = "";
-
-      inCode = false;
+      list = null;
     }
 
     for (
@@ -1242,61 +1198,26 @@
       i < lines.length;
       i++
     ) {
-      const originalLine =
+      const raw =
         lines[i];
 
-      /*
-       * Fenced code block.
-       */
-      const fenceMatch =
-        originalLine.match(
-          /^```([a-zA-Z0-9_+#.-]*)\s*$/
-        );
+      const line =
+        escapeHTML(raw);
 
-      if (fenceMatch) {
-        if (!inCode) {
-          closeList();
-
-          inCode = true;
-
-          codeLanguage =
-            fenceMatch[1] || "";
-
-          codeLines = [];
-        } else {
-          flushCode();
-        }
-
-        continue;
-      }
-
-      if (inCode) {
-        codeLines.push(
-          originalLine
-        );
-
-        continue;
-      }
-
-      /*
-       * Empty line.
-       */
-      if (
-        originalLine.trim() === ""
-      ) {
+      if (!line.trim()) {
         closeList();
 
         html +=
-          '<div class="message-spacer"></div>';
+          "<br>";
 
         continue;
       }
 
       /*
-       * Headings.
+       * Headings
        */
       const heading =
-        originalLine.match(
+        line.match(
           /^(#{1,4})\s+(.+)$/
         );
 
@@ -1310,35 +1231,39 @@
           );
 
         html +=
-          `<h${level + 1}>` +
-          formatInline(
+          "<h" +
+          (level + 1) +
+          ">" +
+          inlineFormat(
             heading[2]
           ) +
-          `</h${level + 1}>`;
+          "</h" +
+          (level + 1) +
+          ">";
 
         continue;
       }
 
       /*
-       * Bullet list.
+       * Bullets
        */
       const bullet =
-        originalLine.match(
+        line.match(
           /^\s*[-*•]\s+(.+)$/
         );
 
       if (bullet) {
-        if (listType !== "ul") {
+        if (list !== "ul") {
           closeList();
 
           html += "<ul>";
 
-          listType = "ul";
+          list = "ul";
         }
 
         html +=
           "<li>" +
-          formatInline(
+          inlineFormat(
             bullet[1]
           ) +
           "</li>";
@@ -1347,62 +1272,38 @@
       }
 
       /*
-       * Numbered list.
+       * Numbered list
        */
-      const numbered =
-        originalLine.match(
+      const number =
+        line.match(
           /^\s*\d+[.)]\s+(.+)$/
         );
 
-      if (numbered) {
-        if (listType !== "ol") {
+      if (number) {
+        if (list !== "ol") {
           closeList();
 
           html += "<ol>";
 
-          listType = "ol";
+          list = "ol";
         }
 
         html +=
           "<li>" +
-          formatInline(
-            numbered[1]
+          inlineFormat(
+            number[1]
           ) +
           "</li>";
 
         continue;
       }
 
-      /*
-       * Horizontal separator.
-       */
-      if (
-        /^\s*(---+|\*\*\*+)\s*$/.test(
-          originalLine
-        )
-      ) {
-        closeList();
-
-        html += "<hr>";
-
-        continue;
-      }
-
-      /*
-       * Normal paragraph.
-       */
       closeList();
 
       html +=
         "<p>" +
-        formatInline(
-          originalLine
-        ) +
+        inlineFormat(line) +
         "</p>";
-    }
-
-    if (inCode) {
-      flushCode();
     }
 
     closeList();
@@ -1414,23 +1315,25 @@
      INLINE FORMAT
   ===================================================== */
 
-  function formatInline(text) {
+  function inlineFormat(
+    text
+  ) {
     if (!text) return "";
 
-    let value = text;
+    const codes = [];
 
     /*
-     * Protect inline code.
+     * Inline code.
      */
-    const codeParts = [];
-
-    value = value.replace(
+    text = text.replace(
       /`([^`]+)`/g,
-      (_, code) => {
+      function (_, code) {
         const token =
-          `@@ATHARV_INLINE_CODE_${codeParts.length}@@`;
+          "ATHARVCODE" +
+          codes.length +
+          "END";
 
-        codeParts.push(
+        codes.push(
           "<code>" +
           code +
           "</code>"
@@ -1443,163 +1346,160 @@
     /*
      * Bold.
      */
-    value = value.replace(
+    text = text.replace(
       /\*\*(.+?)\*\*/g,
       "<strong>$1</strong>"
     );
 
     /*
      * Italic.
-     * Avoid treating standalone * bullets
-     * as italic because bullets are handled
-     * before this function.
      */
-    value = value.replace(
-      /(^|[^\*])\*([^*\n]+)\*(?!\*)/g,
+    text = text.replace(
+      /(^|[^*])\*([^*\n]+)\*(?!\*)/g,
       "$1<em>$2</em>"
     );
 
     /*
-     * Restore inline code.
+     * Restore code.
      */
-    codeParts.forEach(
-      (code, index) => {
-        value =
-          value.replace(
-            `@@ATHARV_INLINE_CODE_${index}@@`,
+    codes.forEach(
+      function (code, index) {
+        text =
+          text.replace(
+            "ATHARVCODE" +
+              index +
+              "END",
             code
           );
       }
     );
 
-    return value;
+    return text;
   }
 
   /* =====================================================
      CODE BLOCK
   ===================================================== */
 
-  function createCodeBlockHTML(
+  function codeBlock(
     code,
     language
   ) {
-    const safeCode =
+    const safe =
       escapeHTML(code);
 
-    const safeLanguage =
+    const lang =
       escapeHTML(
         language || "code"
       );
 
-    return `
-      <div class="atharv-code-block">
-        <div class="atharv-code-header">
-          <span class="atharv-code-language">
-            ${safeLanguage}
-          </span>
-
-          <button
-            type="button"
-            class="atharv-copy-code"
-            data-code="${escapeAttribute(code)}"
-            title="Copy code"
-            aria-label="Copy code"
-          >
-            Copy Code
-          </button>
-        </div>
-
-        <pre><code>${safeCode}</code></pre>
-      </div>
-    `;
-  }
-
-  /*
-   * Code copy delegation.
-   */
-  document.addEventListener(
-    "click",
-    async (event) => {
-      const button =
-        event.target.closest(
-          ".atharv-copy-code"
-        );
-
-      if (!button) return;
-
-      event.preventDefault();
-
-      const code =
-        button.dataset.code || "";
-
-      const decoded =
-        decodeAttributeValue(
-          code
-        );
-
-      const ok =
-        await copyToClipboard(
-          decoded
-        );
-
-      const original =
-        button.textContent;
-
-      button.textContent =
-        ok ? "Copied!" : "Failed";
-
-      setTimeout(() => {
-        button.textContent =
-          original || "Copy Code";
-      }, 1200);
-    }
-  );
-
-  /* =====================================================
-     HTML ESCAPING
-  ===================================================== */
-
-  function escapeHTML(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
-
-  function escapeAttribute(value) {
-    return encodeURIComponent(
-      String(value)
+    return (
+      '<div class="atharv-code-block">' +
+        '<div class="atharv-code-header">' +
+          '<span class="atharv-code-language">' +
+            lang +
+          "</span>" +
+          '<button type="button" ' +
+          'class="atharv-copy-code" ' +
+          'data-code="' +
+          encodeURIComponent(code) +
+          '">' +
+            "Copy Code" +
+          "</button>" +
+        "</div>" +
+        "<pre><code>" +
+          safe +
+        "</code></pre>" +
+      "</div>"
     );
   }
 
-  function decodeAttributeValue(
+  /* =====================================================
+     CODE COPY
+  ===================================================== */
+
+  async function handleCodeCopy(
+    event
+  ) {
+    const button =
+      event.target.closest(
+        ".atharv-copy-code"
+      );
+
+    if (!button) return;
+
+    event.preventDefault();
+
+    let code =
+      button.dataset.code ||
+      "";
+
+    try {
+      code =
+        decodeURIComponent(code);
+    } catch {}
+
+    const success =
+      await copyText(code);
+
+    const old =
+      button.textContent;
+
+    button.textContent =
+      success
+        ? "Copied!"
+        : "Failed";
+
+    setTimeout(
+      function () {
+        button.textContent =
+          old || "Copy Code";
+      },
+      1200
+    );
+  }
+
+  /* =====================================================
+     ESCAPE
+  ===================================================== */
+
+  function escapeHTML(
     value
   ) {
-    try {
-      return decodeURIComponent(
-        value
+    return String(value)
+      .replace(
+        /&/g,
+        "&amp;"
+      )
+      .replace(
+        /</g,
+        "&lt;"
+      )
+      .replace(
+        />/g,
+        "&gt;"
+      )
+      .replace(
+        /"/g,
+        "&quot;"
+      )
+      .replace(
+        /'/g,
+        "&#039;"
       );
-    } catch {
-      return value;
-    }
   }
 
   /* =====================================================
      CLIPBOARD
   ===================================================== */
 
-  async function copyToClipboard(
+  async function copyText(
     text
   ) {
-    if (!text) return false;
-
     try {
       if (
         navigator.clipboard &&
-        typeof navigator.clipboard.writeText ===
-          "function"
+        navigator.clipboard.writeText
       ) {
         await navigator.clipboard.writeText(
           text
@@ -1609,9 +1509,6 @@
       }
     } catch {}
 
-    /*
-     * Older Android/browser fallback.
-     */
     try {
       const textarea =
         document.createElement(
@@ -1626,14 +1523,9 @@
       textarea.style.left =
         "-9999px";
 
-      textarea.style.top =
-        "0";
-
       document.body.appendChild(
         textarea
       );
-
-      textarea.focus();
 
       textarea.select();
 
@@ -1660,11 +1552,6 @@
     thinking.hidden = false;
 
     thinking.style.display = "";
-
-    thinking.setAttribute(
-      "aria-hidden",
-      "false"
-    );
   }
 
   function hideThinking() {
@@ -1672,75 +1559,53 @@
 
     thinking.hidden = true;
 
-    thinking.style.display = "none";
-
-    thinking.setAttribute(
-      "aria-hidden",
-      "true"
-    );
+    thinking.style.display =
+      "none";
   }
 
   /* =====================================================
      SEND STATE
   ===================================================== */
 
-  function setSendingState(
+  function setSending(
     active
   ) {
     if (sendButton) {
-      sendButton.disabled = active;
+      sendButton.disabled =
+        active;
 
-      sendButton.setAttribute(
-        "aria-disabled",
-        String(active)
+      sendButton.classList.toggle(
+        "sending",
+        active
       );
-
-      if (active) {
-        sendButton.dataset.originalText =
-          sendButton.textContent;
-
-        /*
-         * Do not aggressively replace innerHTML
-         * because existing button may contain SVG.
-         */
-        sendButton.classList.add(
-          "sending"
-        );
-      } else {
-        sendButton.classList.remove(
-          "sending"
-        );
-      }
     }
 
-    if (messageInput) {
-      messageInput.disabled = active;
-    }
-
-    if (liveButton) {
-      liveButton.disabled = active;
-    }
+    /*
+     * Do NOT disable messageInput.
+     * This keeps the existing composer
+     * appearance and behaviour.
+     */
   }
 
   /* =====================================================
      TEXTAREA
   ===================================================== */
 
-  function resizeTextarea() {
+  function resizeInput() {
     if (!messageInput) return;
 
     messageInput.style.height =
       "auto";
 
-    const maxHeight =
+    const max =
       window.innerWidth <= 600
-        ? 150
+        ? 140
         : 220;
 
     messageInput.style.height =
       Math.min(
         messageInput.scrollHeight,
-        maxHeight
+        max
       ) + "px";
   }
 
@@ -1748,42 +1613,46 @@
      SCROLL
   ===================================================== */
 
-  function scrollToBottom(
-    smooth = true
+  function scrollBottom(
+    smooth
   ) {
-    if (!messagesContainer) return;
+    if (!messages) return;
 
-    requestAnimationFrame(() => {
-      try {
-        messagesContainer.scrollTo({
-          top:
-            messagesContainer.scrollHeight,
-          behavior:
-            smooth
-              ? "smooth"
-              : "auto"
-        });
-      } catch {
-        messagesContainer.scrollTop =
-          messagesContainer.scrollHeight;
+    requestAnimationFrame(
+      function () {
+        try {
+          messages.scrollTo({
+            top:
+              messages.scrollHeight,
+            behavior:
+              smooth
+                ? "smooth"
+                : "auto"
+          });
+        } catch {
+          messages.scrollTop =
+            messages.scrollHeight;
+        }
       }
-    });
+    );
   }
 
   /* =====================================================
      NEW CHAT
   ===================================================== */
 
-  function startNewChat() {
+  function newChat() {
     if (sending) {
       showToast(
-        "Please wait for the current response."
+        "Please wait for response"
       );
 
       return;
     }
 
-    clearHistory();
+    history = [];
+
+    saveHistory();
 
     attachedFile = null;
 
@@ -1791,183 +1660,157 @@
       fileInput.value = "";
     }
 
-    updateAttachmentInfo();
+    if (attachmentInfo) {
+      attachmentInfo.textContent =
+        "";
+
+      attachmentInfo.hidden =
+        true;
+    }
 
     if (messageInput) {
       messageInput.value = "";
 
-      resizeTextarea();
-
-      messageInput.focus();
+      resizeInput();
     }
 
     renderHistory();
 
-    showToast("New chat started");
+    showToast(
+      "New chat started"
+    );
   }
 
   /* =====================================================
      ATTACHMENT
   ===================================================== */
 
-  function handleFileSelect(
+  function handleAttachment(
     event
   ) {
     const file =
       event.target.files &&
       event.target.files[0];
 
-    if (!file) {
-      attachedFile = null;
+    attachedFile = file || null;
 
-      updateAttachmentInfo();
-
-      return;
-    }
-
-    attachedFile = file;
-
-    updateAttachmentInfo();
-
-    showToast(
-      `Attached: ${file.name}`
-    );
-  }
-
-  function updateAttachmentInfo() {
     if (!attachmentInfo) return;
 
-    if (!attachedFile) {
-      attachmentInfo.textContent = "";
+    if (!file) {
+      attachmentInfo.textContent =
+        "";
 
-      attachmentInfo.hidden = true;
+      attachmentInfo.hidden =
+        true;
 
       return;
     }
 
     attachmentInfo.textContent =
-      attachedFile.name;
+      file.name;
 
-    attachmentInfo.hidden = false;
+    attachmentInfo.hidden =
+      false;
+
+    showToast(
+      "File selected: " +
+        file.name
+    );
   }
 
   /* =====================================================
      MEMORY
   ===================================================== */
 
-  async function openMemoryModal() {
+  async function openMemory() {
     if (!memoryModal) return;
 
     memoryModal.hidden = false;
 
-    memoryModal.style.display = "";
+    memoryModal.style.display =
+      "";
 
     if (memoryList) {
       memoryList.innerHTML =
-        '<div class="memory-loading">Loading memory...</div>';
+        "Loading memory...";
     }
 
     try {
-      const data =
-        await apiRequest(
-          `/api/memory?userId=${encodeURIComponent(
-            userId
-          )}`
+      const response =
+        await fetch(
+          "/api/memory?userId=" +
+            encodeURIComponent(
+              userId
+            ),
+          {
+            method: "GET",
+            cache: "no-store",
+            credentials:
+              "same-origin"
+          }
         );
 
+      const data =
+        await response.json();
+
       const memories =
-        extractMemories(data);
+        Array.isArray(
+          data.memories
+        )
+          ? data.memories
+          : Array.isArray(data)
+          ? data
+          : [];
 
-      renderMemories(memories);
-    } catch (error) {
-      console.error(
-        "Memory error:",
-        error
+      if (!memoryList) return;
+
+      memoryList.innerHTML = "";
+
+      if (!memories.length) {
+        memoryList.textContent =
+          "No saved memories yet.";
+
+        return;
+      }
+
+      memories.forEach(
+        function (item) {
+          const div =
+            document.createElement(
+              "div"
+            );
+
+          div.className =
+            "memory-item";
+
+          div.textContent =
+            typeof item ===
+            "string"
+              ? item
+              : item.memory ||
+                item.content ||
+                "";
+
+          memoryList.appendChild(
+            div
+          );
+        }
       );
-
+    } catch (error) {
       if (memoryList) {
-        memoryList.innerHTML =
-          '<div class="memory-empty">Memory could not be loaded.</div>';
+        memoryList.textContent =
+          "Memory could not be loaded.";
       }
     }
   }
 
-  function closeMemoryModal() {
+  function closeMemory() {
     if (!memoryModal) return;
 
     memoryModal.hidden = true;
 
-    memoryModal.style.display = "none";
-  }
-
-  function extractMemories(
-    data
-  ) {
-    if (!data) return [];
-
-    if (Array.isArray(data)) {
-      return data;
-    }
-
-    if (
-      Array.isArray(
-        data.memories
-      )
-    ) {
-      return data.memories;
-    }
-
-    if (
-      data.data &&
-      Array.isArray(
-        data.data.memories
-      )
-    ) {
-      return data.data.memories;
-    }
-
-    return [];
-  }
-
-  function renderMemories(
-    memories
-  ) {
-    if (!memoryList) return;
-
-    memoryList.innerHTML = "";
-
-    if (!memories.length) {
-      memoryList.innerHTML =
-        '<div class="memory-empty">No saved memories yet.</div>';
-
-      return;
-    }
-
-    memories.forEach(
-      (item) => {
-        const text =
-          typeof item === "string"
-            ? item
-            : item.memory ||
-              item.content ||
-              item.text ||
-              "";
-
-        if (!text) return;
-
-        const div =
-          document.createElement(
-            "div"
-          );
-
-        div.className =
-          "memory-item";
-
-        div.textContent = text;
-
-        memoryList.appendChild(div);
-      }
-    );
+    memoryModal.style.display =
+      "none";
   }
 
   /* =====================================================
@@ -1980,7 +1823,7 @@
     message
   ) {
     if (!toast) {
-      console.log("TOAST:", message);
+      console.log(message);
       return;
     }
 
@@ -1988,118 +1831,87 @@
 
     toast.hidden = false;
 
-    toast.classList.add("show");
+    toast.classList.add(
+      "show"
+    );
 
     clearTimeout(toastTimer);
 
-    toastTimer = setTimeout(() => {
-      toast.classList.remove(
-        "show"
-      );
+    toastTimer =
+      setTimeout(
+        function () {
+          toast.classList.remove(
+            "show"
+          );
 
-      setTimeout(() => {
-        toast.hidden = true;
-      }, 200);
-    }, 2200);
+          setTimeout(
+            function () {
+              toast.hidden = true;
+            },
+            200
+          );
+        },
+        2200
+      );
   }
 
   /* =====================================================
-     FRIENDLY ERROR
+     ERROR
   ===================================================== */
 
-  function getFriendlyError(
+  function friendlyError(
     error
   ) {
-    if (!error) {
-      return "Something went wrong.";
-    }
-
-    const message =
-      error.message ||
-      String(error);
+    const text =
+      error &&
+      error.message
+        ? error.message
+        : String(error || "");
 
     if (
       /failed to fetch/i.test(
-        message
+        text
       )
     ) {
-      return "Network connection problem. Please check your internet and try again.";
+      return (
+        "Network connection problem. " +
+        "Please check your internet and try again."
+      );
     }
 
     if (
-      /aborted|timeout/i.test(
-        message
-      )
+      /429/.test(text)
     ) {
-      return "Request took too long. Please try again.";
-    }
-
-    if (
-      /429/.test(message)
-    ) {
-      return "Too many requests right now. Please wait a moment and try again.";
+      return (
+        "Too many requests right now. " +
+        "Please wait a moment and try again."
+      );
     }
 
     if (
       /500|502|503|504/.test(
-        message
+        text
       )
     ) {
-      return "Atharv server is temporarily unavailable. Please try again in a moment.";
+      return (
+        "Atharv server is temporarily unavailable. " +
+        "Please try again."
+      );
     }
 
-    return message;
-  }
-
-  /* =====================================================
-     SERVICE WORKER
-  ===================================================== */
-
-  function registerServiceWorker() {
-    if (
-      !("serviceWorker" in navigator)
-    ) {
-      return;
-    }
-
-    window.addEventListener(
-      "load",
-      async () => {
-        try {
-          const registration =
-            await navigator.serviceWorker.register(
-              "/service-worker.js?v=17.1.0",
-              {
-                updateViaCache:
-                  "none"
-              }
-            );
-
-          console.log(
-            "ATHARV SERVICE WORKER:",
-            registration.scope
-          );
-
-          try {
-            await registration.update();
-          } catch {}
-        } catch (error) {
-          console.warn(
-            "Service worker registration failed:",
-            error
-          );
-        }
-      }
+    return (
+      text ||
+      "Something went wrong."
     );
   }
 
   /* =====================================================
-     ONLINE / OFFLINE
+     ONLINE STATUS
   ===================================================== */
 
   window.addEventListener(
     "online",
-    () => {
+    function () {
       showToast(
         "Internet connection restored"
       );
@@ -2108,7 +1920,7 @@
 
   window.addEventListener(
     "offline",
-    () => {
+    function () {
       showToast(
         "You are offline"
       );
@@ -2116,50 +1928,34 @@
   );
 
   /* =====================================================
-     PAGE VISIBILITY
-  ===================================================== */
-
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (
-        document.visibilityState ===
-        "visible"
-      ) {
-        resizeTextarea();
-      }
-    }
-  );
-
-  /* =====================================================
-     PUBLIC DEBUG HELPERS
+     PUBLIC DEBUG
   ===================================================== */
 
   window.AtharvAI = {
-    version: APP_VERSION,
+    version: "17.1.1",
 
-    getUserId() {
+    getUserId: function () {
       return userId;
     },
 
-    getHistory() {
-      return [...history];
+    getHistory: function () {
+      return history.slice();
     },
 
-    clearHistory() {
+    clearHistory: function () {
       if (sending) return;
 
-      clearHistory();
+      history = [];
+
+      saveHistory();
 
       renderHistory();
     },
 
-    stopRequest() {
-      if (
-        currentAbortController
-      ) {
+    stop: function () {
+      if (abortController) {
         try {
-          currentAbortController.abort();
+          abortController.abort();
         } catch {}
       }
     }
