@@ -1,84 +1,42 @@
 "use strict";
 
-import { $ } from "./utils.js";
-import { CONFIG } from "./config.js";
-
-let deferredPrompt = null;
-
 export function registerPWA() {
-  if (!("serviceWorker" in navigator)) {
+
+  if (
+    !("serviceWorker" in navigator)
+  ) {
     return;
   }
 
-  window.addEventListener("load", async () => {
-    try {
-      await navigator.serviceWorker.register(
-        "/sw.js",
-        {
-          scope: "/"
-        }
-      );
-
-      console.log("Atharv PWA service worker registered.");
-    } catch (error) {
-      console.warn(
-        "PWA registration failed:",
-        error
-      );
-    }
-  });
-}
-
-export function setupInstallPrompt() {
-  const button = $("#installButton");
-
   window.addEventListener(
-    "beforeinstallprompt",
-    (event) => {
-      event.preventDefault();
+    "load",
+    async () => {
 
-      deferredPrompt = event;
+      try {
 
-      if (button) {
-        button.hidden = false;
+        const registration =
+          await navigator.serviceWorker.register(
+            "/service-worker.js?v=17.0.2",
+            {
+              updateViaCache:
+                "none"
+            }
+          );
+
+        console.log(
+          "Atharv Service Worker registered:",
+          registration.scope
+        );
+
+        await registration.update();
+
+      } catch (error) {
+
+        console.warn(
+          "Service Worker registration failed:",
+          error
+        );
       }
     }
   );
-
-  window.addEventListener(
-    "appinstalled",
-    () => {
-      deferredPrompt = null;
-
-      if (button) {
-        button.hidden = true;
-      }
-
-      localStorage.setItem(
-        CONFIG.STORAGE_KEYS.INSTALL_DISMISSED,
-        "1"
-      );
-    }
-  );
-}
-
-export async function installPWA() {
-  if (!deferredPrompt) {
-    return false;
-  }
-
-  deferredPrompt.prompt();
-
-  const result =
-    await deferredPrompt.userChoice;
-
-  deferredPrompt = null;
-
-  const button = $("#installButton");
-
-  if (button) {
-    button.hidden = true;
-  }
-
-  return result?.outcome === "accepted";
 }
