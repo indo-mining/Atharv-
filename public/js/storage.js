@@ -1,224 +1,165 @@
 "use strict";
 
+import { CONFIG } from "./config.js";
 
-const HISTORY_KEY =
-  "atharv_chat_history_v17";
-
-const OLD_HISTORY_KEYS = [
-  "atharv_chat_history",
-  "atharv_history",
-  "chat_history"
-];
-
-
-const DRAFT_KEY =
-  "atharv_chat_draft_v17";
-
-
-function safeParse(
-  value,
-  fallback
-) {
-
+function safeGet(key, fallback = null) {
   try {
+    const value =
+      localStorage.getItem(key);
 
-    return JSON.parse(value);
-
+    return value === null
+      ? fallback
+      : value;
   } catch {
-
     return fallback;
   }
 }
 
-
-export function getHistory() {
-
+function safeSet(key, value) {
   try {
+    localStorage.setItem(
+      key,
+      value
+    );
 
-    const current =
-      localStorage.getItem(
-        HISTORY_KEY
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function safeRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+
+/* =====================================================
+   USER ID
+===================================================== */
+
+export function getUserId() {
+  let id =
+    safeGet(
+      CONFIG.STORAGE.USER_ID,
+      ""
+    );
+
+  if (
+    !id ||
+    typeof id !== "string"
+  ) {
+    id =
+      crypto?.randomUUID?.() ||
+      `atharv_${Date.now()}_${Math.random()
+        .toString(36)
+        .slice(2, 10)}`;
+
+    safeSet(
+      CONFIG.STORAGE.USER_ID,
+      id
+    );
+  }
+
+  return id;
+}
+
+
+/* =====================================================
+   CHAT HISTORY
+===================================================== */
+
+export function getChatHistory() {
+  try {
+    const raw =
+      safeGet(
+        CONFIG.STORAGE.CHAT_HISTORY,
+        "[]"
       );
 
+    const parsed =
+      JSON.parse(raw);
 
-    if (current) {
-
-      const parsed =
-        safeParse(
-          current,
-          []
-        );
-
-
-      return Array.isArray(
-        parsed
-      )
-        ? parsed
-        : [];
-    }
-
-
-    for (
-      const key
-      of OLD_HISTORY_KEYS
-    ) {
-
-      const old =
-        localStorage.getItem(
-          key
-        );
-
-
-      if (!old) {
-        continue;
-      }
-
-
-      const parsed =
-        safeParse(
-          old,
-          []
-        );
-
-
-      if (
-        Array.isArray(parsed)
-      ) {
-
-        localStorage.setItem(
-          HISTORY_KEY,
-          JSON.stringify(parsed)
-        );
-
-
-        return parsed;
-      }
-    }
-
-
-    return [];
-
-  } catch (error) {
-
-    console.warn(
-      "History read failed:",
-      error
-    );
-
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+  } catch {
     return [];
   }
 }
 
+export function saveChatHistory(history) {
+  const clean =
+    Array.isArray(history)
+      ? history.slice(-100)
+      : [];
 
-export function saveHistory(
-  history
-) {
+  safeSet(
+    CONFIG.STORAGE.CHAT_HISTORY,
+    JSON.stringify(clean)
+  );
+}
 
-  try {
+export function clearChatHistory() {
+  /*
+  IMPORTANT:
+  This only clears browser chat history.
 
-    const safe =
-      Array.isArray(history)
-        ? history
-        : [];
+  It does NOT clear PostgreSQL memory.
+  */
 
-
-    localStorage.setItem(
-      HISTORY_KEY,
-      JSON.stringify(safe)
-    );
-
-  } catch (error) {
-
-    console.warn(
-      "History save failed:",
-      error
-    );
-  }
+  safeRemove(
+    CONFIG.STORAGE.CHAT_HISTORY
+  );
 }
 
 
-export function clearHistory() {
-
-  try {
-
-    localStorage.removeItem(
-      HISTORY_KEY
-    );
-
-    /*
-     * Purposely DO NOT delete
-     * memory keys here.
-     *
-     * Chat history and Atharv
-     * Memory are separate.
-     */
-
-  } catch (error) {
-
-    console.warn(
-      "History clear failed:",
-      error
-    );
-  }
-}
-
+/* =====================================================
+   DRAFT
+===================================================== */
 
 export function getDraft() {
-
-  try {
-
-    return (
-      localStorage.getItem(
-        DRAFT_KEY
-      ) || ""
-    );
-
-  } catch {
-
-    return "";
-  }
+  return safeGet(
+    CONFIG.STORAGE.DRAFT,
+    ""
+  );
 }
 
-
-export function saveDraft(
-  value
-) {
-
-  try {
-
-    if (
-      String(value || "").trim()
-    ) {
-
-      localStorage.setItem(
-        DRAFT_KEY,
-        String(value)
-      );
-
-    } else {
-
-      localStorage.removeItem(
-        DRAFT_KEY
-      );
-    }
-
-  } catch (error) {
-
-    console.warn(
-      "Draft save failed:",
-      error
-    );
-  }
+export function saveDraft(value) {
+  safeSet(
+    CONFIG.STORAGE.DRAFT,
+    value || ""
+  );
 }
-
 
 export function clearDraft() {
+  safeRemove(
+    CONFIG.STORAGE.DRAFT
+  );
+}
 
-  try {
 
-    localStorage.removeItem(
-      DRAFT_KEY
-    );
+/* =====================================================
+   LIVE MODE
+===================================================== */
 
-  } catch {}
+export function getLiveMode() {
+  return (
+    safeGet(
+      CONFIG.STORAGE.LIVE_MODE,
+      "false"
+    ) === "true"
+  );
+}
+
+export function saveLiveMode(value) {
+  safeSet(
+    CONFIG.STORAGE.LIVE_MODE,
+    value
+      ? "true"
+      : "false"
+  );
 }
