@@ -1,21 +1,38 @@
 "use strict";
 
+/*
+=========================================================
+ ATHARV AI
+ SERVICE WORKER
+ Version 17.0.3
+ --------------------------------------------------------
+ FIXES:
+ - Old cache removed
+ - Fresh HTML
+ - Fresh JS
+ - Fresh CSS
+ - API never cached
+ - Service worker never cached
+ - Navigation network-first
+ - Automatic activation
+ - Old Atharv caches deleted
+=========================================================
+*/
+
+
 const CACHE_NAME =
-  "atharv-ai-v17-0-2";
+  "atharv-ai-v17-0-3";
+
+
+/* =====================================================
+   STATIC FILES
+===================================================== */
 
 const STATIC_FILES = [
   "/",
   "/index.html",
   "/css/style.css",
   "/js/app.js",
-  "/js/config.js",
-  "/js/storage.js",
-  "/js/api.js",
-  "/js/chat.js",
-  "/js/ui.js",
-  "/js/memory.js",
-  "/js/pwa.js",
-  "/js/utils.js",
   "/manifest.json"
 ];
 
@@ -26,24 +43,42 @@ const STATIC_FILES = [
 
 self.addEventListener(
   "install",
-  event => {
+  function (event) {
+
+    console.log(
+      "Atharv AI Service Worker 17.0.3 installing..."
+    );
+
+    /*
+    Immediately activate the new worker.
+    */
 
     self.skipWaiting();
 
+
     event.waitUntil(
+
       caches.open(
         CACHE_NAME
-      ).then(cache =>
-        cache.addAll(
+      )
+      .then(function (cache) {
+
+        return cache.addAll(
           STATIC_FILES
-        )
-      ).catch(error => {
+        );
+
+      })
+      .catch(function (error) {
+
         console.warn(
-          "SW cache install warning:",
+          "Atharv SW cache install warning:",
           error
         );
+
       })
+
     );
+
   }
 );
 
@@ -54,29 +89,66 @@ self.addEventListener(
 
 self.addEventListener(
   "activate",
-  event => {
+  function (event) {
+
+    console.log(
+      "Atharv AI Service Worker 17.0.3 activated."
+    );
+
 
     event.waitUntil(
+
       caches.keys()
-        .then(keys =>
-          Promise.all(
-            keys
-              .filter(
-                key =>
-                  key !==
-                  CACHE_NAME
-              )
-              .map(key =>
-                caches.delete(
-                  key
-                )
-              )
-          )
-        )
-        .then(() =>
-          self.clients.claim()
-        )
+
+        .then(function (keys) {
+
+          return Promise.all(
+
+            keys.map(
+              function (key) {
+
+                /*
+                Delete every old Atharv cache.
+                */
+
+                if (
+                  key !== CACHE_NAME
+                ) {
+
+                  console.log(
+                    "Deleting old cache:",
+                    key
+                  );
+
+                  return caches.delete(
+                    key
+                  );
+
+                }
+
+                return Promise.resolve(
+                  true
+                );
+
+              }
+            )
+
+          );
+
+        })
+
+        .then(function () {
+
+          /*
+          Take control of all open pages.
+          */
+
+          return self.clients.claim();
+
+        })
+
     );
+
   }
 );
 
@@ -87,10 +159,32 @@ self.addEventListener(
 
 self.addEventListener(
   "fetch",
-  event => {
+  function (event) {
 
     const request =
       event.request;
+
+
+    /*
+    -----------------------------------------------------
+    Only GET requests are handled.
+    -----------------------------------------------------
+
+    POST /api/chat
+    POST /api/chat/research
+
+    are NEVER intercepted by cache.
+    -----------------------------------------------------
+    */
+
+    if (
+      request.method !== "GET"
+    ) {
+
+      return;
+
+    }
+
 
     const url =
       new URL(
@@ -100,7 +194,7 @@ self.addEventListener(
 
     /*
     -----------------------------------------------------
-    Only same-origin
+    ONLY SAME ORIGIN
     -----------------------------------------------------
     */
 
@@ -108,64 +202,69 @@ self.addEventListener(
       url.origin !==
       self.location.origin
     ) {
+
       return;
+
     }
 
 
-    /*
-    -----------------------------------------------------
-    API MUST NEVER BE CACHED
-    -----------------------------------------------------
-    */
+    /* =================================================
+       API
+    ================================================= */
 
     if (
       url.pathname.startsWith(
         "/api/"
-      ) ||
+      )
+      ||
       url.pathname ===
         "/health"
     ) {
+
       event.respondWith(
+
         fetch(
           request,
           {
             cache: "no-store"
           }
         )
+
       );
 
       return;
+
     }
 
 
-    /*
-    -----------------------------------------------------
-    Service worker itself
-    -----------------------------------------------------
-    */
+    /* =================================================
+       SERVICE WORKER
+    ================================================= */
 
     if (
       url.pathname ===
       "/service-worker.js"
     ) {
+
       event.respondWith(
+
         fetch(
           request,
           {
             cache: "no-store"
           }
         )
+
       );
 
       return;
+
     }
 
 
-    /*
-    -----------------------------------------------------
-    Navigation
-    -----------------------------------------------------
-    */
+    /* =================================================
+       NAVIGATION / HTML
+    ================================================= */
 
     if (
       request.mode ===
@@ -173,36 +272,124 @@ self.addEventListener(
     ) {
 
       event.respondWith(
+
         fetch(
           request,
           {
             cache: "no-store"
           }
-        ).catch(
-          () =>
-            caches.match(
-              "/index.html"
-            )
         )
+
+        .then(function (response) {
+
+          /*
+          Fresh page mil gaya.
+          Cache mein purana HTML nahi rakhenge.
+          */
+
+          return response;
+
+        })
+
+        .catch(function () {
+
+          /*
+          Internet unavailable hone par
+          cached index.html use kar sakte hain.
+          */
+
+          return caches.match(
+            "/index.html"
+          );
+
+        })
+
       );
 
       return;
+
     }
 
 
-    /*
-    -----------------------------------------------------
-    JS / CSS
-    -----------------------------------------------------
-    Network first.
-    This prevents old frontend code.
-    -----------------------------------------------------
-    */
+    /* =================================================
+       JAVASCRIPT
+    ================================================= */
 
     if (
       url.pathname.endsWith(
         ".js"
-      ) ||
+      )
+    ) {
+
+      event.respondWith(
+
+        fetch(
+          request,
+          {
+            cache: "no-store"
+          }
+        )
+
+        .then(function (response) {
+
+          /*
+          Fresh JS ko cache mein save karo.
+          */
+
+          const copy =
+            response.clone();
+
+
+          caches.open(
+            CACHE_NAME
+          )
+          .then(function (cache) {
+
+            cache.put(
+              request,
+              copy
+            );
+
+          })
+          .catch(function () {
+
+            /*
+            Cache failure should never
+            break the application.
+            */
+
+          });
+
+
+          return response;
+
+        })
+
+        .catch(function () {
+
+          /*
+          Network unavailable:
+          cached JS fallback.
+          */
+
+          return caches.match(
+            request
+          );
+
+        })
+
+      );
+
+      return;
+
+    }
+
+
+    /* =================================================
+       CSS
+    ================================================= */
+
+    if (
       url.pathname.endsWith(
         ".css"
       )
@@ -216,52 +403,163 @@ self.addEventListener(
             cache: "no-store"
           }
         )
-          .then(response => {
 
-            const copy =
-              response.clone();
+        .then(function (response) {
 
-            caches.open(
-              CACHE_NAME
-            ).then(cache => {
-              cache.put(
-                request,
-                copy
-              );
-            });
+          const copy =
+            response.clone();
 
-            return response;
-          })
-          .catch(() =>
-            caches.match(
-              request
-            )
+
+          caches.open(
+            CACHE_NAME
           )
+          .then(function (cache) {
+
+            cache.put(
+              request,
+              copy
+            );
+
+          })
+          .catch(function () {
+
+          });
+
+
+          return response;
+
+        })
+
+        .catch(function () {
+
+          return caches.match(
+            request
+          );
+
+        })
+
       );
 
       return;
+
     }
 
 
-    /*
-    -----------------------------------------------------
-    Other static assets
-    -----------------------------------------------------
-    */
+    /* =================================================
+       MANIFEST
+    ================================================= */
+
+    if (
+      url.pathname ===
+      "/manifest.json"
+    ) {
+
+      event.respondWith(
+
+        fetch(
+          request,
+          {
+            cache: "no-store"
+          }
+        )
+
+        .catch(function () {
+
+          return caches.match(
+            request
+          );
+
+        })
+
+      );
+
+      return;
+
+    }
+
+
+    /* =================================================
+       OTHER STATIC FILES
+    ================================================= */
 
     event.respondWith(
-      caches.match(
-        request
-      ).then(cached => {
 
-        if (cached) {
-          return cached;
+      fetch(
+        request,
+        {
+          cache: "no-store"
+        }
+      )
+
+      .then(function (response) {
+
+        /*
+        Successful static response ko cache
+        kar sakte hain.
+        */
+
+        if (
+          response &&
+          response.ok
+        ) {
+
+          const copy =
+            response.clone();
+
+
+          caches.open(
+            CACHE_NAME
+          )
+          .then(function (cache) {
+
+            cache.put(
+              request,
+              copy
+            );
+
+          })
+          .catch(function () {
+
+          });
+
         }
 
-        return fetch(
+
+        return response;
+
+      })
+
+      .catch(function () {
+
+        return caches.match(
           request
         );
+
       })
+
     );
+
+  }
+);
+
+
+/* =====================================================
+   MESSAGE
+===================================================== */
+
+self.addEventListener(
+  "message",
+  function (event) {
+
+    if (
+      event.data &&
+      event.data.type ===
+        "SKIP_WAITING"
+    ) {
+
+      self.skipWaiting();
+
+    }
+
   }
 );
