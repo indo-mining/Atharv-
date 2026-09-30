@@ -4,19 +4,20 @@
 =========================================================
  ATHARV AI
  FRONTEND
- Version 18.0.0
+ Version 18.2.0
  --------------------------------------------------------
- Professional Chat UI
- - Existing /api/chat compatible
- - Live Research
- - Conversation History
- - Memory UI
- - Attachments
+ MATCHED WITH:
+ - Current index.html v18.x
+ - Current style.css v18.x
+ - /api/chat
+ - /api/chat/research
+ - Memory API
+ - Menu UI
+ - Mobile Composer
  - Voice Input
- - Copy
- - Edit
- - Regenerate
- - Mobile Optimized
+ - Attachments
+ - History
+ - Copy / Edit / Regenerate
 =========================================================
 */
 
@@ -40,38 +41,29 @@
 
 
     /* ==================================================
-       DOM
+       DOM HELPER
     ================================================== */
 
     const $ = (id) =>
         document.getElementById(id);
 
-    const chatContainer =
-        $("chatContainer");
 
-    const welcome =
-        $("welcome");
+    /* ==================================================
+       DOM
+    ================================================== */
 
-    const messages =
-        $("messages");
+    const chatContainer = $("chatContainer");
+    const welcome = $("welcome");
+    const messages = $("messages");
+    const thinking = $("thinking");
 
-    const thinking =
-        $("thinking");
+    const chatForm = $("chatForm");
+    const messageInput = $("messageInput");
+    const sendButton = $("sendButton");
 
-    const chatForm =
-        $("chatForm");
+    const liveButton = $("liveButton");
 
-    const messageInput =
-        $("messageInput");
-
-    const sendButton =
-        $("sendButton");
-
-    const liveButton =
-        $("liveButton");
-
-    const voiceButton =
-        $("voiceButton");
+    const voiceButton = $("voiceButton");
 
     const attachmentButton =
         $("attachmentButton");
@@ -102,6 +94,51 @@
 
 
     /* ==================================================
+       REQUIRED DOM CHECK
+    ================================================== */
+
+    const requiredElements = {
+        chatContainer,
+        welcome,
+        messages,
+        thinking,
+        chatForm,
+        messageInput,
+        sendButton,
+        liveButton,
+        voiceButton,
+        attachmentButton,
+        fileInput,
+        attachmentInfo,
+        toast,
+        newChatButton,
+        memoryButton,
+        memoryModal,
+        closeMemoryButton,
+        memoryList
+    };
+
+    const missingElements =
+        Object.entries(requiredElements)
+            .filter(
+                ([, element]) => !element
+            )
+            .map(
+                ([name]) => name
+            );
+
+    if (missingElements.length) {
+
+        console.error(
+            "ATHARV AI: Missing HTML elements:",
+            missingElements
+        );
+
+        return;
+    }
+
+
+    /* ==================================================
        STATE
     ================================================== */
 
@@ -110,7 +147,9 @@
     let sending = false;
 
     let liveMode =
-        localStorage.getItem(STORAGE.live) === "true";
+        localStorage.getItem(
+            STORAGE.live
+        ) === "true";
 
     let selectedFiles = [];
 
@@ -136,15 +175,29 @@
             return id;
         }
 
-        if (
-            window.crypto &&
-            crypto.randomUUID
-        ) {
+        try {
 
-            id =
-                crypto.randomUUID();
+            if (
+                window.crypto &&
+                typeof window.crypto.randomUUID ===
+                    "function"
+            ) {
 
-        } else {
+                id =
+                    window.crypto.randomUUID();
+
+            } else {
+
+                id =
+                    "atharv-" +
+                    Date.now() +
+                    "-" +
+                    Math.random()
+                        .toString(36)
+                        .slice(2);
+            }
+
+        } catch {
 
             id =
                 "atharv-" +
@@ -153,7 +206,6 @@
                 Math.random()
                     .toString(36)
                     .slice(2);
-
         }
 
         localStorage.setItem(
@@ -200,11 +252,17 @@
                             item.role === "user" ||
                             item.role === "assistant"
                         ) &&
-                        typeof item.content === "string"
+                        typeof item.content ===
+                            "string"
                 )
                 .slice(-80);
 
-        } catch {
+        } catch (error) {
+
+            console.warn(
+                "History load failed:",
+                error
+            );
 
             return [];
         }
@@ -222,11 +280,12 @@
                 )
             );
 
-        } catch {
+        } catch (error) {
 
-            /*
-             Ignore localStorage errors.
-            */
+            console.warn(
+                "History save failed:",
+                error
+            );
         }
     }
 
@@ -244,7 +303,9 @@
         toast.textContent =
             String(message || "");
 
-        toast.classList.add("show");
+        toast.classList.add(
+            "show"
+        );
 
         clearTimeout(
             showToast.timer
@@ -253,7 +314,11 @@
         showToast.timer =
             setTimeout(
                 () => {
-                    toast.classList.remove("show");
+
+                    toast.classList.remove(
+                        "show"
+                    );
+
                 },
                 2400
             );
@@ -267,16 +332,31 @@
     function escapeHtml(value) {
 
         return String(value ?? "")
-            .replace(/&/g, "&amp;")
-            .replace(/</g, "&lt;")
-            .replace(/>/g, "&gt;")
-            .replace(/"/g, "&quot;")
-            .replace(/'/g, "&#039;");
+            .replace(
+                /&/g,
+                "&amp;"
+            )
+            .replace(
+                /</g,
+                "&lt;"
+            )
+            .replace(
+                />/g,
+                "&gt;"
+            )
+            .replace(
+                /"/g,
+                "&quot;"
+            )
+            .replace(
+                /'/g,
+                "&#039;"
+            );
     }
 
 
     /* ==================================================
-       MARKDOWN
+       MARKDOWN INLINE
     ================================================== */
 
     function formatInline(text) {
@@ -306,6 +386,10 @@
     }
 
 
+    /* ==================================================
+       RESPONSE FORMATTER
+    ================================================== */
+
     function formatResponse(text) {
 
         if (!text) {
@@ -314,8 +398,14 @@
 
         const source =
             String(text)
-                .replace(/\r\n/g, "\n")
-                .replace(/\r/g, "\n");
+                .replace(
+                    /\r\n/g,
+                    "\n"
+                )
+                .replace(
+                    /\r/g,
+                    "\n"
+                );
 
         const parts =
             source.split(
@@ -332,6 +422,12 @@
 
             const part =
                 parts[i];
+
+            /*
+            ---------------------------------------------
+            CODE BLOCK
+            ---------------------------------------------
+            */
 
             if (i % 2 === 1) {
 
@@ -357,28 +453,47 @@
                         );
                 }
 
+                const cleanCode =
+                    code.trim();
+
                 const encoded =
-                    escapeHtml(code.trim());
+                    escapeHtml(
+                        cleanCode
+                    );
 
                 html += `
                     <div class="code-block">
+
                         <div class="code-header">
-                            <span>${escapeHtml(language)}</span>
+
+                            <span>
+                                ${escapeHtml(language)}
+                            </span>
+
                             <button
                                 class="copy-code"
                                 type="button"
-                                data-code="${encodeURIComponent(code.trim())}"
+                                data-code="${encodeURIComponent(cleanCode)}"
                             >
                                 Copy
                             </button>
+
                         </div>
+
                         <pre><code>${encoded}</code></pre>
+
                     </div>
                 `;
 
                 continue;
             }
 
+
+            /*
+            ---------------------------------------------
+            NORMAL TEXT
+            ---------------------------------------------
+            */
 
             const lines =
                 part.split("\n");
@@ -403,20 +518,42 @@
             }
 
 
-            for (
-                const line of lines
+            let index = 0;
+
+
+            while (
+                index <
+                lines.length
             ) {
+
+                const line =
+                    lines[index];
 
                 const trimmed =
                     line.trim();
+
+
+                /*
+                -----------------------------------------
+                EMPTY
+                -----------------------------------------
+                */
 
                 if (!trimmed) {
 
                     flushParagraph();
 
+                    index++;
+
                     continue;
                 }
 
+
+                /*
+                -----------------------------------------
+                HEADING
+                -----------------------------------------
+                */
 
                 const heading =
                     trimmed.match(
@@ -435,39 +572,50 @@
                             heading[2]
                         )}</h${level}>`;
 
+                    index++;
+
                     continue;
                 }
 
 
+                /*
+                -----------------------------------------
+                BULLET LIST
+                -----------------------------------------
+                */
+
                 if (
-                    /^[-*]\s+/.test(trimmed)
+                    /^[-*]\s+/.test(
+                        trimmed
+                    )
                 ) {
 
                     flushParagraph();
 
-                    html +=
-                        `<ul>`;
-
-                    let j = lines.indexOf(line);
+                    html += "<ul>";
 
                     while (
-                        j < lines.length &&
+                        index <
+                            lines.length &&
                         /^[-*]\s+/.test(
-                            lines[j].trim()
+                            lines[index].trim()
                         )
                     ) {
 
+                        const item =
+                            lines[index]
+                                .trim()
+                                .replace(
+                                    /^[-*]\s+/,
+                                    ""
+                                );
+
                         html +=
                             `<li>${formatInline(
-                                lines[j]
-                                    .trim()
-                                    .replace(
-                                        /^[-*]\s+/,
-                                        ""
-                                    )
+                                item
                             )}</li>`;
 
-                        j++;
+                        index++;
                     }
 
                     html += "</ul>";
@@ -476,35 +624,44 @@
                 }
 
 
+                /*
+                -----------------------------------------
+                NUMBERED LIST
+                -----------------------------------------
+                */
+
                 if (
-                    /^\d+\.\s+/.test(trimmed)
+                    /^\d+\.\s+/.test(
+                        trimmed
+                    )
                 ) {
 
                     flushParagraph();
 
-                    html +=
-                        `<ol>`;
-
-                    let j = lines.indexOf(line);
+                    html += "<ol>";
 
                     while (
-                        j < lines.length &&
+                        index <
+                            lines.length &&
                         /^\d+\.\s+/.test(
-                            lines[j].trim()
+                            lines[index].trim()
                         )
                     ) {
 
+                        const item =
+                            lines[index]
+                                .trim()
+                                .replace(
+                                    /^\d+\.\s+/,
+                                    ""
+                                );
+
                         html +=
                             `<li>${formatInline(
-                                lines[j]
-                                    .trim()
-                                    .replace(
-                                        /^\d+\.\s+/,
-                                        ""
-                                    )
+                                item
                             )}</li>`;
 
-                        j++;
+                        index++;
                     }
 
                     html += "</ol>";
@@ -513,8 +670,49 @@
                 }
 
 
-                paragraph.push(line);
+                /*
+                -----------------------------------------
+                BLOCKQUOTE
+                -----------------------------------------
+                */
+
+                if (
+                    trimmed.startsWith(">")
+                ) {
+
+                    flushParagraph();
+
+                    const quote =
+                        trimmed
+                            .replace(
+                                /^>\s?/,
+                                ""
+                            );
+
+                    html +=
+                        `<blockquote>${formatInline(
+                            quote
+                        )}</blockquote>`;
+
+                    index++;
+
+                    continue;
+                }
+
+
+                /*
+                -----------------------------------------
+                NORMAL LINE
+                -----------------------------------------
+                */
+
+                paragraph.push(
+                    line
+                );
+
+                index++;
             }
+
 
             flushParagraph();
         }
@@ -533,7 +731,9 @@
     ) {
 
         const wrapper =
-            document.createElement("article");
+            document.createElement(
+                "article"
+            );
 
         wrapper.className =
             `message ${item.role}`;
@@ -542,13 +742,23 @@
             String(index);
 
 
-        if (item.role === "user") {
+        /*
+        -----------------------------------------------
+        USER
+        -----------------------------------------------
+        */
+
+        if (
+            item.role === "user"
+        ) {
 
             wrapper.innerHTML = `
                 <div class="message-inner">
 
                     <div class="user-bubble">
-                        ${escapeHtml(item.content)}
+                        ${escapeHtml(
+                            item.content
+                        )}
                     </div>
 
                     <div class="message-actions">
@@ -576,6 +786,13 @@
 
         } else {
 
+
+            /*
+            -------------------------------------------
+            ASSISTANT
+            -------------------------------------------
+            */
+
             wrapper.innerHTML = `
                 <div class="message-inner">
 
@@ -585,7 +802,9 @@
 
                     <div class="assistant-content">
 
-                        ${formatResponse(item.content)}
+                        ${formatResponse(
+                            item.content
+                        )}
 
                         <div class="message-actions">
 
@@ -624,7 +843,12 @@
 
     function renderHistory() {
 
+        if (!messages) {
+            return;
+        }
+
         messages.innerHTML = "";
+
 
         if (!history.length) {
 
@@ -634,6 +858,7 @@
 
             return;
         }
+
 
         welcome.classList.add(
             "hidden"
@@ -649,9 +874,9 @@
                         index
                     )
                 );
-
             }
         );
+
 
         scrollToBottom(false);
     }
@@ -661,19 +886,33 @@
        SCROLL
     ================================================== */
 
-    function scrollToBottom(smooth = true) {
+    function scrollToBottom(
+        smooth = true
+    ) {
+
+        if (!chatContainer) {
+            return;
+        }
 
         requestAnimationFrame(
             () => {
 
-                chatContainer.scrollTo({
-                    top:
-                        chatContainer.scrollHeight,
-                    behavior:
-                        smooth
-                            ? "smooth"
-                            : "auto"
-                });
+                try {
+
+                    chatContainer.scrollTo({
+                        top:
+                            chatContainer.scrollHeight,
+                        behavior:
+                            smooth
+                                ? "smooth"
+                                : "auto"
+                    });
+
+                } catch {
+
+                    chatContainer.scrollTop =
+                        chatContainer.scrollHeight;
+                }
 
             }
         );
@@ -684,31 +923,51 @@
        THINKING
     ================================================== */
 
-    function setThinking(active) {
+    function setThinking(
+        active
+    ) {
 
         if (!thinking) {
             return;
         }
 
-        thinking.classList.toggle(
-            "hidden",
-            !active
-        );
 
         if (active) {
+
+            thinking.classList.remove(
+                "hidden"
+            );
+
+            thinking.hidden =
+                false;
+
             scrollToBottom(true);
+
+        } else {
+
+            thinking.classList.add(
+                "hidden"
+            );
+
+            thinking.hidden =
+                true;
         }
     }
 
 
     /* ==================================================
-       INPUT HEIGHT
+       INPUT SIZE
     ================================================== */
 
     function resizeInput() {
 
+        if (!messageInput) {
+            return;
+        }
+
         messageInput.style.height =
             "auto";
+
 
         const height =
             Math.min(
@@ -716,8 +975,12 @@
                 160
             );
 
+
         messageInput.style.height =
-            `${height}px`;
+            `${Math.max(
+                height,
+                42
+            )}px`;
     }
 
 
@@ -733,9 +996,14 @@
         const controller =
             new AbortController();
 
+
         const timer =
             setTimeout(
-                () => controller.abort(),
+                () => {
+
+                    controller.abort();
+
+                },
                 REQUEST_TIMEOUT
             );
 
@@ -750,6 +1018,9 @@
 
                         headers: {
                             "Content-Type":
+                                "application/json",
+
+                            "Accept":
                                 "application/json"
                         },
 
@@ -767,10 +1038,14 @@
 
             let data = {};
 
+
             try {
+
                 data =
                     await response.json();
+
             } catch {
+
                 data = {};
             }
 
@@ -787,9 +1062,33 @@
 
             return data;
 
+        } catch (error) {
+
+            if (
+                error &&
+                error.name ===
+                    "AbortError"
+            ) {
+
+                const timeoutError =
+                    new Error(
+                        "Atharv server response timeout. Please try again."
+                    );
+
+                timeoutError.name =
+                    "AbortError";
+
+                throw timeoutError;
+            }
+
+
+            throw error;
+
         } finally {
 
-            clearTimeout(timer);
+            clearTimeout(
+                timer
+            );
         }
     }
 
@@ -798,11 +1097,14 @@
        RESPONSE EXTRACTION
     ================================================== */
 
-    function extractAnswer(data) {
+    function extractAnswer(
+        data
+    ) {
 
         if (!data) {
             return "";
         }
+
 
         const candidates = [
             data.answer,
@@ -813,12 +1115,14 @@
             data.result
         ];
 
+
         for (
             const value of candidates
         ) {
 
             if (
-                typeof value === "string" &&
+                typeof value ===
+                    "string" &&
                 value.trim()
             ) {
 
@@ -826,12 +1130,31 @@
             }
         }
 
+
+        /*
+        -----------------------------------------------
+        Some APIs return nested data
+        -----------------------------------------------
+        */
+
+        if (
+            data.data &&
+            typeof data.data ===
+                "object"
+        ) {
+
+            return extractAnswer(
+                data.data
+            );
+        }
+
+
         return "";
     }
 
 
     /* ==================================================
-       SEND
+       SEND MESSAGE
     ================================================== */
 
     async function sendMessage(
@@ -844,10 +1167,15 @@
         }
 
 
+        const rawMessage =
+            forcedMessage !== null
+                ? forcedMessage
+                : messageInput.value;
+
+
         const message =
             String(
-                forcedMessage ??
-                messageInput.value
+                rawMessage || ""
             ).trim();
 
 
@@ -871,19 +1199,40 @@
 
         sending = true;
 
-        sendButton.disabled = true;
+        sendButton.disabled =
+            true;
 
 
-        if (!forcedMessage) {
-            messageInput.value = "";
+        /*
+        -----------------------------------------------
+        CLEAR INPUT
+        -----------------------------------------------
+        */
+
+        if (
+            forcedMessage === null
+        ) {
+
+            messageInput.value =
+                "";
+
             resizeInput();
         }
 
 
         /*
-        --------------------------------------------------
-        REMOVE WELCOME
-        --------------------------------------------------
+        -----------------------------------------------
+        EXIT EDIT MODE
+        -----------------------------------------------
+        */
+
+        editingIndex = -1;
+
+
+        /*
+        -----------------------------------------------
+        WELCOME OFF
+        -----------------------------------------------
         */
 
         welcome.classList.add(
@@ -892,20 +1241,16 @@
 
 
         /*
-        --------------------------------------------------
-        ADD USER MESSAGE
-        --------------------------------------------------
+        -----------------------------------------------
+        USER MESSAGE
+        -----------------------------------------------
         */
 
-        const userMessage = {
+        history.push({
             role: "user",
             content: message
-        };
+        });
 
-
-        history.push(
-            userMessage
-        );
 
         saveHistory();
 
@@ -913,9 +1258,9 @@
 
 
         /*
-        --------------------------------------------------
-        THINKING
-        --------------------------------------------------
+        -----------------------------------------------
+        THINKING ON
+        -----------------------------------------------
         */
 
         setThinking(true);
@@ -925,6 +1270,12 @@
 
             let data;
 
+
+            /*
+            =============================================
+            LIVE RESEARCH
+            =============================================
+            */
 
             if (
                 options.live ||
@@ -936,21 +1287,29 @@
                         "/api/chat/research",
                         {
                             query: message,
-                            message,
+                            message: message,
                             userId: USER_ID
                         }
                     );
 
             } else {
 
+
+                /*
+                =========================================
+                NORMAL CHAT
+                =========================================
+                */
+
                 const recentHistory =
                     history.slice(-12);
+
 
                 data =
                     await requestJson(
                         "/api/chat",
                         {
-                            message,
+                            message: message,
 
                             history:
                                 recentHistory,
@@ -965,22 +1324,35 @@
             }
 
 
+            /*
+            -----------------------------------------------
+            RESPONSE
+            -----------------------------------------------
+            */
+
             const answer =
-                extractAnswer(data);
+                extractAnswer(
+                    data
+                );
 
 
             if (!answer) {
 
+                console.error(
+                    "ATHARV EMPTY RESPONSE:",
+                    data
+                );
+
                 throw new Error(
-                    "Atharv did not return a response."
+                    "Atharv server se valid response nahi mila."
                 );
             }
 
 
             /*
-            ------------------------------------------------
-            ADD ASSISTANT RESPONSE
-            ------------------------------------------------
+            -----------------------------------------------
+            ASSISTANT MESSAGE
+            -----------------------------------------------
             */
 
             history.push({
@@ -1003,16 +1375,17 @@
 
 
             let errorMessage =
-                "Sorry, I couldn't get a response right now.";
+                "Sorry, response nahi mil paaya.";
 
 
             if (
+                error &&
                 error.name ===
-                "AbortError"
+                    "AbortError"
             ) {
 
                 errorMessage =
-                    "The response took too long. Please try again.";
+                    "Atharv server se response aane mein bahut time lag raha hai. Please try again.";
 
             } else if (
                 error &&
@@ -1038,13 +1411,36 @@
 
         } finally {
 
+
+            /*
+            =============================================
+            VERY IMPORTANT
+            THINKING ALWAYS OFF
+            =============================================
+            */
+
             setThinking(false);
+
 
             sending = false;
 
-            sendButton.disabled = false;
 
-            messageInput.focus();
+            sendButton.disabled =
+                false;
+
+
+            /*
+            ---------------------------------------------
+            FOCUS BACK TO COMPOSER
+            ---------------------------------------------
+            */
+
+            try {
+
+                messageInput.focus();
+
+            } catch {}
+
 
             scrollToBottom(true);
         }
@@ -1052,22 +1448,74 @@
 
 
     /* ==================================================
-       MESSAGE ACTIONS
+       COPY TEXT
     ================================================== */
 
-    async function copyText(text) {
+    async function copyText(
+        text
+    ) {
+
+        const value =
+            String(text || "");
+
+
+        if (!value) {
+            return;
+        }
+
 
         try {
 
-            await navigator.clipboard.writeText(
-                text
-            );
+            if (
+                navigator.clipboard &&
+                typeof navigator.clipboard.writeText ===
+                    "function"
+            ) {
+
+                await navigator.clipboard.writeText(
+                    value
+                );
+
+            } else {
+
+                const textarea =
+                    document.createElement(
+                        "textarea"
+                    );
+
+                textarea.value =
+                    value;
+
+                textarea.style.position =
+                    "fixed";
+
+                textarea.style.opacity =
+                    "0";
+
+                document.body.appendChild(
+                    textarea
+                );
+
+                textarea.select();
+
+                document.execCommand(
+                    "copy"
+                );
+
+                textarea.remove();
+            }
+
 
             showToast(
                 "Copied"
             );
 
-        } catch {
+        } catch (error) {
+
+            console.warn(
+                "Copy failed:",
+                error
+            );
 
             showToast(
                 "Copy failed"
@@ -1076,10 +1524,17 @@
     }
 
 
-    function editMessage(index) {
+    /* ==================================================
+       EDIT MESSAGE
+    ================================================== */
+
+    function editMessage(
+        index
+    ) {
 
         const item =
             history[index];
+
 
         if (
             !item ||
@@ -1092,12 +1547,15 @@
         editingIndex =
             index;
 
+
         messageInput.value =
             item.content;
+
 
         resizeInput();
 
         messageInput.focus();
+
 
         showToast(
             "Edit your message and send again"
@@ -1105,16 +1563,27 @@
     }
 
 
-    async function regenerate(index) {
+    /* ==================================================
+       REGENERATE
+    ================================================== */
+
+    async function regenerate(
+        index
+    ) {
 
         if (sending) {
             return;
         }
 
 
+        const assistantMessage =
+            history[index];
+
+
         if (
-            !history[index] ||
-            history[index].role !== "assistant"
+            !assistantMessage ||
+            assistantMessage.role !==
+                "assistant"
         ) {
             return;
         }
@@ -1126,7 +1595,8 @@
 
         while (
             userIndex >= 0 &&
-            history[userIndex].role !== "user"
+            history[userIndex].role !==
+                "user"
         ) {
 
             userIndex--;
@@ -1142,11 +1612,18 @@
             history[userIndex].content;
 
 
+        /*
+        Keep user message.
+        Remove old assistant response
+        and everything after it.
+        */
+
         history =
             history.slice(
                 0,
                 userIndex + 1
             );
+
 
         saveHistory();
 
@@ -1156,7 +1633,8 @@
         await sendMessage(
             prompt,
             {
-                live: liveMode
+                live:
+                    liveMode
             }
         );
     }
@@ -1166,18 +1644,27 @@
        CODE COPY
     ================================================== */
 
-    function handleCodeCopy(button) {
+    function handleCodeCopy(
+        button
+    ) {
 
         try {
 
             const code =
                 decodeURIComponent(
-                    button.dataset.code || ""
+                    button.dataset.code ||
+                        ""
                 );
+
 
             copyText(code);
 
-        } catch {
+        } catch (error) {
+
+            console.warn(
+                "Code copy failed:",
+                error
+            );
 
             showToast(
                 "Could not copy code"
@@ -1187,17 +1674,34 @@
 
 
     /* ==================================================
-       EVENT DELEGATION
+       MESSAGE ACTIONS
     ================================================== */
 
     messages.addEventListener(
         "click",
-        (event) => {
+        event => {
+
+            const codeButton =
+                event.target.closest(
+                    ".copy-code"
+                );
+
+
+            if (codeButton) {
+
+                handleCodeCopy(
+                    codeButton
+                );
+
+                return;
+            }
+
 
             const action =
                 event.target.closest(
                     "[data-action]"
                 );
+
 
             if (!action) {
                 return;
@@ -1205,7 +1709,10 @@
 
 
             const article =
-                action.closest(".message");
+                action.closest(
+                    ".message"
+                );
+
 
             if (!article) {
                 return;
@@ -1217,16 +1724,27 @@
                     article.dataset.index
                 );
 
+
+            if (
+                Number.isNaN(index)
+            ) {
+                return;
+            }
+
+
             const type =
                 action.dataset.action;
 
 
-            if (type === "copy") {
+            if (
+                type === "copy"
+            ) {
 
                 const item =
                     history[index];
 
                 if (item) {
+
                     copyText(
                         item.content
                     );
@@ -1236,29 +1754,17 @@
                 type === "edit"
             ) {
 
-                editMessage(index);
+                editMessage(
+                    index
+                );
 
             } else if (
                 type === "regenerate"
             ) {
 
-                regenerate(index);
-            }
-        }
-    );
-
-
-    messages.addEventListener(
-        "click",
-        (event) => {
-
-            const button =
-                event.target.closest(
-                    ".copy-code"
+                regenerate(
+                    index
                 );
-
-            if (button) {
-                handleCodeCopy(button);
             }
         }
     );
@@ -1282,9 +1788,11 @@
                         const prompt =
                             button.dataset.prompt;
 
+
                         if (!prompt) {
                             return;
                         }
+
 
                         sendMessage(
                             prompt
@@ -1296,7 +1804,7 @@
 
 
     /* ==================================================
-       FORM
+       FORM SUBMIT
     ================================================== */
 
     chatForm.addEventListener(
@@ -1311,7 +1819,7 @@
 
 
     /* ==================================================
-       ENTER
+       ENTER TO SEND
     ================================================== */
 
     messageInput.addEventListener(
@@ -1320,7 +1828,8 @@
 
             if (
                 event.key === "Enter" &&
-                !event.shiftKey
+                !event.shiftKey &&
+                !event.isComposing
             ) {
 
                 event.preventDefault();
@@ -1348,10 +1857,12 @@
             liveMode
         );
 
+
         liveButton.setAttribute(
             "aria-pressed",
             String(liveMode)
         );
+
 
         liveButton.title =
             liveMode
@@ -1362,17 +1873,28 @@
 
     liveButton.addEventListener(
         "click",
-        () => {
+        event => {
+
+            /*
+            Prevent menu click from
+            causing unwanted propagation.
+            */
+
+            event.stopPropagation();
+
 
             liveMode =
                 !liveMode;
+
 
             localStorage.setItem(
                 STORAGE.live,
                 String(liveMode)
             );
 
+
             updateLiveButton();
+
 
             showToast(
                 liveMode
@@ -1390,6 +1912,7 @@
     attachmentButton.addEventListener(
         "click",
         () => {
+
             fileInput.click();
         }
     );
@@ -1405,7 +1928,9 @@
                 );
 
 
-            if (!selectedFiles.length) {
+            if (
+                !selectedFiles.length
+            ) {
 
                 attachmentInfo.classList.add(
                     "hidden"
@@ -1434,17 +1959,15 @@
                         : ""
                 } selected: ${names}`;
 
+
             attachmentInfo.classList.remove(
                 "hidden"
             );
 
 
-            /*
-            Attachment UI is ready.
-            Actual server-side file processing
-            can be connected without changing
-            the chat composer.
-            */
+            showToast(
+                `${selectedFiles.length} attachment selected`
+            );
         }
     );
 
@@ -1465,8 +1988,10 @@
             voiceButton.title =
                 "Voice input is not supported";
 
+
             voiceButton.style.opacity =
                 ".45";
+
 
             return;
         }
@@ -1479,8 +2004,10 @@
         recognition.continuous =
             false;
 
+
         recognition.interimResults =
             true;
+
 
         recognition.lang =
             navigator.language ||
@@ -1492,14 +2019,17 @@
 
                 listening = true;
 
+
                 voiceButton.classList.add(
                     "listening"
                 );
+
 
                 voiceButton.setAttribute(
                     "aria-pressed",
                     "true"
                 );
+
 
                 showToast(
                     "Listening..."
@@ -1510,30 +2040,30 @@
         recognition.onresult =
             event => {
 
-                let finalText = "";
-
-                let interimText = "";
+                let finalText =
+                    "";
 
 
                 for (
-                    let i = event.resultIndex;
-                    i < event.results.length;
+                    let i =
+                        event.resultIndex;
+                    i <
+                        event.results.length;
                     i++
                 ) {
 
                     const text =
-                        event.results[i][0].transcript;
+                        event.results[i][0]
+                            .transcript;
 
 
                     if (
-                        event.results[i].isFinal
+                        event.results[i]
+                            .isFinal
                     ) {
 
-                        finalText += text;
-
-                    } else {
-
-                        interimText += text;
+                        finalText +=
+                            text;
                     }
                 }
 
@@ -1541,14 +2071,19 @@
                 if (finalText) {
 
                     const existing =
-                        messageInput.value.trim();
+                        messageInput.value
+                            .trim();
+
 
                     messageInput.value =
                         existing
                             ? `${existing} ${finalText}`
                             : finalText;
 
+
                     resizeInput();
+
+                    messageInput.focus();
                 }
             };
 
@@ -1561,6 +2096,7 @@
                     event.error
                 );
 
+
                 if (
                     event.error ===
                     "not-allowed"
@@ -1568,6 +2104,15 @@
 
                     showToast(
                         "Microphone permission is required."
+                    );
+
+                } else if (
+                    event.error ===
+                    "no-speech"
+                ) {
+
+                    showToast(
+                        "No speech detected."
                     );
 
                 } else {
@@ -1584,9 +2129,11 @@
 
                 listening = false;
 
+
                 voiceButton.classList.remove(
                     "listening"
                 );
+
 
                 voiceButton.setAttribute(
                     "aria-pressed",
@@ -1624,9 +2171,16 @@
                     navigator.language ||
                     "en-IN";
 
+
                 recognition.start();
 
-            } catch {
+            } catch (error) {
+
+                console.warn(
+                    "Voice start:",
+                    error
+                );
+
 
                 showToast(
                     "Voice input is already active."
@@ -1643,36 +2197,63 @@
     function newChat() {
 
         if (sending) {
+
+            showToast(
+                "Please wait for the current response."
+            );
+
             return;
         }
 
 
         history = [];
 
+        editingIndex = -1;
+
         saveHistory();
 
-        messages.innerHTML = "";
+
+        messages.innerHTML =
+            "";
+
 
         welcome.classList.remove(
             "hidden"
         );
 
-        messageInput.value = "";
+
+        messageInput.value =
+            "";
+
 
         resizeInput();
 
-        selectedFiles = [];
 
-        fileInput.value = "";
+        selectedFiles =
+            [];
+
+
+        fileInput.value =
+            "";
+
 
         attachmentInfo.textContent =
             "";
+
 
         attachmentInfo.classList.add(
             "hidden"
         );
 
+
+        setThinking(false);
+
+
         messageInput.focus();
+
+
+        scrollToBottom(false);
+
 
         showToast(
             "New chat started"
@@ -1703,6 +2284,11 @@
             "hidden"
         );
 
+
+        memoryModal.hidden =
+            false;
+
+
         memoryModal.setAttribute(
             "aria-hidden",
             "false"
@@ -1713,29 +2299,62 @@
 
             const response =
                 await fetch(
-                    `${API_BASE}/api/memory?userId=${encodeURIComponent(USER_ID)}`,
+                    `${API_BASE}/api/memory?userId=${encodeURIComponent(
+                        USER_ID
+                    )}`,
                     {
                         method: "GET",
-                        cache: "no-store"
+
+                        headers: {
+                            "Accept":
+                                "application/json"
+                        },
+
+                        cache:
+                            "no-store"
                     }
                 );
 
 
-            const data =
-                await response.json();
+            let data = {};
+
+
+            try {
+
+                data =
+                    await response.json();
+
+            } catch {
+
+                data = {};
+            }
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    data.message ||
+                    "Memory request failed."
+                );
+            }
 
 
             const memories =
                 Array.isArray(data)
                     ? data
                     : (
-                        Array.isArray(data.memories)
+                        Array.isArray(
+                            data.memories
+                        )
                             ? data.memories
                             : []
                     );
 
 
-            if (!memories.length) {
+            if (
+                !memories.length
+            ) {
 
                 memoryList.innerHTML = `
                     <div class="memory-empty">
@@ -1753,7 +2372,8 @@
                         memory => {
 
                             const text =
-                                typeof memory === "string"
+                                typeof memory ===
+                                    "string"
                                     ? memory
                                     : (
                                         memory.memory ||
@@ -1762,9 +2382,12 @@
                                         ""
                                     );
 
+
                             return `
                                 <div class="memory-item">
-                                    ${escapeHtml(text)}
+                                    ${escapeHtml(
+                                        text
+                                    )}
                                 </div>
                             `;
                         }
@@ -1772,7 +2395,13 @@
                     .join("");
 
 
-        } catch {
+        } catch (error) {
+
+            console.warn(
+                "Memory error:",
+                error
+            );
+
 
             memoryList.innerHTML = `
                 <div class="memory-empty">
@@ -1788,6 +2417,11 @@
         memoryModal.classList.add(
             "hidden"
         );
+
+
+        memoryModal.hidden =
+            true;
+
 
         memoryModal.setAttribute(
             "aria-hidden",
@@ -1808,16 +2442,50 @@
     );
 
 
-    memoryModal
-        .querySelector(".modal-backdrop")
-        .addEventListener(
-            "click",
-            closeMemory
+    const memoryBackdrop =
+        memoryModal.querySelector(
+            ".modal-backdrop"
         );
 
 
+    if (memoryBackdrop) {
+
+        memoryBackdrop.addEventListener(
+            "click",
+            closeMemory
+        );
+    }
+
+
     /* ==================================================
-       ONLINE STATUS
+       ESC KEY
+    ================================================== */
+
+    document.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key ===
+                "Escape"
+            ) {
+
+                if (
+                    memoryModal &&
+                    !memoryModal.classList.contains(
+                        "hidden"
+                    )
+                ) {
+
+                    closeMemory();
+                }
+            }
+        }
+    );
+
+
+    /* ==================================================
+       ONLINE / OFFLINE
     ================================================== */
 
     window.addEventListener(
@@ -1843,19 +2511,345 @@
 
 
     /* ==================================================
+       MOBILE KEYBOARD
+    ================================================== */
+
+    function handleKeyboardViewport() {
+
+        if (
+            !window.visualViewport
+        ) {
+            return;
+        }
+
+
+        window.visualViewport.addEventListener(
+            "resize",
+            () => {
+
+                setTimeout(
+                    () => {
+
+                        scrollToBottom(
+                            false
+                        );
+
+                    },
+                    80
+                );
+            }
+        );
+
+
+        window.visualViewport.addEventListener(
+            "scroll",
+            () => {
+
+                setTimeout(
+                    () => {
+
+                        if (
+                            document.activeElement ===
+                                messageInput
+                        ) {
+
+                            scrollToBottom(
+                                false
+                            );
+                        }
+
+                    },
+                    30
+                );
+            }
+        );
+    }
+
+
+    /* ==================================================
+       MENU COMPATIBILITY
+       -----------------------------------------------
+       HTML menu can use these IDs.
+       We intentionally do not duplicate the
+       menu open/close system if index.html
+       already provides it.
+    ================================================== */
+
+    const menuButton =
+        $("menuButton");
+
+    const menuClose =
+        $("menuClose");
+
+    const menuOverlay =
+        $("menuOverlay");
+
+    const atharvMenu =
+        $("atharvMenu");
+
+    const menuAttachmentButton =
+        $("menuAttachmentButton");
+
+    const menuVoiceButton =
+        $("menuVoiceButton");
+
+    const historyButton =
+        $("historyButton");
+
+    const installAppButton =
+        $("installAppButton");
+
+    const settingsButton =
+        $("settingsButton");
+
+    const profileButton =
+        $("profileButton");
+
+
+    function closeMenu() {
+
+        if (menuOverlay) {
+
+            menuOverlay.classList.remove(
+                "open"
+            );
+        }
+
+
+        if (atharvMenu) {
+
+            atharvMenu.classList.remove(
+                "open"
+            );
+        }
+
+
+        document.body.classList.remove(
+            "menu-open"
+        );
+    }
+
+
+    function openMenu() {
+
+        if (menuOverlay) {
+
+            menuOverlay.classList.add(
+                "open"
+            );
+        }
+
+
+        if (atharvMenu) {
+
+            atharvMenu.classList.add(
+                "open"
+            );
+        }
+
+
+        document.body.classList.add(
+            "menu-open"
+        );
+    }
+
+
+    if (menuButton) {
+
+        menuButton.addEventListener(
+            "click",
+            event => {
+
+                event.stopPropagation();
+
+                const isOpen =
+                    atharvMenu &&
+                    atharvMenu.classList.contains(
+                        "open"
+                    );
+
+
+                if (isOpen) {
+
+                    closeMenu();
+
+                } else {
+
+                    openMenu();
+                }
+            }
+        );
+    }
+
+
+    if (menuClose) {
+
+        menuClose.addEventListener(
+            "click",
+            closeMenu
+        );
+    }
+
+
+    if (menuOverlay) {
+
+        menuOverlay.addEventListener(
+            "click",
+            closeMenu
+        );
+    }
+
+
+    if (menuAttachmentButton) {
+
+        menuAttachmentButton.addEventListener(
+            "click",
+            () => {
+
+                closeMenu();
+
+                setTimeout(
+                    () => {
+                        attachmentButton.click();
+                    },
+                    80
+                );
+            }
+        );
+    }
+
+
+    if (menuVoiceButton) {
+
+        menuVoiceButton.addEventListener(
+            "click",
+            () => {
+
+                closeMenu();
+
+                setTimeout(
+                    () => {
+                        voiceButton.click();
+                    },
+                    80
+                );
+            }
+        );
+    }
+
+
+    if (historyButton) {
+
+        historyButton.addEventListener(
+            "click",
+            () => {
+
+                closeMenu();
+
+                showToast(
+                    history.length
+                        ? `${history.length} messages in this chat`
+                        : "No chat history yet"
+                );
+            }
+        );
+    }
+
+
+    if (settingsButton) {
+
+        settingsButton.addEventListener(
+            "click",
+            () => {
+
+                closeMenu();
+
+                showToast(
+                    "Settings coming soon."
+                );
+            }
+        );
+    }
+
+
+    if (installAppButton) {
+
+        installAppButton.addEventListener(
+            "click",
+            () => {
+
+                closeMenu();
+
+                showToast(
+                    "Use your browser's Add to Home Screen option."
+                );
+            }
+        );
+    }
+
+
+    if (profileButton) {
+
+        profileButton.addEventListener(
+            "click",
+            () => {
+
+                showToast(
+                    "Atharv profile"
+                );
+            }
+        );
+    }
+
+
+    /* ==================================================
        INITIALIZE
     ================================================== */
 
     history =
         loadHistory();
 
+
     renderHistory();
+
 
     updateLiveButton();
 
+
     resizeInput();
 
+
     initVoice();
+
+
+    handleKeyboardViewport();
+
+
+    setThinking(false);
+
+
+    /*
+    -----------------------------------------------
+    Initial composer focus only on desktop.
+    Avoid opening keyboard automatically on mobile.
+    -----------------------------------------------
+    */
+
+    if (
+        window.innerWidth >= 768
+    ) {
+
+        setTimeout(
+            () => {
+
+                try {
+                    messageInput.focus();
+                } catch {}
+
+            },
+            100
+        );
+    }
 
 
     /* ==================================================
@@ -1879,6 +2873,10 @@
 
         clearHistory: () => {
 
+            if (sending) {
+                return;
+            }
+
             history = [];
 
             saveHistory();
@@ -1890,5 +2888,9 @@
             sendMessage(message)
     };
 
+
+    console.log(
+        "ATHARV AI Frontend 18.2.0 initialized."
+    );
 
 })();
