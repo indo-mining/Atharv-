@@ -1,15 +1,6 @@
 /* =========================================================
    ATHARV AI — PROFESSIONAL CHAT UI
-   Version 18.1.0
-   ---------------------------------------------------------
-   Focus:
-   - Clear user/assistant separation
-   - Strong text highlighting
-   - Readable headings
-   - Better bullets/lists
-   - Clear code blocks
-   - Important answer blocks
-   - Mobile friendly
+   Version 18.2.0
 ========================================================= */
 
 :root {
@@ -25,11 +16,7 @@
     --border: #e5e7eb;
     --border-strong: #d5d8dd;
 
-    --accent: #111827;
-    --accent-soft: #eef1f5;
-
     --highlight: #fff3a6;
-    --highlight-strong: #ffe56b;
 
     --code-bg: #171717;
     --code-text: #f5f5f5;
@@ -42,11 +29,11 @@
     --radius-sm: 8px;
     --radius-md: 14px;
     --radius-lg: 20px;
-    --radius-xl: 26px;
 
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-    --shadow-md: 0 8px 30px rgba(0, 0, 0, 0.08);
+    --shadow-sm: 0 1px 3px rgba(0,0,0,.06);
+    --shadow-md: 0 8px 30px rgba(0,0,0,.08);
 }
+
 
 /* =========================================================
    RESET
@@ -68,6 +55,7 @@ body {
     min-height: 100%;
     background: var(--bg);
     color: var(--text);
+
     font-family:
         Inter,
         ui-sans-serif,
@@ -78,8 +66,13 @@ body {
         Helvetica,
         Arial,
         sans-serif;
+
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
+}
+
+body.menu-open {
+    overflow: hidden;
 }
 
 button,
@@ -94,13 +87,14 @@ button {
 
 button:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: .55;
 }
 
 ::selection {
     background: #dbeafe;
     color: #111827;
 }
+
 
 /* =========================================================
    APP
@@ -109,8 +103,9 @@ button:disabled {
 .app {
     min-height: 100vh;
     min-height: 100dvh;
-    background: var(--bg);
+    background: #fff;
 }
+
 
 /* =========================================================
    TOP BAR
@@ -129,7 +124,8 @@ button:disabled {
 
     padding: 0 22px;
 
-    background: rgba(255, 255, 255, 0.94);
+    background: rgba(255,255,255,.94);
+
     border-bottom: 1px solid var(--border);
 
     backdrop-filter: blur(14px);
@@ -139,7 +135,7 @@ button:disabled {
 .brand {
     display: flex;
     align-items: center;
-    gap: 11px;
+    gap: 10px;
     min-width: 0;
 }
 
@@ -147,18 +143,18 @@ button:disabled {
     width: 34px;
     height: 34px;
 
+    flex: 0 0 34px;
+
     display: grid;
     place-items: center;
-
-    flex: 0 0 34px;
 
     border-radius: 11px;
 
     background: #111827;
     color: #fff;
 
-    font-weight: 800;
     font-size: 17px;
+    font-weight: 800;
 }
 
 .brand-text {
@@ -166,18 +162,17 @@ button:disabled {
 }
 
 .brand-title {
-    margin: 0;
-
     font-size: 16px;
     line-height: 20px;
     font-weight: 750;
-    letter-spacing: -0.2px;
+    letter-spacing: -.2px;
 }
 
 .brand-subtitle {
-    margin: 1px 0 0;
+    margin-top: 1px;
 
     color: var(--text-muted);
+
     font-size: 11px;
     line-height: 14px;
 }
@@ -202,10 +197,10 @@ button:disabled {
     color: #4b5563;
 
     transition:
-        background 0.16s ease,
-        border-color 0.16s ease,
-        color 0.16s ease,
-        transform 0.16s ease;
+        background .16s ease,
+        border-color .16s ease,
+        color .16s ease,
+        transform .16s ease;
 }
 
 .icon-btn:hover {
@@ -215,8 +210,244 @@ button:disabled {
 }
 
 .icon-btn:active {
-    transform: scale(0.95);
+    transform: scale(.95);
 }
+
+
+/* =========================================================
+   MENU OVERLAY
+========================================================= */
+
+.menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+
+    background: rgba(0,0,0,.28);
+
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+
+    transition:
+        opacity .2s ease,
+        visibility .2s ease;
+
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+}
+
+.menu-overlay.open {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+}
+
+
+/* =========================================================
+   MENU DRAWER
+========================================================= */
+
+.menu-drawer {
+    position: fixed;
+
+    top: 0;
+    left: 0;
+    bottom: 0;
+
+    z-index: 90;
+
+    width: min(340px, 88vw);
+
+    display: flex;
+    flex-direction: column;
+
+    background: #fff;
+
+    border-right: 1px solid var(--border);
+
+    box-shadow: 14px 0 40px rgba(0,0,0,.12);
+
+    transform: translateX(-105%);
+
+    transition: transform .22s cubic-bezier(.2,.8,.2,1);
+
+    overflow: hidden;
+}
+
+.menu-drawer.open {
+    transform: translateX(0);
+}
+
+.menu-header {
+    height: 70px;
+
+    flex: 0 0 70px;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 17px;
+
+    border-bottom: 1px solid var(--border);
+}
+
+.menu-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.menu-brand-mark {
+    width: 35px;
+    height: 35px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 11px;
+
+    background: #111827;
+    color: #fff;
+
+    font-weight: 800;
+}
+
+.menu-brand strong {
+    display: block;
+
+    color: #111827;
+
+    font-size: 15px;
+}
+
+.menu-brand small {
+    display: block;
+
+    margin-top: 1px;
+
+    color: var(--text-muted);
+
+    font-size: 11px;
+}
+
+.menu-content {
+    flex: 1;
+
+    overflow-y: auto;
+
+    padding: 12px;
+}
+
+.menu-section {
+    margin-bottom: 18px;
+}
+
+.menu-section:last-child {
+    margin-bottom: 0;
+}
+
+.menu-section-title {
+    padding: 7px 10px;
+
+    color: #969ba3;
+
+    font-size: 10px;
+    font-weight: 750;
+
+    letter-spacing: .7px;
+}
+
+.menu-item {
+    width: 100%;
+
+    display: flex;
+    align-items: center;
+
+    gap: 12px;
+
+    padding: 11px 10px;
+
+    border: 1px solid transparent;
+    border-radius: 12px;
+
+    background: transparent;
+
+    color: #171717;
+
+    text-align: left;
+
+    transition:
+        background .15s ease,
+        border-color .15s ease;
+}
+
+.menu-item:hover {
+    background: var(--surface-soft);
+    border-color: var(--border);
+}
+
+.menu-item:active {
+    background: var(--surface-hover);
+}
+
+.menu-item-icon {
+    width: 36px;
+    height: 36px;
+
+    flex: 0 0 36px;
+
+    display: grid;
+    place-items: center;
+
+    border-radius: 10px;
+
+    background: #f1f2f4;
+
+    font-size: 17px;
+}
+
+.menu-item-text {
+    min-width: 0;
+}
+
+.menu-item-title {
+    display: block;
+
+    color: #171717;
+
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.menu-item-description {
+    display: block;
+
+    margin-top: 2px;
+
+    color: #858a92;
+
+    font-size: 11px;
+    line-height: 1.35;
+}
+
+.menu-footer {
+    flex: 0 0 auto;
+
+    padding: 13px 17px;
+
+    border-top: 1px solid var(--border);
+
+    color: #9aa0a8;
+
+    text-align: center;
+
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+}
+
 
 /* =========================================================
    MAIN
@@ -228,9 +459,15 @@ button:disabled {
 
 .chat-shell {
     width: min(920px, calc(100% - 32px));
+
     margin: 0 auto;
-    padding: 28px 0 calc(var(--composer-height) + 60px);
+
+    padding:
+        28px
+        0
+        calc(var(--composer-height) + 60px);
 }
+
 
 /* =========================================================
    WELCOME
@@ -268,15 +505,17 @@ button:disabled {
 .welcome-title {
     margin: 0;
 
-    font-size: clamp(27px, 5vw, 38px);
+    font-size: clamp(27px,5vw,38px);
     line-height: 1.15;
 
     letter-spacing: -1px;
+
     font-weight: 800;
 }
 
 .welcome-description {
     max-width: 620px;
+
     margin: 12px auto 0;
 
     color: var(--text-soft);
@@ -285,16 +524,21 @@ button:disabled {
     line-height: 1.65;
 }
 
+
 /* =========================================================
    SUGGESTIONS
 ========================================================= */
 
 .suggestions {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    grid-template-columns:
+        repeat(2,minmax(0,1fr));
+
     gap: 11px;
 
     max-width: 720px;
+
     margin: 25px auto 0;
 }
 
@@ -306,27 +550,31 @@ button:disabled {
     text-align: left;
 
     border: 1px solid var(--border);
+
     border-radius: 15px;
 
-    background: var(--surface);
+    background: #fff;
 
     transition:
-        border-color 0.16s ease,
-        background 0.16s ease,
-        transform 0.16s ease,
-        box-shadow 0.16s ease;
+        border-color .16s ease,
+        background .16s ease,
+        transform .16s ease,
+        box-shadow .16s ease;
 }
 
 .suggestion-card:hover {
     background: var(--surface-soft);
+
     border-color: var(--border-strong);
+
     transform: translateY(-1px);
+
     box-shadow: var(--shadow-sm);
 }
 
 .suggestion-title {
-    font-weight: 700;
     font-size: 14px;
+    font-weight: 700;
 }
 
 .suggestion-description {
@@ -338,41 +586,6 @@ button:disabled {
     line-height: 1.45;
 }
 
-/* =========================================================
-   EXAMPLE CHIPS
-========================================================= */
-
-.example-chips {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
-
-    margin-top: 18px;
-}
-
-.example-chip {
-    padding: 8px 12px;
-
-    border: 1px solid var(--border);
-    border-radius: 999px;
-
-    background: #fff;
-    color: #4b5563;
-
-    font-size: 12px;
-
-    transition:
-        background 0.16s ease,
-        border-color 0.16s ease,
-        color 0.16s ease;
-}
-
-.example-chip:hover {
-    background: var(--surface-soft);
-    border-color: var(--border-strong);
-    color: #111827;
-}
 
 /* =========================================================
    MESSAGES
@@ -397,17 +610,14 @@ button:disabled {
     justify-content: flex-start;
 }
 
-/* =========================================================
-   USER MESSAGE
-========================================================= */
-
 .user-message {
     width: fit-content;
-    max-width: min(78%, 680px);
+    max-width: min(78%,680px);
 
     padding: 12px 16px;
 
     border: 1px solid #e1e3e6;
+
     border-radius: 19px 19px 5px 19px;
 
     background: #f0f1f3;
@@ -417,23 +627,17 @@ button:disabled {
     line-height: 1.6;
 
     white-space: pre-wrap;
+
     overflow-wrap: anywhere;
 }
-
-.user-message strong {
-    font-weight: 750;
-}
-
-/* =========================================================
-   ASSISTANT MESSAGE
-========================================================= */
 
 .assistant-wrap {
     display: flex;
     align-items: flex-start;
+
     gap: 12px;
 
-    width: min(100%, 800px);
+    width: min(100%,800px);
 }
 
 .assistant-avatar {
@@ -466,14 +670,10 @@ button:disabled {
     overflow-wrap: anywhere;
 }
 
-/* =========================================================
-   CLEAR TEXT HIGHLIGHT
-========================================================= */
 
-/*
-   IMPORTANT:
-   Any <mark> generated by Atharv is intentionally very visible.
-*/
+/* =========================================================
+   TEXT HIGHLIGHT
+========================================================= */
 
 .assistant-content mark,
 .message-content mark,
@@ -488,18 +688,14 @@ button:disabled {
     color: #111827;
 
     font-weight: 700;
-
-    box-decoration-break: clone;
-    -webkit-box-decoration-break: clone;
 }
-
-/* Strong text */
 
 .assistant-content strong,
 .message-content strong {
     font-weight: 800;
     color: #111827;
 }
+
 
 /* =========================================================
    HEADINGS
@@ -514,13 +710,16 @@ button:disabled {
 .message-content h3,
 .message-content h4 {
     color: #111827;
-    letter-spacing: -0.35px;
+
+    letter-spacing: -.35px;
+
     line-height: 1.3;
 }
 
 .assistant-content h1,
 .message-content h1 {
     margin: 18px 0 10px;
+
     font-size: 22px;
     font-weight: 800;
 }
@@ -528,6 +727,7 @@ button:disabled {
 .assistant-content h2,
 .message-content h2 {
     margin: 18px 0 9px;
+
     font-size: 19px;
     font-weight: 800;
 }
@@ -535,6 +735,7 @@ button:disabled {
 .assistant-content h3,
 .message-content h3 {
     margin: 16px 0 8px;
+
     font-size: 17px;
     font-weight: 750;
 }
@@ -542,9 +743,11 @@ button:disabled {
 .assistant-content h4,
 .message-content h4 {
     margin: 14px 0 7px;
+
     font-size: 15px;
     font-weight: 750;
 }
+
 
 /* =========================================================
    PARAGRAPHS
@@ -559,6 +762,7 @@ button:disabled {
 .message-content p:last-child {
     margin-bottom: 0;
 }
+
 
 /* =========================================================
    LISTS
@@ -578,13 +782,9 @@ button:disabled {
     padding-left: 3px;
 }
 
-.assistant-content li::marker,
-.message-content li::marker {
-    font-weight: 700;
-}
 
 /* =========================================================
-   IMPORTANT POINT / BLOCKQUOTE
+   BLOCKQUOTE
 ========================================================= */
 
 .assistant-content blockquote,
@@ -594,16 +794,19 @@ button:disabled {
     padding: 12px 15px;
 
     border-left: 4px solid #111827;
+
     border-radius: 0 10px 10px 0;
 
     background: #f7f7f8;
+
     color: #34383e;
 
     font-weight: 600;
 }
 
+
 /* =========================================================
-   INLINE CODE
+   CODE
 ========================================================= */
 
 .assistant-content code:not(pre code),
@@ -611,9 +814,11 @@ button:disabled {
     padding: 3px 6px;
 
     border: 1px solid #e2e4e8;
+
     border-radius: 6px;
 
     background: #f3f4f6;
+
     color: #111827;
 
     font-family:
@@ -625,13 +830,10 @@ button:disabled {
         "Liberation Mono",
         monospace;
 
-    font-size: 0.9em;
+    font-size: .9em;
+
     font-weight: 600;
 }
-
-/* =========================================================
-   CODE BLOCK
-========================================================= */
 
 .code-wrapper {
     position: relative;
@@ -641,11 +843,13 @@ button:disabled {
     overflow: hidden;
 
     border: 1px solid #292929;
+
     border-radius: 13px;
 
     background: var(--code-bg);
 
-    box-shadow: 0 5px 18px rgba(0, 0, 0, 0.12);
+    box-shadow:
+        0 5px 18px rgba(0,0,0,.12);
 }
 
 .code-header {
@@ -670,16 +874,14 @@ button:disabled {
     padding: 5px 9px;
 
     border: 1px solid #444;
+
     border-radius: 7px;
 
     background: #2c2c2c;
+
     color: #eee;
 
     font-size: 11px;
-}
-
-.code-copy:hover {
-    background: #383838;
 }
 
 .code-wrapper pre,
@@ -704,8 +906,6 @@ button:disabled {
 
     font-size: 13px;
     line-height: 1.65;
-
-    tab-size: 2;
 }
 
 .assistant-content pre code {
@@ -714,6 +914,7 @@ button:disabled {
     border: 0;
     padding: 0;
 }
+
 
 /* =========================================================
    TABLE
@@ -726,15 +927,16 @@ button:disabled {
     margin: 15px 0;
 
     border-collapse: separate;
-    border-spacing: 0;
 
-    overflow: hidden;
+    border-spacing: 0;
 
     border: 1px solid var(--border);
 
     border-radius: 10px;
 
     font-size: 13px;
+
+    overflow: hidden;
 }
 
 .assistant-content th,
@@ -755,6 +957,7 @@ button:disabled {
     padding: 9px 11px;
 
     border-right: 1px solid var(--border);
+
     border-bottom: 1px solid var(--border);
 }
 
@@ -770,6 +973,7 @@ button:disabled {
     border-right: 0;
 }
 
+
 /* =========================================================
    LINKS
 ========================================================= */
@@ -777,43 +981,30 @@ button:disabled {
 .assistant-content a,
 .message-content a {
     color: #1d4ed8;
+
     font-weight: 650;
+
     text-decoration: underline;
-    text-decoration-thickness: 1px;
+
     text-underline-offset: 2px;
 }
 
-.assistant-content a:hover,
-.message-content a:hover {
-    color: #1e40af;
-}
 
 /* =========================================================
-   HORIZONTAL LINE
-========================================================= */
-
-.assistant-content hr,
-.message-content hr {
-    margin: 18px 0;
-
-    border: 0;
-    border-top: 1px solid var(--border);
-}
-
-/* =========================================================
-   ANSWER ACTIONS
+   ACTIONS
 ========================================================= */
 
 .message-actions {
     display: flex;
     align-items: center;
+
     gap: 5px;
 
     margin-top: 8px;
 
     opacity: 0;
 
-    transition: opacity 0.15s ease;
+    transition: opacity .15s ease;
 }
 
 .assistant-wrap:hover .message-actions,
@@ -825,9 +1016,11 @@ button:disabled {
     padding: 5px 8px;
 
     border: 1px solid transparent;
+
     border-radius: 7px;
 
     background: transparent;
+
     color: #73777f;
 
     font-size: 11px;
@@ -835,9 +1028,12 @@ button:disabled {
 
 .message-action:hover {
     border-color: var(--border);
+
     background: var(--surface-soft);
+
     color: #111827;
 }
+
 
 /* =========================================================
    THINKING
@@ -846,6 +1042,7 @@ button:disabled {
 .thinking-row {
     display: flex;
     align-items: flex-start;
+
     gap: 12px;
 
     margin-top: 3px;
@@ -855,15 +1052,15 @@ button:disabled {
     width: 34px;
     height: 34px;
 
+    flex: 0 0 34px;
+
     display: grid;
     place-items: center;
-
-    flex: 0 0 34px;
 
     border-radius: 11px;
 
     background: #111827;
-    color: white;
+    color: #fff;
 
     font-weight: 800;
 }
@@ -873,6 +1070,7 @@ button:disabled {
 
     display: flex;
     align-items: center;
+
     gap: 5px;
 
     color: #747980;
@@ -892,19 +1090,20 @@ button:disabled {
 }
 
 .thinking-dot:nth-child(2) {
-    animation-delay: 0.15s;
+    animation-delay: .15s;
 }
 
 .thinking-dot:nth-child(3) {
-    animation-delay: 0.3s;
+    animation-delay: .3s;
 }
 
 @keyframes thinking {
+
     0%,
     60%,
     100% {
         transform: translateY(0);
-        opacity: 0.35;
+        opacity: .35;
     }
 
     30% {
@@ -913,12 +1112,14 @@ button:disabled {
     }
 }
 
+
 /* =========================================================
    COMPOSER
 ========================================================= */
 
 .composer-area {
     position: fixed;
+
     z-index: 40;
 
     left: 0;
@@ -927,43 +1128,51 @@ button:disabled {
 
     padding:
         10px
-        max(16px, env(safe-area-inset-right))
-        max(12px, env(safe-area-inset-bottom))
-        max(16px, env(safe-area-inset-left));
+        max(16px,env(safe-area-inset-right))
+        max(12px,env(safe-area-inset-bottom))
+        max(16px,env(safe-area-inset-left));
 
-    background: linear-gradient(
-        to bottom,
-        rgba(255, 255, 255, 0),
-        rgba(255, 255, 255, 0.94) 25%,
-        #fff 55%
-    );
+    background:
+        linear-gradient(
+            to bottom,
+            rgba(255,255,255,0),
+            rgba(255,255,255,.94) 25%,
+            #fff 55%
+        );
 }
 
 .composer {
-    width: min(900px, 100%);
+    width: min(900px,100%);
+
     margin: 0 auto;
 
     display: flex;
     align-items: flex-end;
+
     gap: 8px;
 
     padding: 9px;
 
     border: 1px solid var(--border-strong);
+
     border-radius: 20px;
 
     background: #fff;
 
     box-shadow:
-        0 8px 30px rgba(0, 0, 0, 0.09),
-        0 1px 2px rgba(0, 0, 0, 0.04);
+        0 8px 30px rgba(0,0,0,.09),
+        0 1px 2px rgba(0,0,0,.04);
 }
 
 .composer textarea {
     flex: 1;
 
     width: 100%;
+
+    min-width: 0;
+
     min-height: 42px;
+
     max-height: 180px;
 
     resize: none;
@@ -971,12 +1180,15 @@ button:disabled {
     padding: 10px 4px;
 
     border: 0;
+
     outline: 0;
 
     background: transparent;
+
     color: var(--text);
 
     font-size: 15px;
+
     line-height: 1.5;
 }
 
@@ -994,9 +1206,11 @@ button:disabled {
     place-items: center;
 
     border: 0;
+
     border-radius: 11px;
 
     background: transparent;
+
     color: #5f6368;
 }
 
@@ -1020,43 +1234,6 @@ button:disabled {
     color: #fff;
 }
 
-/* =========================================================
-   LIVE SEARCH
-========================================================= */
-
-.live-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-
-    height: 36px;
-
-    padding: 0 10px;
-
-    border: 1px solid var(--border);
-    border-radius: 10px;
-
-    background: #fff;
-    color: #5f6368;
-
-    font-size: 12px;
-    font-weight: 650;
-}
-
-.live-button:hover {
-    background: var(--surface-soft);
-}
-
-.live-button.active {
-    background: #eef1f5;
-    border-color: #cdd2d9;
-    color: #111827;
-}
-
-/* =========================================================
-   VOICE
-========================================================= */
-
 .voice-button.listening {
     background: #111827;
     color: #fff;
@@ -1065,47 +1242,55 @@ button:disabled {
 }
 
 @keyframes voicePulse {
+
     0% {
-        box-shadow: 0 0 0 0 rgba(17, 24, 39, 0.22);
+        box-shadow: 0 0 0 0 rgba(17,24,39,.22);
     }
 
     70% {
-        box-shadow: 0 0 0 8px rgba(17, 24, 39, 0);
+        box-shadow: 0 0 0 8px rgba(17,24,39,0);
     }
 
     100% {
-        box-shadow: 0 0 0 0 rgba(17, 24, 39, 0);
+        box-shadow: 0 0 0 0 rgba(17,24,39,0);
     }
 }
 
+
 /* =========================================================
-   ATTACHMENT
+   ATTACHMENTS
 ========================================================= */
 
 .attachment-list {
     display: flex;
     flex-wrap: wrap;
+
     gap: 6px;
 
-    width: min(900px, 100%);
+    width: min(900px,100%);
+
     margin: 0 auto 7px;
 }
 
 .attachment-chip {
     display: inline-flex;
     align-items: center;
+
     gap: 5px;
 
     padding: 6px 9px;
 
     border: 1px solid var(--border);
+
     border-radius: 8px;
 
     background: #f7f7f8;
+
     color: #555b63;
 
     font-size: 11px;
 }
+
 
 /* =========================================================
    TOAST
@@ -1113,14 +1298,17 @@ button:disabled {
 
 .toast {
     position: fixed;
+
     z-index: 100;
 
     left: 50%;
     bottom: 105px;
 
-    transform: translateX(-50%) translateY(12px);
+    transform:
+        translateX(-50%)
+        translateY(12px);
 
-    max-width: min(90vw, 420px);
+    max-width: min(90vw,420px);
 
     padding: 10px 14px;
 
@@ -1129,53 +1317,75 @@ button:disabled {
     border-radius: 10px;
 
     background: #111827;
+
     color: #fff;
 
     box-shadow: var(--shadow-md);
 
     font-size: 13px;
+
     line-height: 1.4;
 
     opacity: 0;
+
     pointer-events: none;
 
     transition:
-        opacity 0.2s ease,
-        transform 0.2s ease;
+        opacity .2s ease,
+        transform .2s ease;
 }
 
 .toast.show {
     opacity: 1;
-    transform: translateX(-50%) translateY(0);
+
+    transform:
+        translateX(-50%)
+        translateY(0);
 }
+
 
 /* =========================================================
    MEMORY MODAL
 ========================================================= */
 
-.modal-backdrop {
+.modal {
     position: fixed;
-    inset: 0;
-    z-index: 90;
 
-    display: none;
+    inset: 0;
+
+    z-index: 95;
+
+    display: flex;
+
     align-items: center;
+
     justify-content: center;
 
     padding: 20px;
+}
 
-    background: rgba(0, 0, 0, 0.35);
+.modal.hidden {
+    display: none;
+}
+
+.modal-backdrop {
+    position: absolute;
+
+    inset: 0;
+
+    background: rgba(0,0,0,.35);
 
     backdrop-filter: blur(4px);
 }
 
-.modal-backdrop.open {
-    display: flex;
-}
+.modal-card {
+    position: relative;
 
-.modal {
-    width: min(520px, 100%);
-    max-height: min(80vh, 650px);
+    z-index: 1;
+
+    width: min(520px,100%);
+
+    max-height: min(80vh,650px);
 
     overflow: auto;
 
@@ -1187,22 +1397,40 @@ button:disabled {
 
     background: #fff;
 
-    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.18);
+    box-shadow:
+        0 25px 70px rgba(0,0,0,.18);
+}
+
+.modal-header {
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    margin-bottom: 12px;
 }
 
 .modal-title {
     margin: 0;
+
     font-size: 19px;
+
     font-weight: 800;
 }
 
-.modal-description {
-    margin: 7px 0 17px;
+.memory-list {
+    color: #3f444b;
+}
 
-    color: var(--text-soft);
+.memory-empty {
+    padding: 20px 5px;
+
+    color: #888d95;
+
+    text-align: center;
 
     font-size: 13px;
-    line-height: 1.55;
 }
 
 .memory-item {
@@ -1210,51 +1438,26 @@ button:disabled {
 
     border-bottom: 1px solid var(--border);
 
-    color: #3f444b;
-
     font-size: 13px;
+
     line-height: 1.5;
 }
 
-.memory-item:last-child {
-    border-bottom: 0;
-}
 
 /* =========================================================
-   EMPTY / ERROR
+   HIDDEN
 ========================================================= */
 
-.error-message {
-    padding: 12px 14px;
-
-    border: 1px solid #f0caca;
-    border-radius: 10px;
-
-    background: #fff5f5;
-    color: #8a2424;
-
-    font-size: 13px;
-    line-height: 1.5;
+.hidden {
+    display: none !important;
 }
 
-.success-message {
-    padding: 12px 14px;
-
-    border: 1px solid var(--success-border);
-    border-radius: 10px;
-
-    background: var(--success-soft);
-    color: #176534;
-
-    font-size: 13px;
-    line-height: 1.5;
-}
 
 /* =========================================================
    MOBILE
 ========================================================= */
 
-@media (max-width: 700px) {
+@media (max-width:700px) {
 
     .topbar {
         height: 58px;
@@ -1264,8 +1467,11 @@ button:disabled {
     .brand-mark {
         width: 31px;
         height: 31px;
+
         flex-basis: 31px;
+
         border-radius: 10px;
+
         font-size: 15px;
     }
 
@@ -1277,19 +1483,18 @@ button:disabled {
         display: none;
     }
 
-    .top-actions {
-        gap: 3px;
-    }
-
     .icon-btn {
         width: 35px;
         height: 35px;
     }
 
     .chat-shell {
-        width: min(100% - 20px, 920px);
+        width: calc(100% - 20px);
+
         padding-top: 14px;
-        padding-bottom: calc(var(--composer-height) + 45px);
+
+        padding-bottom:
+            calc(var(--composer-height) + 45px);
     }
 
     #welcome {
@@ -1303,8 +1508,11 @@ button:disabled {
     .welcome-logo {
         width: 58px;
         height: 58px;
+
         margin-bottom: 14px;
+
         border-radius: 18px;
+
         font-size: 25px;
     }
 
@@ -1314,27 +1522,19 @@ button:disabled {
 
     .welcome-description {
         font-size: 13px;
-        line-height: 1.55;
     }
 
     .suggestions {
         grid-template-columns: 1fr;
+
         gap: 8px;
+
         margin-top: 19px;
     }
 
     .suggestion-card {
         min-height: auto;
         padding: 13px;
-    }
-
-    .example-chips {
-        gap: 6px;
-    }
-
-    .example-chip {
-        font-size: 11px;
-        padding: 7px 10px;
     }
 
     #messages {
@@ -1349,8 +1549,11 @@ button:disabled {
     .thinking-avatar {
         width: 30px;
         height: 30px;
+
         flex-basis: 30px;
+
         border-radius: 9px;
+
         font-size: 13px;
     }
 
@@ -1361,31 +1564,21 @@ button:disabled {
 
     .user-message {
         max-width: 86%;
+
         padding: 10px 13px;
-        border-radius: 17px 17px 4px 17px;
+
+        border-radius:
+            17px 17px 4px 17px;
+
         font-size: 14px;
-        line-height: 1.55;
-    }
-
-    .assistant-content h1,
-    .message-content h1 {
-        font-size: 20px;
-    }
-
-    .assistant-content h2,
-    .message-content h2 {
-        font-size: 17px;
-    }
-
-    .assistant-content h3,
-    .message-content h3 {
-        font-size: 16px;
     }
 
     .assistant-content table,
     .message-content table {
         display: block;
+
         overflow-x: auto;
+
         white-space: nowrap;
     }
 
@@ -1396,26 +1589,25 @@ button:disabled {
 
     .composer {
         border-radius: 17px;
+
         padding: 7px;
+
         gap: 5px;
     }
 
     .composer textarea {
-        font-size: 14px;
         min-height: 40px;
+
+        font-size: 14px;
     }
 
     .composer-button {
         width: 35px;
         height: 35px;
-        flex-basis: 35px;
-        border-radius: 10px;
-    }
 
-    .live-button {
-        height: 34px;
-        padding: 0 8px;
-        font-size: 11px;
+        flex-basis: 35px;
+
+        border-radius: 10px;
     }
 
     .message-actions {
@@ -1435,13 +1627,18 @@ button:disabled {
     .toast {
         bottom: 92px;
     }
+
+    .menu-drawer {
+        width: min(330px,88vw);
+    }
 }
+
 
 /* =========================================================
    VERY SMALL PHONES
 ========================================================= */
 
-@media (max-width: 390px) {
+@media (max-width:390px) {
 
     .topbar {
         padding: 0 9px;
@@ -1455,16 +1652,8 @@ button:disabled {
         font-size: 14px;
     }
 
-    .top-actions .memory-btn {
-        display: none;
-    }
-
     .welcome-title {
         font-size: 25px;
-    }
-
-    .welcome-description {
-        font-size: 12px;
     }
 
     .assistant-content {
@@ -1474,44 +1663,8 @@ button:disabled {
     .user-message {
         max-width: 90%;
     }
-
-    .composer-button.attach-button {
-        display: none;
-    }
 }
 
-/* =========================================================
-   LANDSCAPE MOBILE
-========================================================= */
-
-@media (max-height: 520px) and (orientation: landscape) {
-
-    .topbar {
-        height: 52px;
-    }
-
-    #welcome {
-        padding-top: 12px;
-    }
-
-    .welcome-card {
-        padding: 12px;
-    }
-
-    .welcome-logo {
-        width: 46px;
-        height: 46px;
-        margin-bottom: 8px;
-    }
-
-    .suggestions {
-        margin-top: 12px;
-    }
-
-    .suggestion-card {
-        padding: 9px;
-    }
-}
 
 /* =========================================================
    ACCESSIBILITY
@@ -1524,18 +1677,22 @@ a:focus-visible {
     outline-offset: 2px;
 }
 
+
 /* =========================================================
    REDUCED MOTION
 ========================================================= */
 
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion:reduce) {
 
     *,
     *::before,
     *::after {
         scroll-behavior: auto !important;
-        animation-duration: 0.01ms !important;
+
+        animation-duration: .01ms !important;
+
         animation-iteration-count: 1 !important;
-        transition-duration: 0.01ms !important;
+
+        transition-duration: .01ms !important;
     }
 }
