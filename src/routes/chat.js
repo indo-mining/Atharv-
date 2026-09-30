@@ -14,15 +14,36 @@ const {
 const router =
   express.Router();
 
+/*
+=========================================================
+ NORMAL CHAT
+ POST /api/chat
+=========================================================
+*/
+
 router.post(
   "/",
   asyncHandler(chat)
 );
 
+/*
+=========================================================
+ STREAM CHAT
+ POST /api/chat/stream
+=========================================================
+*/
+
 router.post(
   "/stream",
   asyncHandler(streamChat)
 );
+
+/*
+=========================================================
+ LIVE / RESEARCH
+ POST /api/chat/research
+=========================================================
+*/
 
 router.post(
   "/research",
