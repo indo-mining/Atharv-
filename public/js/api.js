@@ -1,242 +1,210 @@
 "use strict";
 
 import { CONFIG } from "./config.js";
+import { getUserId } from "./storage.js";
 
 
 function buildUrl(path) {
-
-  const base =
-    String(CONFIG.API_BASE || "").replace(/\/+$/, "");
-
-  const cleanPath =
-    path.startsWith("/")
-      ? path
-      : `/${path}`;
-
-  return `${base}${cleanPath}`;
+  return `${CONFIG.API_BASE}${path}`;
 }
 
 
-async function parseResponse(response) {
-
-  const text =
-    await response.text();
-
-  let data = {};
-
-  try {
-
-    data =
-      text
-        ? JSON.parse(text)
-        : {};
-
-  } catch {
-
-    data = {
-      success: false,
-      message:
-        text ||
-        "Invalid server response."
-    };
-  }
-
-
-  if (!response.ok) {
-
-    throw new Error(
-      data?.message ||
-      data?.error ||
-      `Request failed with status ${response.status}.`
-    );
-  }
-
-
-  return data;
-}
-
+/* =====================================================
+   REQUEST
+===================================================== */
 
 async function request(
   path,
   options = {}
 ) {
-
   const controller =
     new AbortController();
 
   const timeout =
-    setTimeout(
-      () => controller.abort(),
-      CONFIG.API_TIMEOUT || 60000
-    );
-
+    setTimeout(() => {
+      controller.abort();
+    }, CONFIG.API_TIMEOUT);
 
   try {
+
+    const headers = {
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+      ...(options.headers || {})
+    };
 
     const response =
       await fetch(
         buildUrl(path),
         {
           ...options,
-          signal: controller.signal
+          headers,
+          signal:
+            controller.signal,
+
+          cache: "no-store",
+
+          credentials: "same-origin"
         }
       );
 
-    return await parseResponse(
-      response
-    );
+    const text =
+      await response.text();
+
+    let data = {};
+
+    if (text) {
+      try {
+        data =
+          JSON.parse(text);
+      } catch {
+        data = {
+          raw: text
+        };
+      }
+    }
+
+    if (!response.ok) {
+
+      const message =
+        data?.error ||
+        data?.message ||
+        `Server error (${response.status})`;
+
+      throw new Error(
+        message
+      );
+    }
+
+    return data;
 
   } catch (error) {
 
     if (
-      error?.name === "AbortError"
+      error?.name ===
+      "AbortError"
     ) {
-
       throw new Error(
-        "Atharv server response mein zyada time lag raha hai. Please try again."
+        "Atharv took too long to respond. Please try again."
       );
     }
-
 
     if (
       error instanceof TypeError
     ) {
-
       throw new Error(
         "Network error. Atharv server se connection nahi ho paaya."
       );
     }
 
-
     throw error;
 
   } finally {
-
     clearTimeout(timeout);
   }
 }
 
 
-export async function getVersion() {
+/* =====================================================
+   NORMAL CHAT
+===================================================== */
 
-  return request(
-    "/api/version",
-    {
-      method: "GET",
-      headers: {
-        Accept:
-          "application/json"
-      }
-    }
-  );
-}
-
-
-export async function sendChat(
-  payload
-) {
-
+export async function sendChat({
+  message,
+  history
+}) {
   return request(
     "/api/chat",
     {
       method: "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json",
+      body: JSON.stringify({
+        message,
+        history:
+          Array.isArray(history)
+            ? history
+            : [],
 
-        Accept:
-          "application/json"
-      },
+        chatHistory:
+          Array.isArray(history)
+            ? history
+            : [],
 
-      body:
-        JSON.stringify(payload)
+        userId:
+          getUserId()
+      })
     }
   );
 }
 
 
-export async function sendResearch(
-  payload
-) {
+/* =====================================================
+   LIVE / RESEARCH
+===================================================== */
 
+export async function sendResearch({
+  message
+}) {
   return request(
     "/api/chat/research",
     {
       method: "POST",
 
-      headers: {
-        "Content-Type":
-          "application/json",
+      body: JSON.stringify({
+        query: message,
+        message,
 
-        Accept:
-          "application/json"
-      },
-
-      body:
-        JSON.stringify(payload)
+        userId:
+          getUserId()
+      })
     }
   );
 }
 
+
+/* =====================================================
+   MEMORY
+===================================================== */
 
 export async function getMemories() {
-
   return request(
-    "/api/memory",
+    `/api/memory?userId=${encodeURIComponent(
+      getUserId()
+    )}`,
     {
-      method: "GET",
-
-      headers: {
-        Accept:
-          "application/json"
-      }
+      method: "GET"
     }
   );
 }
-
-
-export async function addMemory(
-  text
-) {
-
-  return request(
-    "/api/memory",
-    {
-      method: "POST",
-
-      headers: {
-        "Content-Type":
-          "application/json",
-
-        Accept:
-          "application/json"
-      },
-
-      body:
-        JSON.stringify({
-          memory: text,
-          content: text,
-          text
-        })
-    }
-  );
-}
-
 
 export async function deleteMemory(
-  id
+  memoryId
 ) {
-
   return request(
-    `/api/memory/${encodeURIComponent(id)}`,
+    `/api/memory/${encodeURIComponent(
+      memoryId
+    )}`,
     {
       method: "DELETE",
 
-      headers: {
-        Accept:
-          "application/json"
-      }
+      body: JSON.stringify({
+        userId:
+          getUserId()
+      })
+    }
+  );
+}
+
+
+/* =====================================================
+   VERSION
+===================================================== */
+
+export async function getVersion() {
+  return request(
+    "/api/version",
+    {
+      method: "GET"
     }
   );
 }
