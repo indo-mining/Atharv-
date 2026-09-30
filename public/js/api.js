@@ -2,119 +2,241 @@
 
 import { CONFIG } from "./config.js";
 
+
 function buildUrl(path) {
-  return `${CONFIG.API_BASE}${path}`;
+
+  const base =
+    String(CONFIG.API_BASE || "").replace(/\/+$/, "");
+
+  const cleanPath =
+    path.startsWith("/")
+      ? path
+      : `/${path}`;
+
+  return `${base}${cleanPath}`;
 }
 
-async function parseResponse(response) {
-  const text = await response.text();
 
-  let data = null;
+async function parseResponse(response) {
+
+  const text =
+    await response.text();
+
+  let data = {};
 
   try {
-    data = text ? JSON.parse(text) : {};
+
+    data =
+      text
+        ? JSON.parse(text)
+        : {};
+
   } catch {
+
     data = {
       success: false,
-      message: text || "Invalid server response."
+      message:
+        text ||
+        "Invalid server response."
     };
   }
 
+
   if (!response.ok) {
-    const message =
+
+    throw new Error(
       data?.message ||
       data?.error ||
-      `Request failed with status ${response.status}.`;
-
-    throw new Error(message);
+      `Request failed with status ${response.status}.`
+    );
   }
+
 
   return data;
 }
 
-export async function getVersion() {
-  const response = await fetch(buildUrl("/api/version"), {
-    method: "GET",
-    headers: {
-      Accept: "application/json"
+
+async function request(
+  path,
+  options = {}
+) {
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () => controller.abort(),
+      CONFIG.API_TIMEOUT || 60000
+    );
+
+
+  try {
+
+    const response =
+      await fetch(
+        buildUrl(path),
+        {
+          ...options,
+          signal: controller.signal
+        }
+      );
+
+    return await parseResponse(
+      response
+    );
+
+  } catch (error) {
+
+    if (
+      error?.name === "AbortError"
+    ) {
+
+      throw new Error(
+        "Atharv server response mein zyada time lag raha hai. Please try again."
+      );
     }
-  });
 
-  return parseResponse(response);
+
+    if (
+      error instanceof TypeError
+    ) {
+
+      throw new Error(
+        "Network error. Atharv server se connection nahi ho paaya."
+      );
+    }
+
+
+    throw error;
+
+  } finally {
+
+    clearTimeout(timeout);
+  }
 }
 
-export async function sendChat(payload) {
-  const response = await fetch(buildUrl("/api/chat"), {
-    method: "POST",
 
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
+export async function getVersion() {
 
-    body: JSON.stringify(payload)
-  });
-
-  return parseResponse(response);
+  return request(
+    "/api/version",
+    {
+      method: "GET",
+      headers: {
+        Accept:
+          "application/json"
+      }
+    }
+  );
 }
 
-export async function sendResearch(payload) {
-  const response = await fetch(buildUrl("/api/chat/research"), {
-    method: "POST",
 
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
+export async function sendChat(
+  payload
+) {
 
-    body: JSON.stringify(payload)
-  });
+  return request(
+    "/api/chat",
+    {
+      method: "POST",
 
-  return parseResponse(response);
+      headers: {
+        "Content-Type":
+          "application/json",
+
+        Accept:
+          "application/json"
+      },
+
+      body:
+        JSON.stringify(payload)
+    }
+  );
 }
+
+
+export async function sendResearch(
+  payload
+) {
+
+  return request(
+    "/api/chat/research",
+    {
+      method: "POST",
+
+      headers: {
+        "Content-Type":
+          "application/json",
+
+        Accept:
+          "application/json"
+      },
+
+      body:
+        JSON.stringify(payload)
+    }
+  );
+}
+
 
 export async function getMemories() {
-  const response = await fetch(buildUrl("/api/memory"), {
-    method: "GET",
 
-    headers: {
-      Accept: "application/json"
+  return request(
+    "/api/memory",
+    {
+      method: "GET",
+
+      headers: {
+        Accept:
+          "application/json"
+      }
     }
-  });
-
-  return parseResponse(response);
+  );
 }
 
-export async function addMemory(text) {
-  const response = await fetch(buildUrl("/api/memory"), {
-    method: "POST",
 
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json"
-    },
+export async function addMemory(
+  text
+) {
 
-    body: JSON.stringify({
-      memory: text,
-      content: text,
-      text
-    })
-  });
+  return request(
+    "/api/memory",
+    {
+      method: "POST",
 
-  return parseResponse(response);
+      headers: {
+        "Content-Type":
+          "application/json",
+
+        Accept:
+          "application/json"
+      },
+
+      body:
+        JSON.stringify({
+          memory: text,
+          content: text,
+          text
+        })
+    }
+  );
 }
 
-export async function deleteMemory(id) {
-  const response = await fetch(
-    buildUrl(`/api/memory/${encodeURIComponent(id)}`),
+
+export async function deleteMemory(
+  id
+) {
+
+  return request(
+    `/api/memory/${encodeURIComponent(id)}`,
     {
       method: "DELETE",
 
       headers: {
-        Accept: "application/json"
+        Accept:
+          "application/json"
       }
     }
   );
-
-  return parseResponse(response);
 }
