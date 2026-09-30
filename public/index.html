@@ -2,9 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  >
 
   <title>Atharv AI — Your AI Assistant</title>
+
   <meta
     name="description"
     content="Atharv AI — multilingual AI assistant for questions, learning, coding, writing and everyday help."
@@ -24,29 +29,35 @@
 
 <div id="app" class="app-shell">
 
-  <!-- ================= SIDEBAR ================= -->
+  <!-- SIDEBAR -->
+
   <aside id="drawer" class="sidebar">
 
     <div class="sidebar-header">
+
       <div class="brand-mini">
+
         <div class="brand-icon">A</div>
 
         <div>
           <div class="brand-name">Atharv</div>
           <div class="brand-subtitle">AI Assistant</div>
         </div>
+
       </div>
 
       <button
         id="drawerClose"
         class="icon-button sidebar-close"
         type="button"
-        aria-label="Close menu"
         data-action="close-drawer"
+        aria-label="Close menu"
       >
         ×
       </button>
+
     </div>
+
 
     <button
       id="newChat"
@@ -58,10 +69,10 @@
       <span>New chat</span>
     </button>
 
+
     <nav class="sidebar-nav">
 
       <button
-        id="homeButton"
         class="nav-item active"
         type="button"
         data-action="home"
@@ -70,8 +81,8 @@
         <span>Home</span>
       </button>
 
+
       <button
-        id="memoryButton"
         class="nav-item"
         type="button"
         data-action="memory"
@@ -79,6 +90,7 @@
         <span class="nav-icon">◉</span>
         <span>Memory</span>
       </button>
+
 
       <button
         id="installButton"
@@ -93,6 +105,7 @@
 
     </nav>
 
+
     <div class="history-section">
 
       <div class="history-heading">
@@ -103,7 +116,6 @@
       <div
         id="history"
         class="history-list"
-        data-chat-history
       ></div>
 
       <div
@@ -115,10 +127,10 @@
 
     </div>
 
+
     <div class="sidebar-footer">
 
       <button
-        id="clearHistory"
         class="clear-history-button"
         type="button"
         data-action="clear-history"
@@ -128,12 +140,13 @@
 
       <div class="sidebar-version">
         Atharv AI
-        <span id="version" data-version>v17.0.0</span>
+        <span id="version">v17.0.2</span>
       </div>
 
     </div>
 
   </aside>
+
 
   <div
     id="drawerOverlay"
@@ -142,21 +155,21 @@
   ></div>
 
 
-  <!-- ================= MAIN ================= -->
+  <!-- MAIN -->
+
   <main class="main-content">
 
-    <!-- TOP BAR -->
     <header class="topbar">
 
       <button
-        id="menuButton"
         class="icon-button menu-button"
         type="button"
-        aria-label="Open menu"
         data-action="open-drawer"
+        aria-label="Open menu"
       >
         ☰
       </button>
+
 
       <div class="topbar-brand">
 
@@ -165,20 +178,25 @@
         </div>
 
         <div class="topbar-brand-text">
-          <div class="topbar-title">Atharv</div>
+
+          <div class="topbar-title">
+            Atharv
+          </div>
 
           <div class="topbar-status">
             <span class="online-dot"></span>
             AI Assistant
           </div>
+
         </div>
 
       </div>
 
+
       <div class="topbar-spacer"></div>
 
+
       <button
-        id="memoryButtonTop"
         class="topbar-memory"
         type="button"
         data-action="memory"
@@ -190,15 +208,18 @@
     </header>
 
 
-    <!-- ================= CHAT AREA ================= -->
+    <!-- CHAT -->
+
     <section
       id="chatContainer"
       class="chat-area"
       aria-live="polite"
     >
 
-      <!-- WELCOME -->
-      <div id="welcomeSection" class="welcome-section">
+      <div
+        id="welcomeSection"
+        class="welcome-section"
+      >
 
         <div class="welcome-avatar-wrapper">
 
@@ -211,9 +232,11 @@
 
         </div>
 
+
         <div class="welcome-label">
           ATHARV AI
         </div>
+
 
         <h1>
           Your AI.
@@ -221,11 +244,13 @@
           Every Question.
         </h1>
 
+
         <p class="welcome-description">
           Ask anything, learn anything, create anything.
           Atharv understands your language and helps you find
           clear, useful answers.
         </p>
+
 
         <div class="welcome-status">
           <span class="status-check">✓</span>
@@ -236,6 +261,7 @@
 
 
       <!-- SUGGESTIONS -->
+
       <div
         id="suggestions"
         class="suggestions-grid"
@@ -307,24 +333,23 @@
       </div>
 
 
-      <!-- MESSAGES -->
       <div
         id="messages"
         class="messages"
-        data-chat-messages
       ></div>
 
     </section>
 
 
-    <!-- ================= COMPOSER ================= -->
+    <!-- COMPOSER -->
+
     <section class="composer-wrapper">
 
       <div
         id="attachment"
         class="attachment-preview"
-        data-attachment
       ></div>
+
 
       <div
         id="errorMessage"
@@ -333,11 +358,38 @@
         aria-live="assertive"
       ></div>
 
+
+      <!-- MODE -->
+
+      <div class="chat-mode-bar">
+
+        <button
+          id="normalModeButton"
+          type="button"
+          class="chat-mode active"
+          data-mode="normal"
+        >
+          Chat
+        </button>
+
+
+        <button
+          id="liveModeButton"
+          type="button"
+          class="chat-mode"
+          data-mode="live"
+        >
+          Live
+        </button>
+
+      </div>
+
+
       <form
         id="chatForm"
         class="composer"
-        data-chat-form
         autocomplete="off"
+        novalidate
       >
 
         <div class="composer-inner">
@@ -346,11 +398,12 @@
             id="attachButton"
             class="composer-button"
             type="button"
-            aria-label="Attach file"
             data-action="attach"
+            aria-label="Attach file"
           >
             ＋
           </button>
+
 
           <input
             id="fileInput"
@@ -358,6 +411,7 @@
             hidden
             accept="image/*,.pdf,.txt,.doc,.docx,.csv,.json"
           >
+
 
           <textarea
             id="messageInput"
@@ -370,6 +424,7 @@
             spellcheck="true"
           ></textarea>
 
+
           <button
             id="sendButton"
             class="send-button"
@@ -380,6 +435,7 @@
           </button>
 
         </div>
+
 
         <div class="composer-bottom">
 
@@ -402,12 +458,11 @@
 </div>
 
 
-<!-- ================= MEMORY MODAL ================= -->
+<!-- MEMORY -->
 
 <div
   id="memoryModal"
   class="modal-backdrop"
-  data-memory-modal
   hidden
 >
 
@@ -421,6 +476,7 @@
     <div class="memory-modal-header">
 
       <div>
+
         <div class="memory-modal-kicker">
           PERSONAL CONTEXT
         </div>
@@ -432,10 +488,11 @@
         <p>
           Save useful information so Atharv can remember it later.
         </p>
+
       </div>
 
+
       <button
-        id="memoryClose"
         class="modal-close"
         type="button"
         data-action="close-memory"
@@ -453,12 +510,14 @@
         Add memory
       </label>
 
+
       <textarea
         id="memoryInput"
         rows="3"
         maxlength="1000"
         placeholder="Example: My name is Rajiv."
       ></textarea>
+
 
       <button
         id="addMemoryButton"
@@ -476,6 +535,7 @@
       Saved memories
     </div>
 
+
     <div
       id="memoryList"
       class="memory-list"
@@ -490,7 +550,10 @@
 </div>
 
 
-<script type="module" src="/js/app.js"></script>
+<script
+  type="module"
+  src="/js/app.js?v=17.0.2"
+></script>
 
 </body>
 </html>
