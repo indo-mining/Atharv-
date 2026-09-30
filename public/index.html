@@ -1,32 +1,58 @@
-<!DOCTYPE html><html lang="en"><head>
-    <meta charset="UTF-8"><meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
->
+<!DOCTYPE html>
+<html lang="en">
 
-<meta
-    name="theme-color"
-    content="#ffffff"
->
+<head>
 
-<meta
-    name="description"
-    content="ATHARV AI — Your AI. Every Language. Every Question."
->
+    <meta charset="UTF-8">
 
-<title>ATHARV AI</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    >
 
-<link
-    rel="manifest"
-    href="./manifest.json"
->
+    <meta
+        name="theme-color"
+        content="#ffffff"
+    >
 
-<link
-    rel="stylesheet"
-    href="./style.css"
->
+    <meta
+        name="description"
+        content="ATHARV AI — Your AI. Every Language. Every Question."
+    >
 
-</head><body><div id="app"><!-- =================================================
+    <meta
+        name="mobile-web-app-capable"
+        content="yes"
+    >
+
+    <meta
+        name="apple-mobile-web-app-capable"
+        content="yes"
+    >
+
+    <meta
+        name="apple-mobile-web-app-status-bar-style"
+        content="default"
+    >
+
+    <title>ATHARV AI</title>
+
+    <link
+        rel="manifest"
+        href="./manifest.json"
+    >
+
+    <link
+        rel="stylesheet"
+        href="./style.css"
+    >
+
+</head>
+
+
+<body>
+
+<!-- =================================================
      HEADER
      ================================================= -->
 
@@ -76,7 +102,6 @@
 </header>
 
 
-
 <!-- =================================================
      MENU OVERLAY
      ================================================= -->
@@ -84,12 +109,12 @@
 <div
     id="menuOverlay"
     class="menu-overlay"
+    aria-hidden="true"
 ></div>
 
 
-
 <!-- =================================================
-     MENU
+     SIDE MENU
      ================================================= -->
 
 <aside
@@ -108,6 +133,7 @@
             id="menuClose"
             class="menu-close"
             type="button"
+            aria-label="Close menu"
         >
             ✕
         </button>
@@ -118,7 +144,7 @@
     <div class="menu-content">
 
 
-        <!-- MAIN -->
+        <!-- ================= MAIN ================= -->
 
         <div class="menu-section">
 
@@ -179,8 +205,7 @@
         </div>
 
 
-
-        <!-- TOOLS -->
+        <!-- ================= TOOLS ================= -->
 
         <div class="menu-section">
 
@@ -188,8 +213,6 @@
                 Tools
             </div>
 
-
-            <!-- LIVE SEARCH -->
 
             <button
                 id="liveButton"
@@ -217,8 +240,6 @@
             </button>
 
 
-            <!-- MEMORY -->
-
             <button
                 id="memoryButton"
                 class="menu-item"
@@ -244,8 +265,6 @@
             </button>
 
 
-            <!-- ATTACHMENT -->
-
             <button
                 id="menuAttachmentButton"
                 class="menu-item"
@@ -270,8 +289,6 @@
 
             </button>
 
-
-            <!-- VOICE -->
 
             <button
                 id="menuVoiceButton"
@@ -300,8 +317,7 @@
         </div>
 
 
-
-        <!-- APP -->
+        <!-- ================= APP ================= -->
 
         <div class="menu-section">
 
@@ -371,7 +387,6 @@
 </aside>
 
 
-
 <!-- =================================================
      CHAT PAGE
      ================================================= -->
@@ -381,7 +396,6 @@
 
     <!-- =================================================
          CHAT CONTAINER
-         REQUIRED BY app.js
          ================================================= -->
 
     <section
@@ -390,9 +404,7 @@
     >
 
 
-        <!-- =================================================
-             WELCOME
-             ================================================= -->
+        <!-- ================= WELCOME ================= -->
 
         <div
             id="welcome"
@@ -421,12 +433,14 @@
                     💡 Explain something
                 </button>
 
+
                 <button
                     type="button"
                     data-prompt="Help me learn something new."
                 >
                     📚 Help me learn
                 </button>
+
 
                 <button
                     type="button"
@@ -440,10 +454,9 @@
         </div>
 
 
-
         <!-- =================================================
              MESSAGES
-             REQUIRED BY app.js
+             app.js v18.0.0 REQUIRED
              ================================================= -->
 
         <div
@@ -452,10 +465,8 @@
         ></div>
 
 
-
         <!-- =================================================
              THINKING
-             REQUIRED BY app.js
              ================================================= -->
 
         <div
@@ -477,14 +488,11 @@
 
         </div>
 
-
     </section>
-
 
 
     <!-- =================================================
          ATTACHMENT INFO
-         REQUIRED BY app.js
          ================================================= -->
 
     <div
@@ -493,14 +501,14 @@
     ></div>
 
 
-
     <!-- =================================================
          BOTTOM COMPOSER
-         
-         IMPORTANT:
-         THIS AREA IS KEPT IN THE SAME STRUCTURE.
-         
-         ＋ / 📎 | Message Atharv… | 🎙️ | ➤
+
+         EXACT STRUCTURE:
+
+         ＋ | Message Atharv… | 🎙️ | ➤
+
+         Is section ko intentionally change nahi kiya gaya.
          ================================================= -->
 
     <div class="composer-wrapper">
@@ -512,7 +520,7 @@
         >
 
 
-            <!-- PLUS / ATTACHMENT -->
+            <!-- ATTACHMENT -->
 
             <button
                 id="attachmentButton"
@@ -533,7 +541,6 @@
             >
 
 
-
             <!-- MESSAGE -->
 
             <textarea
@@ -546,7 +553,6 @@
             ></textarea>
 
 
-
             <!-- VOICE -->
 
             <button
@@ -557,7 +563,6 @@
             >
                 🎙️
             </button>
-
 
 
             <!-- SEND -->
@@ -578,10 +583,8 @@
 </main>
 
 
-
 <!-- =================================================
      TOAST
-     REQUIRED BY app.js
      ================================================= -->
 
 <div
@@ -592,10 +595,8 @@
 ></div>
 
 
-
 <!-- =================================================
      MEMORY MODAL
-     REQUIRED BY app.js
      ================================================= -->
 
 <div
@@ -607,11 +608,16 @@
     <div class="modal-backdrop"></div>
 
 
-    <div class="modal-card">
+    <div
+        class="modal-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="memoryTitle"
+    >
 
         <div class="modal-header">
 
-            <h2>
+            <h2 id="memoryTitle">
                 Memory
             </h2>
 
@@ -642,13 +648,12 @@
 </div>
 
 
-
 <!-- =================================================
-     MENU CONNECTION
-     Does NOT touch composer functionality
+     MENU JAVASCRIPT
      ================================================= -->
 
 <script>
+
 (() => {
 
     "use strict";
@@ -669,11 +674,13 @@
 
     function openMenu() {
 
-        menu?.classList.add("open");
+        if (!menu) return;
+
+        menu.classList.add("open");
 
         overlay?.classList.add("open");
 
-        menu?.setAttribute(
+        menu.setAttribute(
             "aria-hidden",
             "false"
         );
@@ -681,6 +688,10 @@
         menuButton?.setAttribute(
             "aria-expanded",
             "true"
+        );
+
+        document.body.classList.add(
+            "menu-open"
         );
 
     }
@@ -688,11 +699,13 @@
 
     function closeMenu() {
 
-        menu?.classList.remove("open");
+        if (!menu) return;
+
+        menu.classList.remove("open");
 
         overlay?.classList.remove("open");
 
-        menu?.setAttribute(
+        menu.setAttribute(
             "aria-hidden",
             "true"
         );
@@ -700,6 +713,10 @@
         menuButton?.setAttribute(
             "aria-expanded",
             "false"
+        );
+
+        document.body.classList.remove(
+            "menu-open"
         );
 
     }
@@ -725,7 +742,7 @@
 
     document.addEventListener(
         "keydown",
-        event => {
+        (event) => {
 
             if (
                 event.key === "Escape"
@@ -740,10 +757,9 @@
 
 
     /*
-    --------------------------------------------------
+    ==================================================
     MENU ATTACHMENT
-    Uses the SAME composer attachment button.
-    --------------------------------------------------
+    ==================================================
     */
 
     document
@@ -754,21 +770,23 @@
 
                 closeMenu();
 
-                document
-                    .getElementById(
+                const button =
+                    document.getElementById(
                         "attachmentButton"
-                    )
-                    ?.click();
+                    );
+
+                if (button) {
+                    button.click();
+                }
 
             }
         );
 
 
     /*
-    --------------------------------------------------
+    ==================================================
     MENU VOICE
-    Uses the SAME composer voice button.
-    --------------------------------------------------
+    ==================================================
     */
 
     document
@@ -779,22 +797,25 @@
 
                 closeMenu();
 
-                document
-                    .getElementById(
+                const button =
+                    document.getElementById(
                         "voiceButton"
-                    )
-                    ?.click();
+                    );
+
+                if (button) {
+                    button.click();
+                }
 
             }
         );
 
 
     /*
-    --------------------------------------------------
-    LIVE SEARCH
-    IMPORTANT:
-    liveButton remains the exact ID expected by app.js.
-    --------------------------------------------------
+    ==================================================
+    MENU LIVE SEARCH
+    app.js itself handles the actual toggle.
+    We ONLY close the menu here.
+    ==================================================
     */
 
     document
@@ -810,9 +831,10 @@
 
 
     /*
-    --------------------------------------------------
+    ==================================================
     MOBILE KEYBOARD
-    --------------------------------------------------
+    Does not modify the composer.
+    ==================================================
     */
 
     if (window.visualViewport) {
@@ -821,38 +843,72 @@
             "resize",
             () => {
 
-                requestAnimationFrame(
-                    () => {
+                requestAnimationFrame(() => {
 
-                        const container =
-                            document.getElementById(
-                                "chatContainer"
-                            );
+                    const container =
+                        document.getElementById(
+                            "chatContainer"
+                        );
 
-                        if (
-                            container
-                        ) {
+                    if (!container) return;
 
-                            container.scrollTop =
-                                container.scrollHeight;
+                    if (
+                        document.activeElement ===
+                        document.getElementById(
+                            "messageInput"
+                        )
+                    ) {
 
-                        }
+                        container.scrollTop =
+                            container.scrollHeight;
 
                     }
-                );
+
+                });
 
             }
         );
 
     }
 
+
+    /*
+    ==================================================
+    KEEP INPUT VISIBLE WHEN KEYBOARD OPENS
+    ==================================================
+    */
+
+    const input =
+        document.getElementById(
+            "messageInput"
+        );
+
+    input?.addEventListener(
+        "focus",
+        () => {
+
+            setTimeout(() => {
+
+                input.scrollIntoView({
+                    block: "nearest",
+                    behavior: "smooth"
+                });
+
+            }, 250);
+
+        }
+    );
+
+
 })();
+
 </script>
 
 
-
 <!-- =================================================
-     ATHARV AI v18
+     ATHARV AI APP
+     IMPORTANT:
+     app.js AFTER ALL DOM ELEMENTS
      ================================================= -->
 
 <script
@@ -860,4 +916,6 @@
     src="./app.js"
 ></script>
 
-</div></body></html>
+
+</body>
+</html>
