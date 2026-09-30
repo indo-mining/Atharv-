@@ -2,2427 +2,1893 @@
 
 /*
 =========================================================
- ATHARV AI FRONTEND
- Version 17.2.0
+ ATHARV AI
+ FRONTEND
+ Version 18.0.0
  --------------------------------------------------------
- Features:
- - Normal Chat
+ Professional Chat UI
+ - Existing /api/chat compatible
  - Live Research
+ - Conversation History
+ - Memory UI
+ - Attachments
  - Voice Input
- - Attachments UI
- - Memory
- - Chat History
- - New Chat
  - Copy
  - Edit
  - Regenerate
- - Code Copy
- - Auto textarea resize
- - Mobile friendly
- - PWA compatible
+ - Mobile Optimized
 =========================================================
 */
 
+(() => {
 
-/* ======================================================
-   CONFIG
-====================================================== */
+    /* ==================================================
+       CONFIG
+    ================================================== */
 
-const API_BASE = "";
+    const API_BASE = "";
 
-const MAX_MESSAGE_LENGTH = 12000;
+    const MAX_MESSAGE_LENGTH = 12000;
 
-const REQUEST_TIMEOUT = 120000;
+    const REQUEST_TIMEOUT = 120000;
 
-const STORAGE_KEYS = {
-    USER_ID: "atharv_user_id_v17",
-    HISTORY: "atharv_chat_history_v17",
-    LIVE: "atharv_live_mode_v17"
-};
-
-
-/* ======================================================
-   DOM
-====================================================== */
-
-const chatForm =
-    document.getElementById("chatForm");
-
-const messageInput =
-    document.getElementById("messageInput");
-
-const sendButton =
-    document.getElementById("sendButton");
-
-const messages =
-    document.getElementById("messages");
-
-const thinking =
-    document.getElementById("thinking");
-
-const welcome =
-    document.getElementById("welcome");
-
-const newChatButton =
-    document.getElementById("newChatButton");
-
-const memoryButton =
-    document.getElementById("memoryButton");
-
-const liveButton =
-    document.getElementById("liveButton");
-
-const attachmentButton =
-    document.getElementById("attachmentButton");
-
-const fileInput =
-    document.getElementById("fileInput");
-
-const attachmentInfo =
-    document.getElementById("attachmentInfo");
-
-const voiceButton =
-    document.getElementById("voiceButton");
-
-const toast =
-    document.getElementById("toast");
-
-const memoryModal =
-    document.getElementById("memoryModal");
-
-const closeMemoryButton =
-    document.getElementById("closeMemoryButton");
-
-const memoryList =
-    document.getElementById("memoryList");
-
-
-/* ======================================================
-   STATE
-====================================================== */
-
-let history = [];
-
-let sending = false;
-
-let liveMode =
-    localStorage.getItem(
-        STORAGE_KEYS.LIVE
-    ) === "true";
-
-let selectedFiles = [];
-
-let editingIndex = -1;
-
-
-/* ======================================================
-   USER ID
-====================================================== */
-
-function getUserId() {
-
-    let userId =
-        localStorage.getItem(
-            STORAGE_KEYS.USER_ID
-        );
-
-    if (!userId) {
-
-        userId =
-            "user_" +
-            cryptoRandom();
-
-        localStorage.setItem(
-            STORAGE_KEYS.USER_ID,
-            userId
-        );
-    }
-
-    return userId;
-}
-
-
-function cryptoRandom() {
-
-    if (
-        window.crypto &&
-        typeof window.crypto.randomUUID === "function"
-    ) {
-        return window.crypto.randomUUID();
-    }
-
-    return (
-        Date.now().toString(36) +
-        Math.random()
-            .toString(36)
-            .slice(2)
-    );
-}
-
-
-const USER_ID = getUserId();
-
-
-/* ======================================================
-   STORAGE
-====================================================== */
-
-function loadHistory() {
-
-    try {
-
-        const raw =
-            localStorage.getItem(
-                STORAGE_KEYS.HISTORY
-            );
-
-        if (!raw) {
-            return [];
-        }
-
-        const parsed =
-            JSON.parse(raw);
-
-        return Array.isArray(parsed)
-            ? parsed
-            : [];
-
-    } catch (error) {
-
-        console.warn(
-            "History load failed:",
-            error
-        );
-
-        return [];
-    }
-}
-
-
-function saveHistory() {
-
-    try {
-
-        localStorage.setItem(
-            STORAGE_KEYS.HISTORY,
-            JSON.stringify(history.slice(-100))
-        );
-
-    } catch (error) {
-
-        console.warn(
-            "History save failed:",
-            error
-        );
-    }
-}
-
-
-/* ======================================================
-   INITIALIZATION
-====================================================== */
-
-function init() {
-
-    history =
-        loadHistory();
-
-    updateLiveButton();
-
-    renderHistory();
-
-    bindEvents();
-
-    resizeInput();
-
-    updateOnlineStatus();
-
-    initVoiceInput();
-
-    window.addEventListener(
-        "online",
-        updateOnlineStatus
-    );
-
-    window.addEventListener(
-        "offline",
-        updateOnlineStatus
-    );
-
-    if (history.length === 0) {
-        showWelcome();
-    } else {
-        hideWelcome();
-    }
-}
-
-
-/* ======================================================
-   EVENTS
-====================================================== */
-
-function bindEvents() {
-
-    if (chatForm) {
-
-        chatForm.addEventListener(
-            "submit",
-            function (event) {
-
-                event.preventDefault();
-
-                handleSend();
-
-            }
-        );
-    }
-
-
-    if (messageInput) {
-
-        messageInput.addEventListener(
-            "input",
-            resizeInput
-        );
-
-
-        messageInput.addEventListener(
-            "keydown",
-            function (event) {
-
-                if (
-                    event.key === "Enter" &&
-                    !event.shiftKey
-                ) {
-
-                    event.preventDefault();
-
-                    handleSend();
-
-                }
-
-            }
-        );
-    }
-
-
-    if (sendButton) {
-
-        sendButton.addEventListener(
-            "click",
-            function (event) {
-
-                event.preventDefault();
-
-                handleSend();
-
-            }
-        );
-    }
-
-
-    if (newChatButton) {
-
-        newChatButton.addEventListener(
-            "click",
-            newChat
-        );
-    }
-
-
-    if (memoryButton) {
-
-        memoryButton.addEventListener(
-            "click",
-            openMemory
-        );
-    }
-
-
-    if (closeMemoryButton) {
-
-        closeMemoryButton.addEventListener(
-            "click",
-            closeMemory
-        );
-    }
-
-
-    if (memoryModal) {
-
-        const backdrop =
-            memoryModal.querySelector(
-                ".modal-backdrop"
-            );
-
-        if (backdrop) {
-
-            backdrop.addEventListener(
-                "click",
-                closeMemory
-            );
-        }
-    }
-
-
-    if (liveButton) {
-
-        liveButton.addEventListener(
-            "click",
-            toggleLive
-        );
-    }
-
-
-    if (attachmentButton) {
-
-        attachmentButton.addEventListener(
-            "click",
-            function () {
-
-                if (fileInput) {
-                    fileInput.click();
-                }
-
-            }
-        );
-    }
-
-
-    if (fileInput) {
-
-        fileInput.addEventListener(
-            "change",
-            handleFiles
-        );
-    }
-
-
-    bindPromptButtons();
-
-    bindGlobalMessageActions();
-}
-
-
-/* ======================================================
-   PROMPT BUTTONS
-====================================================== */
-
-function bindPromptButtons() {
-
-    document
-        .querySelectorAll(
-            ".suggestion, .example-chip"
-        )
-        .forEach(function (button) {
-
-            button.addEventListener(
-                "click",
-                function () {
-
-                    const prompt =
-                        button.dataset.prompt ||
-                        button.textContent.trim();
-
-                    if (!prompt) return;
-
-                    messageInput.value =
-                        prompt;
-
-                    resizeInput();
-
-                    handleSend();
-
-                }
-            );
-
-        });
-}
-
-
-/* ======================================================
-   LIVE MODE
-====================================================== */
-
-function toggleLive() {
-
-    liveMode = !liveMode;
-
-    localStorage.setItem(
-        STORAGE_KEYS.LIVE,
-        String(liveMode)
-    );
-
-    updateLiveButton();
-
-    showToast(
-        liveMode
-            ? "Live search enabled"
-            : "Live search disabled"
-    );
-}
-
-
-function updateLiveButton() {
-
-    if (!liveButton) return;
-
-    liveButton.setAttribute(
-        "aria-pressed",
-        String(liveMode)
-    );
-
-    liveButton.classList.toggle(
-        "active",
-        liveMode
-    );
-}
-
-
-/* ======================================================
-   SEND
-====================================================== */
-
-async function handleSend() {
-
-    if (sending) {
-        return;
-    }
-
-    const text =
-        messageInput.value.trim();
-
-    if (!text) {
-        return;
-    }
-
-    if (
-        text.length >
-        MAX_MESSAGE_LENGTH
-    ) {
-
-        showToast(
-            "Message is too long."
-        );
-
-        return;
-    }
-
-
-    const userMessage = {
-        role: "user",
-        content: text
+    const STORAGE = {
+        userId: "atharv_user_id_v18",
+        history: "atharv_chat_history_v18",
+        live: "atharv_live_mode_v18"
     };
 
 
-    if (editingIndex >= 0) {
+    /* ==================================================
+       DOM
+    ================================================== */
 
-        history =
-            history.slice(
-                0,
-                editingIndex
+    const $ = (id) =>
+        document.getElementById(id);
+
+    const chatContainer =
+        $("chatContainer");
+
+    const welcome =
+        $("welcome");
+
+    const messages =
+        $("messages");
+
+    const thinking =
+        $("thinking");
+
+    const chatForm =
+        $("chatForm");
+
+    const messageInput =
+        $("messageInput");
+
+    const sendButton =
+        $("sendButton");
+
+    const liveButton =
+        $("liveButton");
+
+    const voiceButton =
+        $("voiceButton");
+
+    const attachmentButton =
+        $("attachmentButton");
+
+    const fileInput =
+        $("fileInput");
+
+    const attachmentInfo =
+        $("attachmentInfo");
+
+    const toast =
+        $("toast");
+
+    const newChatButton =
+        $("newChatButton");
+
+    const memoryButton =
+        $("memoryButton");
+
+    const memoryModal =
+        $("memoryModal");
+
+    const closeMemoryButton =
+        $("closeMemoryButton");
+
+    const memoryList =
+        $("memoryList");
+
+
+    /* ==================================================
+       STATE
+    ================================================== */
+
+    let history = [];
+
+    let sending = false;
+
+    let liveMode =
+        localStorage.getItem(STORAGE.live) === "true";
+
+    let selectedFiles = [];
+
+    let editingIndex = -1;
+
+    let recognition = null;
+
+    let listening = false;
+
+
+    /* ==================================================
+       USER ID
+    ================================================== */
+
+    function getUserId() {
+
+        let id =
+            localStorage.getItem(
+                STORAGE.userId
             );
 
-        editingIndex = -1;
-
-    }
-
-
-    history.push(
-        userMessage
-    );
-
-    saveHistory();
-
-    hideWelcome();
-
-    renderHistory();
-
-    messageInput.value = "";
-
-    resizeInput();
-
-    clearAttachments();
-
-    setSending(true);
-
-
-    try {
-
-        let result;
-
-        if (liveMode) {
-
-            result =
-                await requestLive(
-                    text
-                );
-
-        } else {
-
-            result =
-                await requestChat(
-                    text
-                );
-
+        if (id) {
+            return id;
         }
-
-
-        const answer =
-            extractAnswer(result);
-
-
-        if (!answer) {
-
-            throw new Error(
-                "No response received"
-            );
-        }
-
-
-        history.push({
-            role: "assistant",
-            content: answer
-        });
-
-        saveHistory();
-
-        renderHistory();
-
-        scrollToBottom(true);
-
-    } catch (error) {
-
-        console.error(
-            "Chat error:",
-            error
-        );
-
-        const errorMessage =
-            getErrorMessage(error);
-
-        history.push({
-            role: "assistant",
-            content:
-                "Sorry, I couldn't complete that request.\n\n" +
-                errorMessage
-        });
-
-        saveHistory();
-
-        renderHistory();
-
-        showToast(
-            errorMessage
-        );
-
-    } finally {
-
-        setSending(false);
-
-    }
-}
-
-
-/* ======================================================
-   API
-====================================================== */
-
-async function requestChat(message) {
-
-    return requestJSON(
-        "/api/chat",
-        {
-            message,
-            history: history.slice(-12),
-            chatHistory: history.slice(-12),
-            userId: USER_ID
-        }
-    );
-}
-
-
-async function requestLive(message) {
-
-    return requestJSON(
-        "/api/chat/research",
-        {
-            query: message,
-            message,
-            userId: USER_ID
-        }
-    );
-}
-
-
-/* ======================================================
-   REQUEST
-====================================================== */
-
-async function requestJSON(
-    endpoint,
-    payload
-) {
-
-    const controller =
-        new AbortController();
-
-    const timeout =
-        setTimeout(
-            function () {
-                controller.abort();
-            },
-            REQUEST_TIMEOUT
-        );
-
-
-    try {
-
-        const response =
-            await fetch(
-                API_BASE + endpoint,
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-
-                        "Accept":
-                            "application/json"
-                    },
-
-                    body:
-                        JSON.stringify(
-                            payload
-                        ),
-
-                    signal:
-                        controller.signal
-                }
-            );
-
-
-        const contentType =
-            response.headers.get(
-                "content-type"
-            ) || "";
-
-
-        let data;
-
 
         if (
-            contentType.includes(
-                "application/json"
-            )
+            window.crypto &&
+            crypto.randomUUID
         ) {
 
-            data =
-                await response.json();
+            id =
+                crypto.randomUUID();
 
         } else {
 
-            const text =
-                await response.text();
+            id =
+                "atharv-" +
+                Date.now() +
+                "-" +
+                Math.random()
+                    .toString(36)
+                    .slice(2);
 
-            data = {
-                text
-            };
         }
 
+        localStorage.setItem(
+            STORAGE.userId,
+            id
+        );
 
-        if (!response.ok) {
+        return id;
+    }
 
-            throw new Error(
-                data?.error ||
-                data?.message ||
-                data?.text ||
-                `Request failed (${response.status})`
-            );
+    const USER_ID =
+        getUserId();
+
+
+    /* ==================================================
+       STORAGE
+    ================================================== */
+
+    function loadHistory() {
+
+        try {
+
+            const raw =
+                localStorage.getItem(
+                    STORAGE.history
+                );
+
+            if (!raw) {
+                return [];
+            }
+
+            const parsed =
+                JSON.parse(raw);
+
+            if (!Array.isArray(parsed)) {
+                return [];
+            }
+
+            return parsed
+                .filter(
+                    item =>
+                        item &&
+                        (
+                            item.role === "user" ||
+                            item.role === "assistant"
+                        ) &&
+                        typeof item.content === "string"
+                )
+                .slice(-80);
+
+        } catch {
+
+            return [];
         }
-
-
-        return data;
-
-    } finally {
-
-        clearTimeout(timeout);
-
-    }
-}
-
-
-/* ======================================================
-   RESPONSE EXTRACTION
-====================================================== */
-
-function extractAnswer(data) {
-
-    if (!data) {
-        return "";
     }
 
 
-    if (typeof data === "string") {
-        return data;
-    }
+    function saveHistory() {
 
+        try {
 
-    return (
-        data.answer ||
-        data.response ||
-        data.message ||
-        data.content ||
-        data.text ||
-        data.result ||
-        ""
-    );
-}
-
-
-/* ======================================================
-   ERROR
-====================================================== */
-
-function getErrorMessage(error) {
-
-    if (!navigator.onLine) {
-
-        return "Internet connection is unavailable.";
-    }
-
-
-    if (
-        error &&
-        error.name === "AbortError"
-    ) {
-
-        return "The request took too long. Please try again.";
-    }
-
-
-    return (
-        error?.message ||
-        "Something went wrong. Please try again."
-    );
-}
-
-
-/* ======================================================
-   RENDER HISTORY
-====================================================== */
-
-function renderHistory() {
-
-    if (!messages) {
-        return;
-    }
-
-    messages.innerHTML = "";
-
-    history.forEach(
-        function (item, index) {
-
-            renderMessage(
-                item,
-                index
+            localStorage.setItem(
+                STORAGE.history,
+                JSON.stringify(
+                    history.slice(-80)
+                )
             );
 
-        }
-    );
+        } catch {
 
-    if (history.length > 0) {
-        hideWelcome();
+            /*
+             Ignore localStorage errors.
+            */
+        }
     }
 
-    scrollToBottom(false);
-}
 
+    /* ==================================================
+       TOAST
+    ================================================== */
 
-/* ======================================================
-   RENDER MESSAGE
-====================================================== */
+    function showToast(message) {
 
-function renderMessage(
-    item,
-    index
-) {
+        if (!toast) {
+            return;
+        }
 
-    const row =
-        document.createElement(
-            "div"
+        toast.textContent =
+            String(message || "");
+
+        toast.classList.add("show");
+
+        clearTimeout(
+            showToast.timer
         );
 
-    row.className =
-        "message-row " +
-        (
-            item.role === "user"
-                ? "user"
-                : "assistant"
-        );
+        showToast.timer =
+            setTimeout(
+                () => {
+                    toast.classList.remove("show");
+                },
+                2400
+            );
+    }
 
 
-    const bubble =
-        document.createElement(
-            "div"
-        );
+    /* ==================================================
+       HTML ESCAPE
+    ================================================== */
 
-    bubble.className =
-        "message";
+    function escapeHtml(value) {
+
+        return String(value ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
 
 
-    if (item.role === "assistant") {
+    /* ==================================================
+       MARKDOWN
+    ================================================== */
 
-        bubble.innerHTML =
-            formatResponse(
-                item.content || ""
+    function formatInline(text) {
+
+        let output =
+            escapeHtml(text);
+
+        output =
+            output.replace(
+                /`([^`]+)`/g,
+                '<code class="inline-code">$1</code>'
             );
 
-    } else {
+        output =
+            output.replace(
+                /\*\*([^*]+)\*\*/g,
+                "<strong>$1</strong>"
+            );
 
-        bubble.textContent =
-            item.content || "";
+        output =
+            output.replace(
+                /\*([^*]+)\*/g,
+                "<em>$1</em>"
+            );
 
+        return output;
     }
 
 
-    row.appendChild(
-        bubble
-    );
+    function formatResponse(text) {
 
-
-    addMessageActions(
-        row,
-        item,
-        index
-    );
-
-
-    messages.appendChild(
-        row
-    );
-}
-
-
-/* ======================================================
-   MESSAGE ACTIONS
-====================================================== */
-
-function addMessageActions(
-    row,
-    item,
-    index
-) {
-
-    const actions =
-        document.createElement(
-            "div"
-        );
-
-    actions.className =
-        "atharv-message-actions";
-
-
-    if (item.role === "assistant") {
-
-        actions.appendChild(
-            actionButton(
-                "Copy",
-                "copy",
-                index
-            )
-        );
-
-        actions.appendChild(
-            actionButton(
-                "Regenerate",
-                "regenerate",
-                index
-            )
-        );
-
-    } else {
-
-        actions.appendChild(
-            actionButton(
-                "Edit",
-                "edit",
-                index
-            )
-        );
-
-        actions.appendChild(
-            actionButton(
-                "Copy",
-                "copy",
-                index
-            )
-        );
-    }
-
-
-    row.appendChild(
-        actions
-    );
-}
-
-
-function actionButton(
-    label,
-    action,
-    index
-) {
-
-    const button =
-        document.createElement(
-            "button"
-        );
-
-    button.type =
-        "button";
-
-    button.className =
-        "atharv-message-action";
-
-    button.dataset.action =
-        action;
-
-    button.dataset.index =
-        String(index);
-
-    button.textContent =
-        label;
-
-    return button;
-}
-
-
-/* ======================================================
-   GLOBAL MESSAGE ACTIONS
-====================================================== */
-
-function bindGlobalMessageActions() {
-
-    if (!messages) {
-        return;
-    }
-
-
-    messages.addEventListener(
-        "click",
-        async function (event) {
-
-            const button =
-                event.target.closest(
-                    ".atharv-message-action"
-                );
-
-
-            if (!button) {
-                return;
-            }
-
-
-            const action =
-                button.dataset.action;
-
-
-            const index =
-                Number(
-                    button.dataset.index
-                );
-
-
-            if (
-                Number.isNaN(index) ||
-                !history[index]
-            ) {
-                return;
-            }
-
-
-            if (action === "copy") {
-
-                await copyText(
-                    history[index].content
-                );
-
-                showToast(
-                    "Copied"
-                );
-
-            }
-
-
-            if (action === "edit") {
-
-                editMessage(
-                    index
-                );
-
-            }
-
-
-            if (action === "regenerate") {
-
-                regenerateMessage(
-                    index
-                );
-
-            }
-
+        if (!text) {
+            return "";
         }
-    );
 
+        const source =
+            String(text)
+                .replace(/\r\n/g, "\n")
+                .replace(/\r/g, "\n");
 
-    messages.addEventListener(
-        "click",
-        async function (event) {
+        const parts =
+            source.split(
+                /```([\s\S]*?)```/g
+            );
 
-            const button =
-                event.target.closest(
-                    ".atharv-copy-code"
-                );
+        let html = "";
 
+        for (
+            let i = 0;
+            i < parts.length;
+            i++
+        ) {
 
-            if (!button) {
-                return;
-            }
+            const part =
+                parts[i];
 
+            if (i % 2 === 1) {
 
-            const code =
-                button
-                    .closest(
-                        ".atharv-code-block"
-                    )
-                    ?.querySelector(
-                        "code"
+                let code =
+                    part;
+
+                let language =
+                    "code";
+
+                const firstLine =
+                    code.match(
+                        /^([a-zA-Z0-9_+#.-]+)\n/
                     );
 
-
-            if (!code) {
-                return;
-            }
-
-
-            await copyText(
-                code.textContent
-            );
-
-            button.textContent =
-                "Copied";
-
-            setTimeout(
-                function () {
-                    button.textContent =
-                        "Copy Code";
-                },
-                1200
-            );
-
-        }
-    );
-}
-
-
-/* ======================================================
-   EDIT
-====================================================== */
-
-function editMessage(index) {
-
-    const item =
-        history[index];
-
-    if (!item) {
-        return;
-    }
-
-    messageInput.value =
-        item.content || "";
-
-    editingIndex =
-        index;
-
-    resizeInput();
-
-    messageInput.focus();
-
-    showToast(
-        "Edit your message and send again"
-    );
-}
-
-
-/* ======================================================
-   REGENERATE
-====================================================== */
-
-async function regenerateMessage(
-    assistantIndex
-) {
-
-    if (sending) {
-        return;
-    }
-
-
-    const previousUserIndex =
-        assistantIndex - 1;
-
-
-    if (
-        previousUserIndex < 0 ||
-        history[previousUserIndex]?.role !== "user"
-    ) {
-
-        showToast(
-            "Unable to regenerate this response."
-        );
-
-        return;
-    }
-
-
-    const prompt =
-        history[
-            previousUserIndex
-        ].content;
-
-
-    history =
-        history.slice(
-            0,
-            assistantIndex
-        );
-
-    saveHistory();
-
-    renderHistory();
-
-    setSending(true);
-
-
-    try {
-
-        const result =
-            liveMode
-                ? await requestLive(prompt)
-                : await requestChat(prompt);
-
-
-        const answer =
-            extractAnswer(result);
-
-
-        if (!answer) {
-            throw new Error(
-                "No response received"
-            );
-        }
-
-
-        history.push({
-            role: "assistant",
-            content: answer
-        });
-
-        saveHistory();
-
-        renderHistory();
-
-    } catch (error) {
-
-        console.error(
-            "Regenerate error:",
-            error
-        );
-
-        showToast(
-            getErrorMessage(error)
-        );
-
-    } finally {
-
-        setSending(false);
-
-    }
-}
-
-
-/* ======================================================
-   FORMAT RESPONSE
-====================================================== */
-
-function formatResponse(text) {
-
-    if (!text) {
-        return "";
-    }
-
-
-    const escaped =
-        escapeHTML(text);
-
-
-    const codeParts =
-        [];
-
-
-    const withCode =
-        escaped.replace(
-            /```([\w+-]*)\n?([\s\S]*?)```/g,
-            function (
-                full,
-                language,
-                code
-            ) {
-
-                const token =
-                    `@@ATHARV_CODE_${codeParts.length}@@`;
-
-                codeParts.push({
-                    language:
-                        language ||
-                        "code",
-
-                    code:
-                        code.trim()
-                });
-
-                return token;
-            }
-        );
-
-
-    let html =
-        withCode;
-
-
-    html =
-        html.replace(
-            /^### (.+)$/gm,
-            "<h4>$1</h4>"
-        );
-
-
-    html =
-        html.replace(
-            /^## (.+)$/gm,
-            "<h3>$1</h3>"
-        );
-
-
-    html =
-        html.replace(
-            /^# (.+)$/gm,
-            "<h2>$1</h2>"
-        );
-
-
-    html =
-        html.replace(
-            /\*\*(.+?)\*\*/g,
-            "<strong>$1</strong>"
-        );
-
-
-    html =
-        html.replace(
-            /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
-            "<em>$1</em>"
-        );
-
-
-    html =
-        html.replace(
-            /`([^`\n]+)`/g,
-            "<code>$1</code>"
-        );
-
-
-    html =
-        html.replace(
-            /^[-*] (.+)$/gm,
-            "<li>$1</li>"
-        );
-
-
-    html =
-        html.replace(
-            /(<li>.*<\/li>)/gs,
-            "<ul>$1</ul>"
-        );
-
-
-    html =
-        html.replace(
-            /^\d+\.\s+(.+)$/gm,
-            "<li>$1</li>"
-        );
-
-
-    html =
-        html.replace(
-            /(?:<li>.*<\/li>)/gs,
-            function (block) {
-
-                if (
-                    block.includes("<ul>")
-                ) {
-                    return block;
+                if (firstLine) {
+
+                    language =
+                        firstLine[1];
+
+                    code =
+                        code.slice(
+                            firstLine[0].length
+                        );
                 }
 
-                return block;
+                const encoded =
+                    escapeHtml(code.trim());
+
+                html += `
+                    <div class="code-block">
+                        <div class="code-header">
+                            <span>${escapeHtml(language)}</span>
+                            <button
+                                class="copy-code"
+                                type="button"
+                                data-code="${encodeURIComponent(code.trim())}"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                        <pre><code>${encoded}</code></pre>
+                    </div>
+                `;
+
+                continue;
             }
-        );
 
 
-    html =
-        html.replace(
-            /\n{2,}/g,
-            "</p><p>"
-        );
+            const lines =
+                part.split("\n");
+
+            let paragraph = [];
+
+            function flushParagraph() {
+
+                if (!paragraph.length) {
+                    return;
+                }
+
+                html +=
+                    `<p>${formatInline(
+                        paragraph.join("\n")
+                    ).replace(
+                        /\n/g,
+                        "<br>"
+                    )}</p>`;
+
+                paragraph = [];
+            }
 
 
-    html =
-        html.replace(
-            /\n/g,
-            "<br>"
-        );
+            for (
+                const line of lines
+            ) {
+
+                const trimmed =
+                    line.trim();
+
+                if (!trimmed) {
+
+                    flushParagraph();
+
+                    continue;
+                }
 
 
-    html =
-        "<p>" +
-        html +
-        "</p>";
+                const heading =
+                    trimmed.match(
+                        /^(#{1,3})\s+(.+)$/
+                    );
+
+                if (heading) {
+
+                    flushParagraph();
+
+                    const level =
+                        heading[1].length;
+
+                    html +=
+                        `<h${level}>${formatInline(
+                            heading[2]
+                        )}</h${level}>`;
+
+                    continue;
+                }
 
 
-    codeParts.forEach(
-        function (part, index) {
+                if (
+                    /^[-*]\s+/.test(trimmed)
+                ) {
 
-            const token =
-                `@@ATHARV_CODE_${index}@@`;
+                    flushParagraph();
+
+                    html +=
+                        `<ul>`;
+
+                    let j = lines.indexOf(line);
+
+                    while (
+                        j < lines.length &&
+                        /^[-*]\s+/.test(
+                            lines[j].trim()
+                        )
+                    ) {
+
+                        html +=
+                            `<li>${formatInline(
+                                lines[j]
+                                    .trim()
+                                    .replace(
+                                        /^[-*]\s+/,
+                                        ""
+                                    )
+                            )}</li>`;
+
+                        j++;
+                    }
+
+                    html += "</ul>";
+
+                    continue;
+                }
 
 
-            const codeHTML =
-                `
-                <div class="atharv-code-block">
+                if (
+                    /^\d+\.\s+/.test(trimmed)
+                ) {
 
-                    <div class="atharv-code-header">
+                    flushParagraph();
 
-                        <span>
-                            ${escapeHTML(part.language)}
-                        </span>
+                    html +=
+                        `<ol>`;
+
+                    let j = lines.indexOf(line);
+
+                    while (
+                        j < lines.length &&
+                        /^\d+\.\s+/.test(
+                            lines[j].trim()
+                        )
+                    ) {
+
+                        html +=
+                            `<li>${formatInline(
+                                lines[j]
+                                    .trim()
+                                    .replace(
+                                        /^\d+\.\s+/,
+                                        ""
+                                    )
+                            )}</li>`;
+
+                        j++;
+                    }
+
+                    html += "</ol>";
+
+                    continue;
+                }
+
+
+                paragraph.push(line);
+            }
+
+            flushParagraph();
+        }
+
+        return html;
+    }
+
+
+    /* ==================================================
+       MESSAGE HTML
+    ================================================== */
+
+    function createMessageElement(
+        item,
+        index
+    ) {
+
+        const wrapper =
+            document.createElement("article");
+
+        wrapper.className =
+            `message ${item.role}`;
+
+        wrapper.dataset.index =
+            String(index);
+
+
+        if (item.role === "user") {
+
+            wrapper.innerHTML = `
+                <div class="message-inner">
+
+                    <div class="user-bubble">
+                        ${escapeHtml(item.content)}
+                    </div>
+
+                    <div class="message-actions">
 
                         <button
+                            class="message-action"
                             type="button"
-                            class="atharv-copy-code"
+                            data-action="edit"
                         >
-                            Copy Code
+                            Edit
+                        </button>
+
+                        <button
+                            class="message-action"
+                            type="button"
+                            data-action="copy"
+                        >
+                            Copy
                         </button>
 
                     </div>
 
-                    <pre><code>${escapeHTML(part.code)}</code></pre>
+                </div>
+            `;
+
+        } else {
+
+            wrapper.innerHTML = `
+                <div class="message-inner">
+
+                    <div class="assistant-avatar">
+                        A
+                    </div>
+
+                    <div class="assistant-content">
+
+                        ${formatResponse(item.content)}
+
+                        <div class="message-actions">
+
+                            <button
+                                class="message-action"
+                                type="button"
+                                data-action="copy"
+                            >
+                                Copy
+                            </button>
+
+                            <button
+                                class="message-action"
+                                type="button"
+                                data-action="regenerate"
+                            >
+                                Regenerate
+                            </button>
+
+                        </div>
+
+                    </div>
 
                 </div>
-                `;
-
-
-            html =
-                html.replace(
-                    token,
-                    codeHTML
-                );
+            `;
         }
-    );
 
 
-    return html;
-}
-
-
-/* ======================================================
-   HTML ESCAPE
-====================================================== */
-
-function escapeHTML(value) {
-
-    return String(value)
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
-        );
-}
-
-
-/* ======================================================
-   COPY
-====================================================== */
-
-async function copyText(text) {
-
-    if (!text) {
-        return;
+        return wrapper;
     }
 
 
-    try {
+    /* ==================================================
+       RENDER
+    ================================================== */
 
-        if (
-            navigator.clipboard &&
-            window.isSecureContext
-        ) {
+    function renderHistory() {
 
-            await navigator.clipboard.writeText(
-                text
+        messages.innerHTML = "";
+
+        if (!history.length) {
+
+            welcome.classList.remove(
+                "hidden"
             );
 
             return;
         }
 
-    } catch (error) {
-
-        console.warn(
-            "Clipboard API failed:",
-            error
-        );
-
-    }
-
-
-    const textarea =
-        document.createElement(
-            "textarea"
-        );
-
-    textarea.value =
-        text;
-
-    textarea.style.position =
-        "fixed";
-
-    textarea.style.left =
-        "-9999px";
-
-    document.body.appendChild(
-        textarea
-    );
-
-    textarea.select();
-
-    try {
-        document.execCommand(
-            "copy"
-        );
-    } catch (error) {
-        console.warn(
-            "Fallback copy failed:",
-            error
-        );
-    }
-
-    textarea.remove();
-}
-
-
-/* ======================================================
-   ATTACHMENTS
-====================================================== */
-
-function handleFiles(event) {
-
-    selectedFiles =
-        Array.from(
-            event.target.files || []
+        welcome.classList.add(
+            "hidden"
         );
 
 
-    if (
-        selectedFiles.length === 0
-    ) {
+        history.forEach(
+            (item, index) => {
 
-        clearAttachments();
+                messages.appendChild(
+                    createMessageElement(
+                        item,
+                        index
+                    )
+                );
 
-        return;
-    }
-
-
-    const names =
-        selectedFiles
-            .map(
-                function (file) {
-                    return file.name;
-                }
-            )
-            .slice(0, 3);
-
-
-    const more =
-        selectedFiles.length > 3
-            ? ` +${selectedFiles.length - 3} more`
-            : "";
-
-
-    if (attachmentInfo) {
-
-        attachmentInfo.hidden =
-            false;
-
-        attachmentInfo.textContent =
-            names.join(", ") +
-            more;
-    }
-
-
-    showToast(
-        `${selectedFiles.length} file selected`
-    );
-}
-
-
-function clearAttachments() {
-
-    selectedFiles = [];
-
-
-    if (fileInput) {
-        fileInput.value = "";
-    }
-
-
-    if (attachmentInfo) {
-
-        attachmentInfo.hidden =
-            true;
-
-        attachmentInfo.textContent =
-            "";
-    }
-}
-
-
-/* ======================================================
-   VOICE INPUT
-====================================================== */
-
-function initVoiceInput() {
-
-    if (
-        !voiceButton ||
-        !messageInput
-    ) {
-        return;
-    }
-
-
-    const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
-
-
-    if (!SpeechRecognition) {
-
-        voiceButton.disabled =
-            true;
-
-        voiceButton.title =
-            "Voice input is not supported in this browser";
-
-        voiceButton.setAttribute(
-            "aria-label",
-            "Voice input is not supported"
+            }
         );
 
-        return;
+        scrollToBottom(false);
     }
 
 
-    const recognition =
-        new SpeechRecognition();
+    /* ==================================================
+       SCROLL
+    ================================================== */
 
+    function scrollToBottom(smooth = true) {
 
-    recognition.continuous =
-        false;
+        requestAnimationFrame(
+            () => {
 
-    recognition.interimResults =
-        true;
+                chatContainer.scrollTo({
+                    top:
+                        chatContainer.scrollHeight,
+                    behavior:
+                        smooth
+                            ? "smooth"
+                            : "auto"
+                });
 
-    recognition.maxAlternatives =
-        1;
-
-
-    /*
-     * Indian English is a useful default.
-     * Browser recognition can still vary by device/browser.
-     */
-    recognition.lang =
-        navigator.language ||
-        "en-IN";
-
-
-    let listening =
-        false;
-
-    let baseText =
-        "";
-
-    let finalText =
-        "";
-
-
-    function setListening(
-        active
-    ) {
-
-        listening =
-            active;
-
-
-        voiceButton.classList.toggle(
-            "is-listening",
-            active
+            }
         );
+    }
 
 
-        voiceButton.setAttribute(
-            "aria-pressed",
-            String(active)
+    /* ==================================================
+       THINKING
+    ================================================== */
+
+    function setThinking(active) {
+
+        if (!thinking) {
+            return;
+        }
+
+        thinking.classList.toggle(
+            "hidden",
+            !active
         );
-
 
         if (active) {
-
-            voiceButton.title =
-                "Stop voice input";
-
-            voiceButton.setAttribute(
-                "aria-label",
-                "Stop voice input"
-            );
-
-            voiceButton.innerHTML =
-                '<span aria-hidden="true">⏹</span>';
-
-        } else {
-
-            voiceButton.title =
-                "Voice input";
-
-            voiceButton.setAttribute(
-                "aria-label",
-                "Voice input"
-            );
-
-            voiceButton.innerHTML =
-                '<span aria-hidden="true">🎤</span>';
+            scrollToBottom(true);
         }
     }
 
 
-    voiceButton.addEventListener(
+    /* ==================================================
+       INPUT HEIGHT
+    ================================================== */
+
+    function resizeInput() {
+
+        messageInput.style.height =
+            "auto";
+
+        const height =
+            Math.min(
+                messageInput.scrollHeight,
+                160
+            );
+
+        messageInput.style.height =
+            `${height}px`;
+    }
+
+
+    /* ==================================================
+       API REQUEST
+    ================================================== */
+
+    async function requestJson(
+        endpoint,
+        body
+    ) {
+
+        const controller =
+            new AbortController();
+
+        const timer =
+            setTimeout(
+                () => controller.abort(),
+                REQUEST_TIMEOUT
+            );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    API_BASE + endpoint,
+                    {
+                        method: "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(body),
+
+                        signal:
+                            controller.signal,
+
+                        cache:
+                            "no-store"
+                    }
+                );
+
+
+            let data = {};
+
+            try {
+                data =
+                    await response.json();
+            } catch {
+                data = {};
+            }
+
+
+            if (!response.ok) {
+
+                throw new Error(
+                    data.error ||
+                    data.message ||
+                    `Request failed (${response.status})`
+                );
+            }
+
+
+            return data;
+
+        } finally {
+
+            clearTimeout(timer);
+        }
+    }
+
+
+    /* ==================================================
+       RESPONSE EXTRACTION
+    ================================================== */
+
+    function extractAnswer(data) {
+
+        if (!data) {
+            return "";
+        }
+
+        const candidates = [
+            data.answer,
+            data.response,
+            data.message,
+            data.content,
+            data.text,
+            data.result
+        ];
+
+        for (
+            const value of candidates
+        ) {
+
+            if (
+                typeof value === "string" &&
+                value.trim()
+            ) {
+
+                return value.trim();
+            }
+        }
+
+        return "";
+    }
+
+
+    /* ==================================================
+       SEND
+    ================================================== */
+
+    async function sendMessage(
+        forcedMessage = null,
+        options = {}
+    ) {
+
+        if (sending) {
+            return;
+        }
+
+
+        const message =
+            String(
+                forcedMessage ??
+                messageInput.value
+            ).trim();
+
+
+        if (!message) {
+            return;
+        }
+
+
+        if (
+            message.length >
+            MAX_MESSAGE_LENGTH
+        ) {
+
+            showToast(
+                `Message is too long. Maximum ${MAX_MESSAGE_LENGTH} characters.`
+            );
+
+            return;
+        }
+
+
+        sending = true;
+
+        sendButton.disabled = true;
+
+
+        if (!forcedMessage) {
+            messageInput.value = "";
+            resizeInput();
+        }
+
+
+        /*
+        --------------------------------------------------
+        REMOVE WELCOME
+        --------------------------------------------------
+        */
+
+        welcome.classList.add(
+            "hidden"
+        );
+
+
+        /*
+        --------------------------------------------------
+        ADD USER MESSAGE
+        --------------------------------------------------
+        */
+
+        const userMessage = {
+            role: "user",
+            content: message
+        };
+
+
+        history.push(
+            userMessage
+        );
+
+        saveHistory();
+
+        renderHistory();
+
+
+        /*
+        --------------------------------------------------
+        THINKING
+        --------------------------------------------------
+        */
+
+        setThinking(true);
+
+
+        try {
+
+            let data;
+
+
+            if (
+                options.live ||
+                liveMode
+            ) {
+
+                data =
+                    await requestJson(
+                        "/api/chat/research",
+                        {
+                            query: message,
+                            message,
+                            userId: USER_ID
+                        }
+                    );
+
+            } else {
+
+                const recentHistory =
+                    history.slice(-12);
+
+                data =
+                    await requestJson(
+                        "/api/chat",
+                        {
+                            message,
+
+                            history:
+                                recentHistory,
+
+                            chatHistory:
+                                recentHistory,
+
+                            userId:
+                                USER_ID
+                        }
+                    );
+            }
+
+
+            const answer =
+                extractAnswer(data);
+
+
+            if (!answer) {
+
+                throw new Error(
+                    "Atharv did not return a response."
+                );
+            }
+
+
+            /*
+            ------------------------------------------------
+            ADD ASSISTANT RESPONSE
+            ------------------------------------------------
+            */
+
+            history.push({
+                role: "assistant",
+                content: answer
+            });
+
+
+            saveHistory();
+
+            renderHistory();
+
+
+        } catch (error) {
+
+            console.error(
+                "ATHARV CHAT ERROR:",
+                error
+            );
+
+
+            let errorMessage =
+                "Sorry, I couldn't get a response right now.";
+
+
+            if (
+                error.name ===
+                "AbortError"
+            ) {
+
+                errorMessage =
+                    "The response took too long. Please try again.";
+
+            } else if (
+                error &&
+                error.message
+            ) {
+
+                errorMessage =
+                    error.message;
+            }
+
+
+            history.push({
+                role: "assistant",
+                content:
+                    errorMessage
+            });
+
+
+            saveHistory();
+
+            renderHistory();
+
+
+        } finally {
+
+            setThinking(false);
+
+            sending = false;
+
+            sendButton.disabled = false;
+
+            messageInput.focus();
+
+            scrollToBottom(true);
+        }
+    }
+
+
+    /* ==================================================
+       MESSAGE ACTIONS
+    ================================================== */
+
+    async function copyText(text) {
+
+        try {
+
+            await navigator.clipboard.writeText(
+                text
+            );
+
+            showToast(
+                "Copied"
+            );
+
+        } catch {
+
+            showToast(
+                "Copy failed"
+            );
+        }
+    }
+
+
+    function editMessage(index) {
+
+        const item =
+            history[index];
+
+        if (
+            !item ||
+            item.role !== "user"
+        ) {
+            return;
+        }
+
+
+        editingIndex =
+            index;
+
+        messageInput.value =
+            item.content;
+
+        resizeInput();
+
+        messageInput.focus();
+
+        showToast(
+            "Edit your message and send again"
+        );
+    }
+
+
+    async function regenerate(index) {
+
+        if (sending) {
+            return;
+        }
+
+
+        if (
+            !history[index] ||
+            history[index].role !== "assistant"
+        ) {
+            return;
+        }
+
+
+        let userIndex =
+            index - 1;
+
+
+        while (
+            userIndex >= 0 &&
+            history[userIndex].role !== "user"
+        ) {
+
+            userIndex--;
+        }
+
+
+        if (userIndex < 0) {
+            return;
+        }
+
+
+        const prompt =
+            history[userIndex].content;
+
+
+        history =
+            history.slice(
+                0,
+                userIndex + 1
+            );
+
+        saveHistory();
+
+        renderHistory();
+
+
+        await sendMessage(
+            prompt,
+            {
+                live: liveMode
+            }
+        );
+    }
+
+
+    /* ==================================================
+       CODE COPY
+    ================================================== */
+
+    function handleCodeCopy(button) {
+
+        try {
+
+            const code =
+                decodeURIComponent(
+                    button.dataset.code || ""
+                );
+
+            copyText(code);
+
+        } catch {
+
+            showToast(
+                "Could not copy code"
+            );
+        }
+    }
+
+
+    /* ==================================================
+       EVENT DELEGATION
+    ================================================== */
+
+    messages.addEventListener(
         "click",
-        function () {
+        (event) => {
 
-            if (listening) {
+            const action =
+                event.target.closest(
+                    "[data-action]"
+                );
 
-                try {
-                    recognition.stop();
-                } catch (error) {
-                    console.warn(
-                        "Voice stop error:",
-                        error
+            if (!action) {
+                return;
+            }
+
+
+            const article =
+                action.closest(".message");
+
+            if (!article) {
+                return;
+            }
+
+
+            const index =
+                Number(
+                    article.dataset.index
+                );
+
+            const type =
+                action.dataset.action;
+
+
+            if (type === "copy") {
+
+                const item =
+                    history[index];
+
+                if (item) {
+                    copyText(
+                        item.content
                     );
                 }
+
+            } else if (
+                type === "edit"
+            ) {
+
+                editMessage(index);
+
+            } else if (
+                type === "regenerate"
+            ) {
+
+                regenerate(index);
+            }
+        }
+    );
+
+
+    messages.addEventListener(
+        "click",
+        (event) => {
+
+            const button =
+                event.target.closest(
+                    ".copy-code"
+                );
+
+            if (button) {
+                handleCodeCopy(button);
+            }
+        }
+    );
+
+
+    /* ==================================================
+       SUGGESTIONS
+    ================================================== */
+
+    document
+        .querySelectorAll(
+            "[data-prompt]"
+        )
+        .forEach(
+            button => {
+
+                button.addEventListener(
+                    "click",
+                    () => {
+
+                        const prompt =
+                            button.dataset.prompt;
+
+                        if (!prompt) {
+                            return;
+                        }
+
+                        sendMessage(
+                            prompt
+                        );
+                    }
+                );
+            }
+        );
+
+
+    /* ==================================================
+       FORM
+    ================================================== */
+
+    chatForm.addEventListener(
+        "submit",
+        event => {
+
+            event.preventDefault();
+
+            sendMessage();
+        }
+    );
+
+
+    /* ==================================================
+       ENTER
+    ================================================== */
+
+    messageInput.addEventListener(
+        "keydown",
+        event => {
+
+            if (
+                event.key === "Enter" &&
+                !event.shiftKey
+            ) {
+
+                event.preventDefault();
+
+                sendMessage();
+            }
+        }
+    );
+
+
+    messageInput.addEventListener(
+        "input",
+        resizeInput
+    );
+
+
+    /* ==================================================
+       LIVE MODE
+    ================================================== */
+
+    function updateLiveButton() {
+
+        liveButton.classList.toggle(
+            "active",
+            liveMode
+        );
+
+        liveButton.setAttribute(
+            "aria-pressed",
+            String(liveMode)
+        );
+
+        liveButton.title =
+            liveMode
+                ? "Live search ON"
+                : "Live search OFF";
+    }
+
+
+    liveButton.addEventListener(
+        "click",
+        () => {
+
+            liveMode =
+                !liveMode;
+
+            localStorage.setItem(
+                STORAGE.live,
+                String(liveMode)
+            );
+
+            updateLiveButton();
+
+            showToast(
+                liveMode
+                    ? "Live search enabled"
+                    : "Live search disabled"
+            );
+        }
+    );
+
+
+    /* ==================================================
+       ATTACHMENTS
+    ================================================== */
+
+    attachmentButton.addEventListener(
+        "click",
+        () => {
+            fileInput.click();
+        }
+    );
+
+
+    fileInput.addEventListener(
+        "change",
+        () => {
+
+            selectedFiles =
+                Array.from(
+                    fileInput.files || []
+                );
+
+
+            if (!selectedFiles.length) {
+
+                attachmentInfo.classList.add(
+                    "hidden"
+                );
+
+                attachmentInfo.textContent =
+                    "";
 
                 return;
             }
 
 
-            baseText =
-                messageInput.value.trim();
+            const names =
+                selectedFiles
+                    .map(
+                        file =>
+                            file.name
+                    )
+                    .join(", ");
 
-            finalText =
-                "";
+
+            attachmentInfo.textContent =
+                `${selectedFiles.length} file${
+                    selectedFiles.length > 1
+                        ? "s"
+                        : ""
+                } selected: ${names}`;
+
+            attachmentInfo.classList.remove(
+                "hidden"
+            );
 
 
-            try {
-
-                recognition.start();
-
-            } catch (error) {
-
-                console.warn(
-                    "Voice start error:",
-                    error
-                );
-
-            }
+            /*
+            Attachment UI is ready.
+            Actual server-side file processing
+            can be connected without changing
+            the chat composer.
+            */
         }
     );
 
 
-    recognition.onstart =
-        function () {
+    /* ==================================================
+       VOICE INPUT
+    ================================================== */
 
-            setListening(
-                true
-            );
+    function initVoice() {
 
-            showToast(
-                "Listening..."
-            );
-        };
+        const SpeechRecognition =
+            window.SpeechRecognition ||
+            window.webkitSpeechRecognition;
 
 
-    recognition.onresult =
-        function (event) {
+        if (!SpeechRecognition) {
 
-            let interimText =
-                "";
+            voiceButton.title =
+                "Voice input is not supported";
 
+            voiceButton.style.opacity =
+                ".45";
 
-            for (
-                let i = event.resultIndex;
-                i < event.results.length;
-                i++
-            ) {
-
-                const transcript =
-                    event.results[i][0].transcript;
+            return;
+        }
 
 
-                if (
-                    event.results[i].isFinal
+        recognition =
+            new SpeechRecognition();
+
+
+        recognition.continuous =
+            false;
+
+        recognition.interimResults =
+            true;
+
+        recognition.lang =
+            navigator.language ||
+            "en-IN";
+
+
+        recognition.onstart =
+            () => {
+
+                listening = true;
+
+                voiceButton.classList.add(
+                    "listening"
+                );
+
+                voiceButton.setAttribute(
+                    "aria-pressed",
+                    "true"
+                );
+
+                showToast(
+                    "Listening..."
+                );
+            };
+
+
+        recognition.onresult =
+            event => {
+
+                let finalText = "";
+
+                let interimText = "";
+
+
+                for (
+                    let i = event.resultIndex;
+                    i < event.results.length;
+                    i++
                 ) {
 
-                    finalText +=
-                        transcript + " ";
+                    const text =
+                        event.results[i][0].transcript;
+
+
+                    if (
+                        event.results[i].isFinal
+                    ) {
+
+                        finalText += text;
+
+                    } else {
+
+                        interimText += text;
+                    }
+                }
+
+
+                if (finalText) {
+
+                    const existing =
+                        messageInput.value.trim();
+
+                    messageInput.value =
+                        existing
+                            ? `${existing} ${finalText}`
+                            : finalText;
+
+                    resizeInput();
+                }
+            };
+
+
+        recognition.onerror =
+            event => {
+
+                console.warn(
+                    "VOICE ERROR:",
+                    event.error
+                );
+
+                if (
+                    event.error ===
+                    "not-allowed"
+                ) {
+
+                    showToast(
+                        "Microphone permission is required."
+                    );
 
                 } else {
 
-                    interimText +=
-                        transcript;
+                    showToast(
+                        "Voice input failed."
+                    );
                 }
+            };
+
+
+        recognition.onend =
+            () => {
+
+                listening = false;
+
+                voiceButton.classList.remove(
+                    "listening"
+                );
+
+                voiceButton.setAttribute(
+                    "aria-pressed",
+                    "false"
+                );
+            };
+    }
+
+
+    voiceButton.addEventListener(
+        "click",
+        () => {
+
+            if (!recognition) {
+
+                showToast(
+                    "Voice input is not supported on this browser."
+                );
+
+                return;
             }
 
 
-            const voiceText =
-                (
-                    finalText +
-                    interimText
-                ).trim();
+            if (listening) {
 
+                recognition.stop();
 
-            const combined =
-                baseText
-                    ? baseText +
-                      (
-                          voiceText
-                              ? " " + voiceText
-                              : ""
-                      )
-                    : voiceText;
-
-
-            messageInput.value =
-                combined.trim();
-
-
-            resizeInput();
-
-        };
-
-
-    recognition.onerror =
-        function (event) {
-
-            console.warn(
-                "Speech recognition error:",
-                event.error
-            );
-
-
-            setListening(
-                false
-            );
-
-
-            let errorMessage =
-                "Voice input could not be started.";
-
-
-            if (
-                event.error ===
-                "not-allowed"
-            ) {
-
-                errorMessage =
-                    "Microphone permission is required.";
-
-            } else if (
-                event.error ===
-                "no-speech"
-            ) {
-
-                errorMessage =
-                    "No speech detected.";
-
-            } else if (
-                event.error ===
-                "network"
-            ) {
-
-                errorMessage =
-                    "Voice recognition network error.";
+                return;
             }
-
-
-            showToast(
-                errorMessage
-            );
-        };
-
-
-    recognition.onend =
-        function () {
-
-            setListening(
-                false
-            );
 
 
             try {
 
-                messageInput.focus();
+                recognition.lang =
+                    navigator.language ||
+                    "en-IN";
 
-                const length =
-                    messageInput.value.length;
+                recognition.start();
 
-                messageInput.setSelectionRange(
-                    length,
-                    length
-                );
+            } catch {
 
-            } catch (error) {
-
-                console.warn(
-                    "Voice focus error:",
-                    error
+                showToast(
+                    "Voice input is already active."
                 );
             }
-        };
+        }
+    );
 
 
-    window.AtharvVoice = {
+    /* ==================================================
+       NEW CHAT
+    ================================================== */
 
-        start: function () {
+    function newChat() {
 
-            if (!listening) {
-
-                try {
-                    recognition.start();
-                } catch (error) {
-                    console.warn(
-                        "Voice start error:",
-                        error
-                    );
-                }
-            }
-        },
+        if (sending) {
+            return;
+        }
 
 
-        stop: function () {
+        history = [];
 
-            if (listening) {
+        saveHistory();
 
-                try {
-                    recognition.stop();
-                } catch (error) {
-                    console.warn(
-                        "Voice stop error:",
-                        error
-                    );
-                }
-            }
-        },
+        messages.innerHTML = "";
 
-
-        isListening:
-            function () {
-                return listening;
-            }
-
-    };
-}
-
-
-/* ======================================================
-   INPUT RESIZE
-====================================================== */
-
-function resizeInput() {
-
-    if (!messageInput) {
-        return;
-    }
-
-
-    messageInput.style.height =
-        "auto";
-
-
-    const maxHeight =
-        window.innerWidth <= 600
-            ? 140
-            : 220;
-
-
-    messageInput.style.height =
-        Math.min(
-            messageInput.scrollHeight,
-            maxHeight
-        ) + "px";
-}
-
-
-/* ======================================================
-   SENDING STATE
-====================================================== */
-
-function setSending(
-    active
-) {
-
-    sending =
-        active;
-
-
-    if (sendButton) {
-
-        sendButton.disabled =
-            active;
-
-        sendButton.setAttribute(
-            "aria-busy",
-            String(active)
+        welcome.classList.remove(
+            "hidden"
         );
 
-        sendButton.innerHTML =
-            active
-                ? '<span aria-hidden="true">…</span>'
-                : '<span aria-hidden="true">➤</span>';
-    }
-
-
-    if (thinking) {
-
-        thinking.hidden =
-            !active;
-    }
-
-
-    if (active) {
-
-        scrollToBottom(
-            true
-        );
-    }
-}
-
-
-/* ======================================================
-   WELCOME
-====================================================== */
-
-function showWelcome() {
-
-    if (welcome) {
-        welcome.hidden =
-            false;
-    }
-}
-
-
-function hideWelcome() {
-
-    if (welcome) {
-        welcome.hidden =
-            true;
-    }
-}
-
-
-/* ======================================================
-   NEW CHAT
-====================================================== */
-
-function newChat() {
-
-    if (sending) {
-        return;
-    }
-
-
-    if (
-        history.length > 0 &&
-        !window.confirm(
-            "Start a new chat?"
-        )
-    ) {
-        return;
-    }
-
-
-    history = [];
-
-    editingIndex = -1;
-
-    saveHistory();
-
-    clearAttachments();
-
-    if (messageInput) {
-
-        messageInput.value =
-            "";
+        messageInput.value = "";
 
         resizeInput();
-    }
 
+        selectedFiles = [];
 
-    if (messages) {
-        messages.innerHTML =
+        fileInput.value = "";
+
+        attachmentInfo.textContent =
             "";
+
+        attachmentInfo.classList.add(
+            "hidden"
+        );
+
+        messageInput.focus();
+
+        showToast(
+            "New chat started"
+        );
     }
 
 
-    showWelcome();
-
-    showToast(
-        "New chat started"
+    newChatButton.addEventListener(
+        "click",
+        newChat
     );
-}
 
 
-/* ======================================================
-   MEMORY
-====================================================== */
+    /* ==================================================
+       MEMORY
+    ================================================== */
 
-async function openMemory() {
+    async function loadMemory() {
 
-    if (!memoryModal) {
-        return;
-    }
-
-
-    memoryModal.hidden =
-        false;
-
-
-    if (memoryList) {
-
-        memoryList.innerHTML =
-            `
+        memoryList.innerHTML = `
             <div class="memory-empty">
                 Loading memory...
             </div>
-            `;
-    }
+        `;
 
 
-    try {
+        memoryModal.classList.remove(
+            "hidden"
+        );
 
-        const response =
-            await fetch(
-                "/api/memory?userId=" +
-                encodeURIComponent(
-                    USER_ID
-                ),
-                {
-                    method: "GET",
-                    headers: {
-                        "Accept":
-                            "application/json"
+        memoryModal.setAttribute(
+            "aria-hidden",
+            "false"
+        );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    `${API_BASE}/api/memory?userId=${encodeURIComponent(USER_ID)}`,
+                    {
+                        method: "GET",
+                        cache: "no-store"
                     }
-                }
-            );
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                `Memory request failed (${response.status})`
-            );
-        }
-
-
-        const data =
-            await response.json();
-
-
-        const items =
-            Array.isArray(data)
-                ? data
-                : (
-                    data.memories ||
-                    data.items ||
-                    []
                 );
 
 
-        renderMemory(
-            items
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Memory error:",
-            error
-        );
+            const data =
+                await response.json();
 
 
-        if (memoryList) {
+            const memories =
+                Array.isArray(data)
+                    ? data
+                    : (
+                        Array.isArray(data.memories)
+                            ? data.memories
+                            : []
+                    );
+
+
+            if (!memories.length) {
+
+                memoryList.innerHTML = `
+                    <div class="memory-empty">
+                        No saved memories yet.
+                    </div>
+                `;
+
+                return;
+            }
+
 
             memoryList.innerHTML =
-                `
+                memories
+                    .map(
+                        memory => {
+
+                            const text =
+                                typeof memory === "string"
+                                    ? memory
+                                    : (
+                                        memory.memory ||
+                                        memory.content ||
+                                        memory.text ||
+                                        ""
+                                    );
+
+                            return `
+                                <div class="memory-item">
+                                    ${escapeHtml(text)}
+                                </div>
+                            `;
+                        }
+                    )
+                    .join("");
+
+
+        } catch {
+
+            memoryList.innerHTML = `
                 <div class="memory-empty">
-                    Memory could not be loaded.
+                    Memory is currently unavailable.
                 </div>
-                `;
-        }
-    }
-}
-
-
-function renderMemory(
-    items
-) {
-
-    if (!memoryList) {
-        return;
-    }
-
-
-    if (
-        !Array.isArray(items) ||
-        items.length === 0
-    ) {
-
-        memoryList.innerHTML =
-            `
-            <div class="memory-empty">
-                No saved memories yet.
-            </div>
             `;
-
-        return;
+        }
     }
 
 
-    memoryList.innerHTML =
-        items
-            .map(
-                function (item) {
+    function closeMemory() {
 
-                    const memory =
-                        typeof item === "string"
-                            ? item
-                            : (
-                                item.memory ||
-                                item.content ||
-                                ""
-                            );
+        memoryModal.classList.add(
+            "hidden"
+        );
 
-
-                    return `
-                        <div class="memory-item">
-                            ${escapeHTML(memory)}
-                        </div>
-                    `;
-
-                }
-            )
-            .join("");
-}
-
-
-function closeMemory() {
-
-    if (memoryModal) {
-
-        memoryModal.hidden =
-            true;
-    }
-}
-
-
-/* ======================================================
-   ONLINE STATUS
-====================================================== */
-
-function updateOnlineStatus() {
-
-    if (!navigator.onLine) {
-
-        showToast(
-            "You are offline"
+        memoryModal.setAttribute(
+            "aria-hidden",
+            "true"
         );
     }
-}
 
 
-/* ======================================================
-   TOAST
-====================================================== */
-
-let toastTimer =
-    null;
-
-
-function showToast(
-    message
-) {
-
-    if (!toast) {
-        return;
-    }
-
-
-    toast.textContent =
-        message;
-
-
-    toast.hidden =
-        false;
-
-
-    clearTimeout(
-        toastTimer
+    memoryButton.addEventListener(
+        "click",
+        loadMemory
     );
 
 
-    toastTimer =
-        setTimeout(
-            function () {
+    closeMemoryButton.addEventListener(
+        "click",
+        closeMemory
+    );
 
-                toast.hidden =
-                    true;
 
-            },
-            2400
+    memoryModal
+        .querySelector(".modal-backdrop")
+        .addEventListener(
+            "click",
+            closeMemory
         );
-}
 
 
-/* ======================================================
-   SCROLL
-====================================================== */
+    /* ==================================================
+       ONLINE STATUS
+    ================================================== */
 
-function scrollToBottom(
-    smooth
-) {
+    window.addEventListener(
+        "offline",
+        () => {
 
-    if (!messages) {
-        return;
-    }
-
-
-    requestAnimationFrame(
-        function () {
-
-            messages.scrollTo({
-                top:
-                    messages.scrollHeight,
-
-                behavior:
-                    smooth
-                        ? "smooth"
-                        : "auto"
-            });
-
+            showToast(
+                "You are offline."
+            );
         }
     );
-}
 
 
-/* ======================================================
-   GLOBAL API
-====================================================== */
+    window.addEventListener(
+        "online",
+        () => {
 
-window.AtharvAI = {
+            showToast(
+                "Connection restored."
+            );
+        }
+    );
 
-    showToast,
 
-    newChat,
+    /* ==================================================
+       INITIALIZE
+    ================================================== */
 
-    getHistory:
-        function () {
-            return history.slice();
-        },
+    history =
+        loadHistory();
 
-    getUserId:
-        function () {
-            return USER_ID;
-        },
+    renderHistory();
 
-    isLive:
-        function () {
-            return liveMode;
-        },
+    updateLiveButton();
 
-    clearHistory:
-        function () {
+    resizeInput();
+
+    initVoice();
+
+
+    /* ==================================================
+       PUBLIC API
+    ================================================== */
+
+    window.AtharvAI = {
+
+        newChat,
+
+        getHistory: () =>
+            [...history],
+
+        getUserId: () =>
+            USER_ID,
+
+        isLive: () =>
+            liveMode,
+
+        showToast,
+
+        clearHistory: () => {
 
             history = [];
 
             saveHistory();
 
             renderHistory();
+        },
 
-        }
+        send: message =>
+            sendMessage(message)
+    };
 
-};
 
-
-/* ======================================================
-   START
-====================================================== */
-
-if (
-    document.readyState ===
-    "loading"
-) {
-
-    document.addEventListener(
-        "DOMContentLoaded",
-        init,
-        {
-            once: true
-        }
-    );
-
-} else {
-
-    init();
-
-}
+})();
