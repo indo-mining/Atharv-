@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
   <meta charset="UTF-8">
 
   <meta
@@ -8,56 +10,163 @@
     content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
   >
 
-  <meta name="theme-color" content="#ffffff">
+  <meta
+    name="theme-color"
+    content="#ffffff"
+  >
+
+  <meta
+    name="description"
+    content="Atharv AI - Your AI. Every Language. Every Question."
+  >
+
+  <meta
+    name="mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-capable"
+    content="yes"
+  >
+
+  <meta
+    name="apple-mobile-web-app-status-bar-style"
+    content="default"
+  >
 
   <title>Atharv AI</title>
 
-  <link rel="manifest" href="/manifest.json?v=17.0.3">
-  <link rel="stylesheet" href="/css/style.css?v=17.0.3">
+
+  <!-- =================================================
+       PWA
+  ================================================== -->
+
+  <link
+    rel="manifest"
+    href="/manifest.json?v=17.0.3"
+  >
+
+
+  <!-- =================================================
+       CSS
+  ================================================== -->
+
+  <link
+    rel="stylesheet"
+    href="/css/style.css?v=17.0.3"
+  >
+
 </head>
+
 
 <body>
 
   <div id="app">
 
+
+    <!-- =================================================
+         HEADER
+    ================================================= -->
+
     <header class="topbar">
 
       <div class="brand">
-        <div class="brand-name">ATHARV</div>
-        <div class="brand-subtitle">Your AI. Every Language. Every Question.</div>
+
+        <div class="brand-name">
+          ATHARV
+        </div>
+
+        <div class="brand-subtitle">
+          Your AI. Every Language. Every Question.
+        </div>
+
       </div>
 
+
       <div class="header-actions">
-        <button id="newChatButton" type="button">＋</button>
-        <button id="memoryButton" type="button">🧠</button>
+
+        <button
+          id="newChatButton"
+          type="button"
+          aria-label="New chat"
+          title="New Chat"
+        >
+          ＋
+        </button>
+
+
+        <button
+          id="memoryButton"
+          type="button"
+          aria-label="Memory"
+          title="Memory"
+        >
+          🧠
+        </button>
+
       </div>
 
     </header>
 
 
+    <!-- =================================================
+         MAIN
+    ================================================== -->
+
     <main class="main">
 
-      <section id="chatContainer" class="chat-container">
 
-        <div id="welcome" class="welcome">
+      <!-- =================================================
+           CHAT AREA
+      ================================================== -->
 
-          <h1>Namaste 👋</h1>
+      <section
+        id="chatContainer"
+        class="chat-container"
+      >
+
+
+        <!-- =================================================
+             WELCOME
+        ================================================== -->
+
+        <div
+          id="welcome"
+          class="welcome"
+        >
+
+          <h1>
+            Namaste 👋
+          </h1>
 
           <p>
             Main Atharv hoon. Aap mujhse kuch bhi pooch sakte hain.
           </p>
 
+
           <div class="suggestions">
 
-            <button type="button" class="suggestion">
+            <button
+              type="button"
+              class="suggestion"
+            >
               India ke baare mein batao
             </button>
 
-            <button type="button" class="suggestion">
+
+            <button
+              type="button"
+              class="suggestion"
+            >
               Python kya hai?
             </button>
 
-            <button type="button" class="suggestion">
+
+            <button
+              type="button"
+              class="suggestion"
+            >
               Aaj ka weather batao
             </button>
 
@@ -65,17 +174,43 @@
 
         </div>
 
+
+        <!-- =================================================
+             MESSAGES
+        ================================================== -->
+
         <div id="messages"></div>
 
       </section>
 
 
-      <div id="thinking" class="thinking hidden">
-        <span>Atharv soch raha hai...</span>
+      <!-- =================================================
+           THINKING
+      ================================================== -->
+
+      <div
+        id="thinking"
+        class="thinking hidden"
+      >
+
+        <span>
+          Atharv soch raha hai...
+        </span>
+
       </div>
 
 
+      <!-- =================================================
+           COMPOSER
+      ================================================== -->
+
       <div class="composer-area">
+
+
+        <!-- IMPORTANT:
+             action="#" prevents normal navigation.
+             JavaScript also calls preventDefault().
+        -->
 
         <form
           id="chatForm"
@@ -85,6 +220,11 @@
           novalidate
         >
 
+
+          <!-- =================================================
+               MESSAGE INPUT
+          ================================================== -->
+
           <textarea
             id="messageInput"
             name="message"
@@ -92,38 +232,61 @@
             maxlength="12000"
             placeholder="Atharv se kuch poochiye..."
             autocomplete="off"
+            autocorrect="on"
+            autocapitalize="sentences"
+            spellcheck="true"
             enterkeyhint="send"
           ></textarea>
 
+
+          <!-- =================================================
+               COMPOSER BUTTONS
+          ================================================== -->
+
           <div class="composer-buttons">
+
+
+            <!-- Attachment -->
 
             <button
               id="attachmentButton"
               type="button"
               class="icon-button"
               aria-label="Attach file"
+              title="Attach file"
             >
               📎
             </button>
 
+
             <input
               id="fileInput"
               type="file"
-              hidden
+            hidden
             >
+
+
+            <!-- Live Search -->
 
             <button
               id="liveButton"
               type="button"
               class="live-button"
+              aria-label="Live search"
+              title="Live Search"
             >
               🌐 Live
             </button>
+
+
+            <!-- SEND -->
 
             <button
               id="sendButton"
               type="submit"
               class="send-button"
+              aria-label="Send message"
+              title="Send"
             >
               ➤
             </button>
@@ -132,10 +295,26 @@
 
         </form>
 
-        <div id="attachmentInfo" class="attachment-info"></div>
+
+        <!-- =================================================
+             ATTACHMENT INFO
+        ================================================== -->
+
+        <div
+          id="attachmentInfo"
+          class="attachment-info"
+        ></div>
+
+
+        <!-- =================================================
+             FOOTER
+        ================================================== -->
 
         <div class="footer-note">
-          Atharv AI can make mistakes. Verify important information.
+
+          Atharv AI can make mistakes.
+          Verify important information.
+
         </div>
 
       </div>
@@ -143,39 +322,138 @@
     </main>
 
 
-    <div id="toast" class="toast"></div>
+    <!-- =================================================
+         TOAST
+    ================================================== -->
+
+    <div
+      id="toast"
+      class="toast"
+      role="status"
+      aria-live="polite"
+    ></div>
 
 
-    <div id="memoryModal" class="modal hidden">
+    <!-- =================================================
+         MEMORY MODAL
+    ================================================== -->
+
+    <div
+      id="memoryModal"
+      class="modal hidden"
+    >
 
       <div class="modal-box">
 
+
         <div class="modal-header">
-          <h2>Memory</h2>
+
+          <h2>
+            Memory
+          </h2>
+
 
           <button
             id="closeMemoryButton"
             type="button"
+            aria-label="Close memory"
           >
             ×
           </button>
+
         </div>
 
+
         <div id="memoryList">
+
           Loading...
+
         </div>
 
       </div>
 
     </div>
 
+
   </div>
 
 
-  <!-- IMPORTANT:
-       Normal script, NOT module.
-       This avoids the submit-handler problem. -->
-  <script src="/js/app.js?v=17.0.3" defer></script>
+  <!-- =================================================
+       ATHARV APP
+       
+       IMPORTANT:
+       NOT type="module"
+       
+       This directly loads app.js and avoids the
+       previous frontend submit/binding problem.
+  ================================================== -->
+
+  <script
+    src="/js/app.js?v=17.0.3"
+    defer
+  ></script>
+
+
+  <!-- =================================================
+       SERVICE WORKER
+  ================================================== -->
+
+  <script>
+
+    window.addEventListener(
+      "load",
+      function () {
+
+        if (
+          "serviceWorker" in navigator
+        ) {
+
+          navigator.serviceWorker
+            .register(
+              "/service-worker.js?v=17.0.3",
+              {
+                updateViaCache: "none"
+              }
+            )
+            .then(
+              function (registration) {
+
+                console.log(
+                  "Atharv Service Worker registered:",
+                  registration.scope
+                );
+
+
+                /*
+                Ask browser to check for the
+                latest service worker.
+                */
+
+                registration.update()
+                  .catch(
+                    function () {}
+                  );
+
+              }
+            )
+            .catch(
+              function (error) {
+
+                console.warn(
+                  "Service Worker registration failed:",
+                  error
+                );
+
+              }
+            );
+
+        }
+
+      }
+    );
+
+  </script>
 
 </body>
+
 </html>
