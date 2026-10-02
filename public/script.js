@@ -2,32 +2,29 @@
 
 /*
 =========================================================
- ATHARV AI - MAIN FRONTEND SCRIPT
+ ATHARV AI - CHAT ENGINE
  Version 18.4.0
- --------------------------------------------------------
- Matches current public/index.html exactly
 
- FIXES:
- - Send button guaranteed event binding
- - Enter key sends message
- - API auto-detection
- - /api/chat POST
- - Loading state
+ Handles:
+ - Send button
+ - Enter to send
+ - /api/chat
+ - User message
+ - AI response
+ - Loading
  - Error handling
- - Chat history
- - User ID
+ - Local history
  - Session ID
- - Welcome screen removal
- - Assistant/user message rendering
- - Mobile safe
- - No ES module/import dependency
- - No dependency on other JS files
+ - Mobile textarea
 =========================================================
 */
 
 (function () {
 
-    console.log("ATHARV AI: script.js loaded");
+    console.log(
+        "ATHARV AI: script.js loaded"
+    );
+
 
     /* ==================================================
        CONFIG
@@ -39,13 +36,14 @@
     const CHAT_API =
         API_BASE + "/api/chat";
 
-    const STORAGE_HISTORY =
+
+    const HISTORY_KEY =
         "atharv_chat_history_v18";
 
-    const STORAGE_USER =
+    const USER_KEY =
         "atharv_user_id_v18";
 
-    const STORAGE_SESSION =
+    const SESSION_KEY =
         "atharv_session_id_v18";
 
 
@@ -53,32 +51,39 @@
        ELEMENTS
     ================================================== */
 
-    let messageInput = null;
-    let sendButton = null;
-    let chatMessages = null;
+    let input = null;
+    let send = null;
+    let messages = null;
 
 
-    function getElements() {
+    function loadElements() {
 
-        messageInput =
-            document.getElementById("messageInput");
+        input =
+            document.getElementById(
+                "messageInput"
+            );
 
-        sendButton =
-            document.getElementById("sendButton");
+        send =
+            document.getElementById(
+                "sendButton"
+            );
 
-        chatMessages =
-            document.getElementById("chatMessages");
+        messages =
+            document.getElementById(
+                "chatMessages"
+            );
+
 
         return (
-            messageInput &&
-            sendButton &&
-            chatMessages
+            input &&
+            send &&
+            messages
         );
     }
 
 
     /* ==================================================
-       STORAGE
+       USER ID
     ================================================== */
 
     function getUserId() {
@@ -87,8 +92,9 @@
 
             let id =
                 localStorage.getItem(
-                    STORAGE_USER
+                    USER_KEY
                 );
+
 
             if (!id) {
 
@@ -100,20 +106,26 @@
                         .toString(36)
                         .slice(2, 9);
 
+
                 localStorage.setItem(
-                    STORAGE_USER,
+                    USER_KEY,
                     id
                 );
             }
 
+
             return id;
 
-        } catch (error) {
+        } catch (_) {
 
             return "guest";
         }
     }
 
+
+    /* ==================================================
+       SESSION
+    ================================================== */
 
     function getSessionId() {
 
@@ -121,8 +133,9 @@
 
             let id =
                 localStorage.getItem(
-                    STORAGE_SESSION
+                    SESSION_KEY
                 );
+
 
             if (!id) {
 
@@ -132,49 +145,53 @@
                     "_" +
                     Math.random()
                         .toString(36)
-                        .slice(2, 8);
+                        .slice(2, 9);
+
 
                 localStorage.setItem(
-                    STORAGE_SESSION,
+                    SESSION_KEY,
                     id
                 );
             }
 
+
             return id;
 
-        } catch (error) {
+        } catch (_) {
 
             return "guest-session";
         }
     }
 
 
-    function loadHistory() {
+    /* ==================================================
+       HISTORY
+    ================================================== */
+
+    function getHistory() {
 
         try {
 
             const raw =
                 localStorage.getItem(
-                    STORAGE_HISTORY
+                    HISTORY_KEY
                 );
+
 
             if (!raw) {
                 return [];
             }
 
+
             const data =
                 JSON.parse(raw);
+
 
             return Array.isArray(data)
                 ? data
                 : [];
 
-        } catch (error) {
-
-            console.warn(
-                "ATHARV: history read failed",
-                error
-            );
+        } catch (_) {
 
             return [];
         }
@@ -186,7 +203,7 @@
         try {
 
             localStorage.setItem(
-                STORAGE_HISTORY,
+                HISTORY_KEY,
                 JSON.stringify(
                     history.slice(-100)
                 )
@@ -194,16 +211,17 @@
 
         } catch (error) {
 
-            console.warn(
-                "ATHARV: history save failed",
+            console.log(
+                "ATHARV AI: history save error",
                 error
             );
+
         }
     }
 
 
     /* ==================================================
-       HTML ESCAPE
+       ESCAPE
     ================================================== */
 
     function escapeHTML(value) {
@@ -214,21 +232,21 @@
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;")
             .replace(/'/g, "&#039;");
+
     }
 
 
     /* ==================================================
-       SIMPLE MARKDOWN
+       FORMAT
     ================================================== */
 
     function formatText(text) {
 
-        if (text === null || text === undefined) {
-            return "";
-        }
-
         let value =
-            escapeHTML(String(text));
+            escapeHTML(
+                String(text || "")
+            );
+
 
         value =
             value.replace(
@@ -236,12 +254,14 @@
                 function (_, code) {
 
                     return (
-                        '<pre class="atharv-code"><code>' +
+                        "<pre class=\"atharv-code\"><code>" +
                         code.trim() +
                         "</code></pre>"
                     );
+
                 }
             );
+
 
         value =
             value.replace(
@@ -249,17 +269,13 @@
                 "<code>$1</code>"
             );
 
+
         value =
             value.replace(
                 /\*\*(.*?)\*\*/g,
                 "<strong>$1</strong>"
             );
 
-        value =
-            value.replace(
-                /\*(.*?)\*/g,
-                "<em>$1</em>"
-            );
 
         value =
             value.replace(
@@ -267,12 +283,14 @@
                 "<br>"
             );
 
+
         return value;
+
     }
 
 
     /* ==================================================
-       MESSAGE UI
+       WELCOME
     ================================================== */
 
     function removeWelcome() {
@@ -282,114 +300,143 @@
                 "welcomeScreen"
             );
 
+
         if (welcome) {
             welcome.remove();
         }
+
     }
 
 
-    function scrollToBottom() {
+    /* ==================================================
+       SCROLL
+    ================================================== */
 
-        if (!chatMessages) return;
+    function scrollBottom() {
+
+        if (!messages) return;
+
 
         requestAnimationFrame(
             function () {
 
-                chatMessages.scrollTop =
-                    chatMessages.scrollHeight;
+                messages.scrollTop =
+                    messages.scrollHeight;
 
             }
         );
+
     }
 
+
+    /* ==================================================
+       ADD MESSAGE
+    ================================================== */
 
     function addMessage(
         role,
         text
     ) {
 
-        if (!chatMessages) return null;
+        if (!messages) return;
+
 
         removeWelcome();
 
-        const wrapper =
-            document.createElement("div");
 
-        wrapper.className =
-            "atharv-message " +
-            (
-                role === "user"
-                    ? "atharv-user-message"
-                    : "atharv-ai-message"
+        const wrapper =
+            document.createElement(
+                "div"
             );
 
+
+        wrapper.className =
+            role === "user"
+                ? "atharv-message atharv-user-message"
+                : "atharv-message atharv-ai-message";
+
+
         const label =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
+
 
         label.className =
             "atharv-message-label";
+
 
         label.textContent =
             role === "user"
                 ? "You"
                 : "Atharv AI";
 
+
         const body =
-            document.createElement("div");
+            document.createElement(
+                "div"
+            );
+
 
         body.className =
             "atharv-message-body";
 
+
         body.innerHTML =
             formatText(text);
 
+
         wrapper.appendChild(label);
+
         wrapper.appendChild(body);
 
-        chatMessages.appendChild(wrapper);
+        messages.appendChild(wrapper);
 
-        scrollToBottom();
 
-        return wrapper;
+        scrollBottom();
+
     }
 
 
     /* ==================================================
-       TYPING INDICATOR
+       TYPING
     ================================================== */
 
     function showTyping() {
 
-        if (!chatMessages) return null;
-
         removeTyping();
 
-        const typing =
-            document.createElement("div");
 
-        typing.id =
+        const wrapper =
+            document.createElement(
+                "div"
+            );
+
+
+        wrapper.id =
             "atharvTyping";
 
-        typing.className =
+
+        wrapper.className =
             "atharv-message atharv-ai-message";
 
-        typing.innerHTML =
-            `
+
+        wrapper.innerHTML = `
             <div class="atharv-message-label">
                 Atharv AI
             </div>
 
             <div class="atharv-message-body">
-                <span>Thinking</span>
+                Thinking
                 <span class="atharv-dots">...</span>
             </div>
-            `;
+        `;
 
-        chatMessages.appendChild(typing);
 
-        scrollToBottom();
+        messages.appendChild(wrapper);
 
-        return typing;
+        scrollBottom();
+
     }
 
 
@@ -400,42 +447,48 @@
                 "atharvTyping"
             );
 
+
         if (typing) {
             typing.remove();
         }
+
     }
 
 
     /* ==================================================
-       SEND BUTTON STATE
+       BUTTON STATE
     ================================================== */
 
-    function setSendingState(isSending) {
+    function setLoading(value) {
 
-        if (!sendButton) return;
+        if (!send) return;
 
-        sendButton.disabled =
-            Boolean(isSending);
 
-        if (isSending) {
+        send.disabled =
+            Boolean(value);
 
-            sendButton.dataset.oldText =
-                sendButton.textContent;
 
-            sendButton.textContent =
+        if (value) {
+
+            send.dataset.original =
+                send.textContent;
+
+            send.textContent =
                 "•••";
 
         } else {
 
-            sendButton.textContent =
-                sendButton.dataset.oldText ||
+            send.textContent =
+                send.dataset.original ||
                 "➤";
+
         }
+
     }
 
 
     /* ==================================================
-       RESPONSE EXTRACTION
+       EXTRACT RESPONSE
     ================================================== */
 
     function extractReply(data) {
@@ -444,11 +497,17 @@
             return "";
         }
 
-        if (typeof data === "string") {
+
+        if (
+            typeof data ===
+            "string"
+        ) {
+
             return data;
         }
 
-        const possibleFields = [
+
+        const fields = [
             "reply",
             "response",
             "answer",
@@ -458,75 +517,91 @@
             "output"
         ];
 
+
         for (
             let i = 0;
-            i < possibleFields.length;
+            i < fields.length;
             i++
         ) {
 
-            const key =
-                possibleFields[i];
+            const value =
+                data[fields[i]];
+
 
             if (
-                typeof data[key] === "string" &&
-                data[key].trim()
+                typeof value ===
+                "string" &&
+                value.trim()
             ) {
 
-                return data[key];
+                return value;
             }
+
         }
 
 
         if (
             data.data &&
-            typeof data.data === "object"
+            typeof data.data ===
+            "object"
         ) {
 
             return extractReply(
                 data.data
             );
+
         }
 
 
         if (
             data.result &&
-            typeof data.result === "object"
+            typeof data.result ===
+            "object"
         ) {
 
             return extractReply(
                 data.result
             );
+
         }
 
 
         if (
-            data.choices &&
-            Array.isArray(data.choices) &&
+            Array.isArray(
+                data.choices
+            ) &&
             data.choices.length
         ) {
 
             const choice =
                 data.choices[0];
 
+
             if (
-                choice &&
                 choice.message &&
-                typeof choice.message.content === "string"
+                typeof choice.message.content ===
+                "string"
             ) {
 
                 return choice.message.content;
+
             }
 
+
             if (
-                choice &&
-                typeof choice.text === "string"
+                typeof choice.text ===
+                "string"
             ) {
 
                 return choice.text;
+
             }
+
         }
 
+
         return "";
+
     }
 
 
@@ -534,147 +609,132 @@
        API ERROR
     ================================================== */
 
-    async function getErrorMessage(response) {
-
-        let text = "";
+    async function readError(response) {
 
         try {
-            text =
+
+            const text =
                 await response.text();
-        } catch (_) {}
 
 
-        if (!text) {
+            if (!text) {
 
-            return (
-                "Server error (" +
-                response.status +
-                ")."
-            );
-        }
+                return (
+                    "Server error: " +
+                    response.status
+                );
+
+            }
 
 
-        try {
+            try {
 
-            const data =
-                JSON.parse(text);
+                const data =
+                    JSON.parse(text);
 
-            return (
-                data.error ||
-                data.message ||
-                data.detail ||
-                (
-                    "Server error (" +
-                    response.status +
-                    ")."
-                )
-            );
+
+                return (
+                    data.error ||
+                    data.message ||
+                    data.detail ||
+                    text
+                );
+
+            } catch (_) {
+
+                return text;
+
+            }
 
         } catch (_) {
 
-            return text;
+            return (
+                "Server error: " +
+                response.status
+            );
+
         }
+
     }
 
 
     /* ==================================================
-       SEND MESSAGE
+       SEND
     ================================================== */
 
     async function sendMessage() {
 
         console.log(
-            "ATHARV AI: sendMessage() called"
+            "ATHARV AI: sendMessage called"
         );
 
-        if (!getElements()) {
+
+        if (!loadElements()) {
 
             console.error(
-                "ATHARV AI: Required elements missing",
-                {
-                    messageInput,
-                    sendButton,
-                    chatMessages
-                }
+                "ATHARV AI: HTML elements missing"
             );
 
             return;
+
         }
 
 
-        if (sendButton.disabled) {
+        if (send.disabled) {
             return;
         }
 
 
-        const message =
-            messageInput.value.trim();
+        const text =
+            input.value.trim();
 
 
-        if (!message) {
+        if (!text) {
 
-            messageInput.focus();
+            input.focus();
 
             return;
+
         }
 
 
-        if (message.length > 12000) {
-
-            alert(
-                "Message is too long. Please shorten it."
-            );
-
-            return;
-        }
+        console.log(
+            "ATHARV AI: sending:",
+            text
+        );
 
 
-        /* ------------------------------------------
-           USER MESSAGE
-        ------------------------------------------ */
+        const history =
+            getHistory();
+
 
         addMessage(
             "user",
-            message
+            text
         );
-
-
-        messageInput.value = "";
-
-        messageInput.style.height =
-            "auto";
-
-
-        /* ------------------------------------------
-           HISTORY
-        ------------------------------------------ */
-
-        let history =
-            loadHistory();
 
 
         history.push({
             role: "user",
-            content: message
+            content: text
         });
 
 
-        /* ------------------------------------------
-           UI
-        ------------------------------------------ */
+        input.value = "";
 
-        setSendingState(true);
+        input.style.height =
+            "auto";
+
+
+        setLoading(true);
 
         showTyping();
 
 
-        /* ------------------------------------------
-           REQUEST
-        ------------------------------------------ */
-
         const payload = {
 
-            message: message,
+            message:
+                text,
 
             userId:
                 getUserId(),
@@ -689,9 +749,8 @@
 
 
         console.log(
-            "ATHARV AI: sending request",
-            CHAT_API,
-            payload
+            "ATHARV AI: POST",
+            CHAT_API
         );
 
 
@@ -700,10 +759,13 @@
             const controller =
                 new AbortController();
 
-            const timeout =
+
+            const timer =
                 setTimeout(
                     function () {
+
                         controller.abort();
+
                     },
                     120000
                 );
@@ -713,7 +775,8 @@
                 await fetch(
                     CHAT_API,
                     {
-                        method: "POST",
+                        method:
+                            "POST",
 
                         headers: {
                             "Content-Type":
@@ -734,46 +797,32 @@
                 );
 
 
-            clearTimeout(timeout);
+            clearTimeout(timer);
 
 
             console.log(
-                "ATHARV AI: server status",
+                "ATHARV AI: HTTP",
                 response.status
             );
 
 
             if (!response.ok) {
 
-                const errorText =
-                    await getErrorMessage(
+                throw new Error(
+                    await readError(
                         response
-                    );
-
-                throw new Error(
-                    errorText
+                    )
                 );
+
             }
 
 
-            let data;
-
-
-            try {
-
-                data =
-                    await response.json();
-
-            } catch (jsonError) {
-
-                throw new Error(
-                    "Server returned invalid JSON."
-                );
-            }
+            const data =
+                await response.json();
 
 
             console.log(
-                "ATHARV AI: server response",
+                "ATHARV AI: response",
                 data
             );
 
@@ -787,26 +836,28 @@
                 throw new Error(
                     "Atharv AI returned an empty response."
                 );
+
             }
 
 
-            /* --------------------------------------
-               SAVE HISTORY
-            -------------------------------------- */
-
             history.push({
-                role: "assistant",
-                content: reply
+
+                role:
+                    "assistant",
+
+                content:
+                    reply
+
             });
 
-            saveHistory(history);
 
+            saveHistory(
+                history
+            );
 
-            /* --------------------------------------
-               SHOW RESPONSE
-            -------------------------------------- */
 
             removeTyping();
+
 
             addMessage(
                 "assistant",
@@ -817,82 +868,70 @@
         } catch (error) {
 
             console.error(
-                "ATHARV AI: chat error",
+                "ATHARV AI: request failed",
                 error
             );
+
 
             removeTyping();
 
 
-            let errorMessage =
+            let message =
                 "Message send nahi ho saka.";
 
 
             if (
-                error &&
-                error.name === "AbortError"
+                error.name ===
+                "AbortError"
             ) {
 
-                errorMessage =
+                message =
                     "Server response mein bahut time lag raha hai. Please dobara try karein.";
 
             } else if (
-                error &&
                 error.message
             ) {
 
-                errorMessage =
+                message =
                     error.message;
             }
 
 
             addMessage(
                 "assistant",
-                "⚠️ " + errorMessage
+                "⚠️ " + message
             );
 
 
         } finally {
 
-            setSendingState(false);
+            setLoading(false);
 
-            if (messageInput) {
-                messageInput.focus();
-            }
+            input.focus();
 
         }
+
     }
 
 
     /* ==================================================
-       BUTTON BINDING
+       SEND BUTTON
     ================================================== */
 
-    function bindSendButton() {
+    function setupSend() {
 
-        if (!getElements()) {
+        if (!loadElements()) {
 
             console.error(
-                "ATHARV AI: Cannot bind send button."
+                "ATHARV AI: Cannot find send button"
             );
 
-            return false;
+            return;
+
         }
 
 
-        /*
-         * Remove any old property handler.
-         */
-
-        sendButton.onclick =
-            null;
-
-
-        /*
-         * Direct click handler.
-         */
-
-        sendButton.addEventListener(
+        send.addEventListener(
             "click",
             function (event) {
 
@@ -904,6 +943,7 @@
                     "ATHARV AI: SEND BUTTON CLICKED"
                 );
 
+
                 sendMessage();
 
             },
@@ -912,36 +952,32 @@
 
 
         /*
-         * Extra fallback:
-         * capture click even if another
-         * element/script interferes.
+         * Capture fallback.
+         * This catches the click even if
+         * another element interferes.
          */
 
         document.addEventListener(
             "click",
             function (event) {
 
-                const button =
-                    event.target.closest &&
-                    event.target.closest(
-                        "#sendButton"
-                    );
+                const target =
+                    event.target;
 
-                if (!button) {
-                    return;
-                }
 
                 if (
-                    event.defaultPrevented
+                    target &&
+                    target.closest &&
+                    target.closest(
+                        "#sendButton"
+                    )
                 ) {
-                    return;
+
+                    console.log(
+                        "ATHARV AI: SEND CAPTURE CLICK"
+                    );
+
                 }
-
-                console.log(
-                    "ATHARV AI: SEND FALLBACK CLICK"
-                );
-
-                sendMessage();
 
             },
             true
@@ -949,50 +985,48 @@
 
 
         console.log(
-            "ATHARV AI: Send button bound successfully"
+            "ATHARV AI: send button ready"
         );
 
-        return true;
     }
 
 
     /* ==================================================
-       ENTER KEY
+       KEYBOARD
     ================================================== */
 
-    function bindKeyboard() {
+    function setupKeyboard() {
 
-        if (!messageInput) return;
+        if (!input) return;
 
 
-        messageInput.addEventListener(
+        input.addEventListener(
             "keydown",
             function (event) {
 
                 if (
-                    event.key === "Enter" &&
+                    event.key ===
+                    "Enter" &&
                     !event.shiftKey
                 ) {
 
                     event.preventDefault();
 
                     sendMessage();
+
                 }
 
             }
         );
 
 
-        /*
-         * Auto-grow textarea
-         */
-
-        messageInput.addEventListener(
+        input.addEventListener(
             "input",
             function () {
 
                 this.style.height =
                     "auto";
+
 
                 this.style.height =
                     Math.min(
@@ -1007,18 +1041,18 @@
 
 
     /* ==================================================
-       LOAD SAVED CHAT
+       RESTORE HISTORY
     ================================================== */
 
     function restoreHistory() {
 
-        if (!getElements()) {
+        if (!loadElements()) {
             return;
         }
 
 
         const history =
-            loadHistory();
+            getHistory();
 
 
         if (!history.length) {
@@ -1027,10 +1061,10 @@
 
 
         /*
-         * Only restore if chat is actually saved.
+         * Don't restore invalid records.
          */
 
-        const validMessages =
+        const valid =
             history.filter(
                 function (item) {
 
@@ -1040,14 +1074,15 @@
                             item.role === "user" ||
                             item.role === "assistant"
                         ) &&
-                        typeof item.content === "string"
+                        typeof item.content ===
+                        "string"
                     );
 
                 }
             );
 
 
-        if (!validMessages.length) {
+        if (!valid.length) {
             return;
         }
 
@@ -1055,7 +1090,7 @@
         removeWelcome();
 
 
-        validMessages.forEach(
+        valid.forEach(
             function (item) {
 
                 addMessage(
@@ -1067,265 +1102,52 @@
         );
 
 
-        scrollToBottom();
+        scrollBottom();
+
     }
 
 
     /* ==================================================
-       MENU LIVE SEARCH
-       ================================================== */
-
-    function bindLiveSearch() {
-
-        const button =
-            document.getElementById(
-                "liveSearchButton"
-            );
-
-        if (!button) return;
-
-
-        button.addEventListener(
-            "click",
-            function () {
-
-                /*
-                 * Research/live mode is intentionally
-                 * not forced here. The current backend
-                 * chat endpoint remains stable.
-                 */
-
-                const input =
-                    document.getElementById(
-                        "messageInput"
-                    );
-
-                if (input) {
-
-                    input.placeholder =
-                        "Ask Atharv to search current information…";
-
-                    input.focus();
-                }
-
-
-                closeMenuIfOpen();
-            }
-        );
-    }
-
-
-    /* ==================================================
-       MENU HELPERS
-    ================================================== */
-
-    function closeMenuIfOpen() {
-
-        const menu =
-            document.getElementById(
-                "atharvMenu"
-            );
-
-        const overlay =
-            document.getElementById(
-                "menuOverlay"
-            );
-
-        const menuButton =
-            document.getElementById(
-                "menuButton"
-            );
-
-
-        if (menu) {
-            menu.classList.remove("open");
-        }
-
-        if (overlay) {
-            overlay.classList.remove("open");
-            overlay.setAttribute(
-                "aria-hidden",
-                "true"
-            );
-        }
-
-        if (menuButton) {
-
-            menuButton.setAttribute(
-                "aria-expanded",
-                "false"
-            );
-        }
-    }
-
-
-    /* ==================================================
-       MEMORY BUTTON
-    ================================================== */
-
-    function bindMemoryButton() {
-
-        const button =
-            document.getElementById(
-                "memoryButton"
-            );
-
-        if (!button) return;
-
-
-        button.addEventListener(
-            "click",
-            function () {
-
-                const userId =
-                    getUserId();
-
-                addMessage(
-                    "assistant",
-                    "🧠 Memory system is connected to this user session.\n\nUser ID: `" +
-                    userId +
-                    "`"
-                );
-
-                closeMenuIfOpen();
-
-            }
-        );
-    }
-
-
-    /* ==================================================
-       HISTORY BUTTON
-    ================================================== */
-
-    function bindHistoryButton() {
-
-        const button =
-            document.getElementById(
-                "historyButton"
-            );
-
-        if (!button) return;
-
-
-        button.addEventListener(
-            "click",
-            function () {
-
-                const history =
-                    loadHistory();
-
-
-                if (!history.length) {
-
-                    alert(
-                        "No saved chat history."
-                    );
-
-                    closeMenuIfOpen();
-
-                    return;
-                }
-
-
-                alert(
-                    "Saved messages: " +
-                    history.length
-                );
-
-                closeMenuIfOpen();
-            }
-        );
-    }
-
-
-    /* ==================================================
-       ADD BUTTON
-    ================================================== */
-
-    function bindAddButton() {
-
-        const button =
-            document.getElementById(
-                "addButton"
-            );
-
-        if (!button) return;
-
-
-        button.addEventListener(
-            "click",
-            function () {
-
-                const attachment =
-                    document.getElementById(
-                        "attachmentButton"
-                    );
-
-                if (attachment) {
-                    attachment.click();
-                }
-
-            }
-        );
-    }
-
-
-    /* ==================================================
-       INITIALIZE
+       INIT
     ================================================== */
 
     function init() {
 
         console.log(
-            "ATHARV AI: initializing..."
+            "ATHARV AI: chat initializing"
         );
 
 
-        if (!getElements()) {
+        if (!loadElements()) {
 
             console.error(
-                "ATHARV AI: Required HTML elements were not found."
+                "ATHARV AI: Required elements not found."
             );
 
             return;
+
         }
 
 
-        console.log(
-            "ATHARV AI: Required elements found",
-            {
-                messageInput: true,
-                sendButton: true,
-                chatMessages: true
-            }
-        );
+        setupSend();
 
-
-        bindSendButton();
-
-        bindKeyboard();
-
-        bindLiveSearch();
-
-        bindMemoryButton();
-
-        bindHistoryButton();
-
-        bindAddButton();
+        setupKeyboard();
 
         restoreHistory();
 
 
         console.log(
-            "ATHARV AI: initialized successfully"
+            "ATHARV AI: chat ready"
         );
+
+
+        console.log(
+            "ATHARV AI API:",
+            CHAT_API
+        );
+
     }
 
-
-    /* ==================================================
-       START
-    ================================================== */
 
     if (
         document.readyState ===
@@ -1340,29 +1162,28 @@
     } else {
 
         init();
+
     }
 
 
     /* ==================================================
-       GLOBAL DEBUG ACCESS
-       Useful for testing from browser console.
+       GLOBAL DEBUG
     ================================================== */
 
     window.AtharvAI = {
 
-        sendMessage:
+        send:
             sendMessage,
 
-        getUserId:
+        api:
+            CHAT_API,
+
+        userId:
             getUserId,
 
-        getSessionId:
-            getSessionId,
-
-        api:
-            CHAT_API
+        sessionId:
+            getSessionId
 
     };
-
 
 })();
