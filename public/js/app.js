@@ -247,107 +247,88 @@
                SEND
             ========================================== */
 
-            let sending = false;
-
-
             async function submitMessage() {
 
-                if (sending) {
-                    return;
-                }
+    if (sending) {
+        return;
+    }
 
-                if (!messageInput) {
-                    return;
-                }
+    if (!messageInput) {
+        return;
+    }
 
+    const value = messageInput.value.trim();
 
-                const value =
-                    messageInput.value.trim();
+    if (!value) {
+        messageInput.focus();
+        return;
+    }
 
+    sending = true;
 
-                if (!value) {
+    if (sendButton) {
+        sendButton.disabled = true;
+    }
 
-                    messageInput.focus();
+    /*
+     * IMPORTANT:
+     * Message ko request successful hone se pehle
+     * textarea se remove nahi karna.
+     */
+    try {
 
-                    return;
-                }
+        const success = await chat.send(value);
 
+        if (success) {
 
-                sending = true;
+            messageInput.value = "";
 
+            resizeTextarea();
 
-                if (sendButton) {
-                    sendButton.disabled =
-                        true;
-                }
+            clearDraft();
 
+        } else {
 
-                messageInput.value = "";
+            /*
+             * Request fail hone par message
+             * textbox mein wapas rahega.
+             */
+            messageInput.value = value;
 
-                resizeTextarea();
+            resizeTextarea();
 
-                clearDraft();
+            saveDraft();
+        }
 
+    } catch (error) {
 
-                try {
+        console.error(
+            "SEND ERROR:",
+            error
+        );
 
-                    await chat.send(
-                        value
-                    );
+        messageInput.value = value;
 
-                } finally {
+        resizeTextarea();
 
-                    sending = false;
+        saveDraft();
 
-                    if (sendButton) {
-                        sendButton.disabled =
-                            false;
-                    }
+        chat.showToast(
+            error?.message ||
+            "Message send nahi hua."
+        );
 
-                    messageInput.focus();
-                }
-            }
+    } finally {
 
+        sending = false;
 
-            composer?.addEventListener(
-                "submit",
-                event => {
+        if (sendButton) {
+            sendButton.disabled = false;
+        }
 
-                    event.preventDefault();
-
-                    submitMessage();
-                }
-            );
-
-
-            sendButton?.addEventListener(
-                "click",
-                event => {
-
-                    event.preventDefault();
-
-                    submitMessage();
-                }
-            );
-
-
-            messageInput?.addEventListener(
-                "keydown",
-                event => {
-
-                    if (
-                        event.key ===
-                        "Enter" &&
-                        !event.shiftKey
-                    ) {
-
-                        event.preventDefault();
-
-                        submitMessage();
-                    }
-                }
-            );
-
+        messageInput.focus();
+    }
+}
 
             /* ==========================================
                MENU
