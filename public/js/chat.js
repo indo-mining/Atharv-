@@ -1,322 +1,35 @@
-"use strict";
-
 import { CONFIG } from "./config.js";
+import { chat, research } from "./api.js";
+import { getHistory, saveHistory, getUserId, getLive } from "./storage.js";
+import { renderAll, setThinking, toast, $ } from "./ui.js";
+import { languageInstruction } from "./language.js";
 
-import {
-  sendChat,
-  sendResearch
-} from "./api.js";
+let history=getHistory();
 
-import {
-  getUserId,
-  getChatHistory,
-  saveChatHistory,
-  saveDraft,
-  clearDraft
-} from "./storage.js";
-
-
-let conversation = [];
-let sending = false;
-let liveMode = false;
-
-
-/* =====================================================
-   INIT
-===================================================== */
-
-export function initChat() {
-  conversation =
-    getChatHistory();
-
-  if (
-    !Array.isArray(conversation)
-  ) {
-    conversation = [];
-  }
-
-  return conversation;
+function answerFrom(data){
+  return data?.reply ?? data?.message ?? data?.content ?? data?.answer ?? data?.text ?? "";
 }
-
-
-/* =====================================================
-   STATE
-===================================================== */
-
-export function isSending() {
-  return sending;
+export function initChat(){
+  renderAll(history);
+  return {send};
 }
-
-export function setLiveMode(value) {
-  liveMode =
-    Boolean(value);
+export async function send(raw){
+  const message=String(raw||"").trim();
+  if(!message)return;
+  if(message.length>CONFIG.MAX_MESSAGE){toast("Message is too long.");return}
+  history.push({role:"user",content:message});
+  saveHistory(history);renderAll(history);setThinking(true);
+  try{
+    const payload={userId:getUserId(),message,history:history.slice(-20),languageInstruction:languageInstruction(message)};
+    const data=getLive()?await research(payload):await chat(payload);
+    const reply=answerFrom(data)||"I couldn't generate a response.";
+    history.push({role:"assistant",content:reply});
+    saveHistory(history);renderAll(history);
+  }catch(e){
+    const msg=e.name==="AbortError"?"Request timed out. Please try again.":(e.message||"Something went wrong.");
+    history.push({role:"assistant",content:"⚠️ "+msg});
+    saveHistory(history);renderAll(history);
+  }finally{setThinking(false)}
 }
-
-export function getLiveMode() {
-  return liveMode;
-}
-
-
-/* =====================================================
-   HISTORY
-===================================================== */
-
-function cleanHistory() {
-  return conversation
-    .slice(-CONFIG.MAX_HISTORY_MESSAGES)
-    .map(item => ({
-      role:
-        item.role === "assistant"
-          ? "assistant"
-          : "user",
-
-      content:
-        String(
-          item.content || ""
-        ).slice(0, 5000)
-    }))
-    .filter(
-      item => item.content.trim()
-    );
-}
-
-
-/* =====================================================
-   ADD MESSAGE
-===================================================== */
-
-export function addMessage(
-  role,
-  content
-) {
-  conversation.push({
-    role,
-    content,
-    timestamp:
-      Date.now()
-  });
-}
-
-
-/* =====================================================
-   GET HISTORY
-===================================================== */
-
-export function getConversation() {
-  return [...conversation];
-}
-
-
-/* =====================================================
-   SEND
-===================================================== */
-
-export async function sendMessage(
-  message,
-  options = {}
-) {
-  const text =
-    String(
-      message || ""
-    ).trim();
-
-  if (!text) {
-    throw new Error(
-      "Message is empty."
-    );
-  }
-
-  if (
-    text.length >
-    CONFIG.MAX_MESSAGE_LENGTH
-  ) {
-    throw new Error(
-      `Message maximum ${CONFIG.MAX_MESSAGE_LENGTH} characters hai.`
-    );
-  }
-
-  /*
-  -------------------------------------------------------
-  Duplicate send protection
-  -------------------------------------------------------
-  */
-
-  if (sending) {
-    return null;
-  }
-
-  sending = true;
-
-  try {
-
-    /*
-    -----------------------------------------------------
-    Save user message
-    -----------------------------------------------------
-    */
-
-    addMessage(
-      "user",
-      text
-    );
-
-    saveChatHistory(
-      conversation
-    );
-
-    saveDraft("");
-
-    /*
-    -----------------------------------------------------
-    IMPORTANT:
-    userId is automatically included inside api.js
-    -----------------------------------------------------
-    */
-
-    let result;
-
-    if (
-      options.live === true ||
-      liveMode === true
-    ) {
-
-      result =
-        await sendResearch({
-          message: text
-        });
-
-    } else {
-
-      result =
-        await sendChat({
-          message: text,
-          history:
-            cleanHistory()
-        });
-    }
-
-    /*
-    -----------------------------------------------------
-    EXTRACT RESPONSE
-    -----------------------------------------------------
-    */
-
-    const reply =
-      extractReply(result);
-
-    if (!reply) {
-      throw new Error(
-        "Atharv ne empty response diya."
-      );
-    }
-
-    addMessage(
-      "assistant",
-      reply
-    );
-
-    saveChatHistory(
-      conversation
-    );
-
-    return {
-      reply,
-      raw: result
-    };
-
-  } finally {
-    sending = false;
-  }
-}
-
-
-/* =====================================================
-   RESPONSE PARSER
-===================================================== */
-
-function extractReply(data) {
-
-  if (!data) {
-    return "";
-  }
-
-  const candidates = [
-    data.reply,
-    data.response,
-    data.message,
-    data.answer,
-    data.content,
-    data.text,
-
-    data.data?.reply,
-    data.data?.response,
-    data.data?.message,
-    data.data?.answer,
-    data.data?.content,
-
-    data.result?.reply,
-    data.result?.response,
-    data.result?.answer,
-    data.result?.content
-  ];
-
-  for (
-    const candidate of candidates
-  ) {
-
-    if (
-      typeof candidate ===
-      "string" &&
-      candidate.trim()
-    ) {
-      return candidate.trim();
-    }
-  }
-
-  /*
-  -------------------------------------------------------
-  Research APIs sometimes return answer/result.
-  -------------------------------------------------------
-  */
-
-  if (
-    typeof data.result ===
-    "string"
-  ) {
-    return data.result.trim();
-  }
-
-  if (
-    typeof data.raw ===
-    "string"
-  ) {
-    return data.raw.trim();
-  }
-
-  return "";
-}
-
-
-/* =====================================================
-   CLEAR CHAT ONLY
-===================================================== */
-
-export function clearConversation() {
-  conversation = [];
-
-  /*
-  IMPORTANT:
-  PostgreSQL memory is NOT touched.
-  */
-
-  saveChatHistory([]);
-}
-
-
-/* =====================================================
-   USER ID
-===================================================== */
-
-export function getCurrentUserId() {
-  return getUserId();
-}
+export function clearChat(){history=[];saveHistory(history);renderAll(history)}
+export function getCurrentHistory(){return history}
