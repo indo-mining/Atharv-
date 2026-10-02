@@ -2,220 +2,202 @@
 
 /*
 =========================================================
- ATHARV AI
- SERVICE WORKER
- Version 18.4.0
- --------------------------------------------------------
- FIXES:
- - Removes old v17 cache
- - Does NOT cache JS/CSS aggressively
- - API requests always go to server
- - Navigation uses network first
- - Prevents stale script.js/app.js
+ ATHARV AI SERVICE WORKER
+ Version 19.0.0
 =========================================================
 */
 
-const CACHE_NAME = "atharv-ai-v18-4-0";
+const CACHE_NAME =
+    "atharv-ai-v19-0-0";
 
-const APP_SHELL = [
+
+const STATIC_FILES = [
     "/",
     "/index.html",
-    "/manifest.json",
-    "/atharv-icon-192x192.png",
-    "/atharv-icon-512x512.png"
+    "/style.css",
+    "/manifest.json"
 ];
 
-/* ======================================================
+
+/* =====================================================
    INSTALL
-====================================================== */
+===================================================== */
 
-self.addEventListener("install", (event) => {
+self.addEventListener(
+    "install",
+    function (event) {
 
-    event.waitUntil(
+        event.waitUntil(
 
-        caches.open(CACHE_NAME)
-            .then((cache) => cache.addAll(APP_SHELL))
-            .then(() => self.skipWaiting())
+            caches.open(
+                CACHE_NAME
+            )
+            .then(
+                function (cache) {
 
-    );
+                    return cache.addAll(
+                        STATIC_FILES
+                    );
 
-});
+                }
+            )
+            .then(
+                function () {
+
+                    return self.skipWaiting();
+
+                }
+            )
+
+        );
+
+    }
+);
 
 
-/* ======================================================
+/* =====================================================
    ACTIVATE
-====================================================== */
+===================================================== */
 
-self.addEventListener("activate", (event) => {
+self.addEventListener(
+    "activate",
+    function (event) {
 
-    event.waitUntil(
+        event.waitUntil(
 
-        caches.keys()
-            .then((keys) => {
+            caches.keys()
+                .then(
+                    function (keys) {
 
-                return Promise.all(
+                        return Promise.all(
 
-                    keys.map((key) => {
+                            keys
+                                .filter(
+                                    function (key) {
 
-                        if (key !== CACHE_NAME) {
-                            return caches.delete(key);
-                        }
+                                        return (
+                                            key !==
+                                            CACHE_NAME
+                                        );
 
-                        return Promise.resolve();
-                    })
+                                    }
+                                )
+                                .map(
+                                    function (key) {
 
-                );
+                                        return caches.delete(
+                                            key
+                                        );
 
-            })
-            .then(() => self.clients.claim())
+                                    }
+                                )
 
-    );
+                        );
 
-});
+                    }
+                )
+                .then(
+                    function () {
+
+                        return self.clients.claim();
+
+                    }
+                )
+
+        );
+
+    }
+);
 
 
-/* ======================================================
+/* =====================================================
    FETCH
-====================================================== */
+===================================================== */
 
-self.addEventListener("fetch", (event) => {
+self.addEventListener(
+    "fetch",
+    function (event) {
 
-    const request = event.request;
-
-    if (request.method !== "GET") {
-        return;
-    }
-
-    const url = new URL(request.url);
-
-    /* ==================================================
-       API
-       Never cache API
-    ================================================== */
-
-    if (url.pathname.startsWith("/api/")) {
-        return;
-    }
+        const request =
+            event.request;
 
 
-    /* ==================================================
-       JAVASCRIPT
-       ALWAYS NETWORK
-    ================================================== */
-
-    if (
-        url.pathname.endsWith(".js") ||
-        url.pathname.endsWith(".mjs")
-    ) {
-
-        event.respondWith(
-
-            fetch(request, {
-                cache: "no-store"
-            })
-
-            .catch(() => {
-
-                return caches.match(request);
-
-            })
-
-        );
-
-        return;
-    }
+        const url =
+            new URL(
+                request.url
+            );
 
 
-    /* ==================================================
-       CSS
-       ALWAYS NETWORK
-    ================================================== */
+        /*
+         * NEVER cache API requests.
+         */
 
-    if (url.pathname.endsWith(".css")) {
+        if (
+            url.pathname.startsWith(
+                "/api/"
+            )
+        ) {
 
-        event.respondWith(
+            return;
 
-            fetch(request, {
-                cache: "no-store"
-            })
-
-            .catch(() => {
-
-                return caches.match(request);
-
-            })
-
-        );
-
-        return;
-    }
+        }
 
 
-    /* ==================================================
-       NAVIGATION
-       NETWORK FIRST
-    ================================================== */
+        /*
+         * JavaScript and CSS:
+         * always network.
+         *
+         * This prevents old frontend code
+         * from remaining active.
+         */
 
-    if (request.mode === "navigate") {
+        if (
+            url.pathname.endsWith(
+                ".js"
+            ) ||
+            url.pathname.endsWith(
+                ".css"
+            )
+        ) {
 
-        event.respondWith(
+            event.respondWith(
 
-            fetch(request, {
-                cache: "no-store"
-            })
+                fetch(
+                    request,
+                    {
+                        cache:
+                            "no-store"
+                    }
+                )
 
-            .then((response) => {
+            );
 
-                if (response && response.ok) {
+            return;
 
-                    const copy = response.clone();
-
-                    caches.open(CACHE_NAME)
-                        .then((cache) => {
-
-                            cache.put(
-                                "/index.html",
-                                copy
-                            );
-
-                        });
-
-                }
-
-                return response;
-
-            })
-
-            .catch(() => {
-
-                return caches.match("/index.html");
-
-            })
-
-        );
-
-        return;
-    }
+        }
 
 
-    /* ==================================================
-       IMAGES / MANIFEST / OTHER STATIC FILES
-       CACHE FIRST
-    ================================================== */
+        /*
+         * Navigation:
+         * network first.
+         */
 
-    event.respondWith(
+        if (
+            request.mode ===
+            "navigate"
+        ) {
 
-        caches.match(request)
+            event.respondWith(
 
-            .then((cached) => {
-
-                if (cached) {
-                    return cached;
-                }
-
-                return fetch(request)
-
-                    .then((response) => {
+                fetch(
+                    request,
+                    {
+                        cache:
+                            "no-store"
+                    }
+                )
+                .then(
+                    function (response) {
 
                         if (
                             response &&
@@ -225,24 +207,105 @@ self.addEventListener("fetch", (event) => {
                             const copy =
                                 response.clone();
 
-                            caches.open(CACHE_NAME)
-                                .then((cache) => {
+
+                            caches.open(
+                                CACHE_NAME
+                            )
+                            .then(
+                                function (cache) {
 
                                     cache.put(
                                         request,
                                         copy
                                     );
 
-                                });
+                                }
+                            );
 
                         }
 
+
                         return response;
 
-                    });
+                    }
+                )
+                .catch(
+                    function () {
 
-            })
+                        return caches.match(
+                            "/index.html"
+                        );
 
-    );
+                    }
+                )
 
-});
+            );
+
+            return;
+
+        }
+
+
+        /*
+         * Other static assets.
+         */
+
+        event.respondWith(
+
+            caches.match(
+                request
+            )
+            .then(
+                function (cached) {
+
+                    if (cached) {
+                        return cached;
+                    }
+
+
+                    return fetch(
+                        request
+                    )
+                    .then(
+                        function (response) {
+
+                            if (
+                                response &&
+                                response.ok &&
+                                request.method ===
+                                    "GET"
+                            ) {
+
+                                const copy =
+                                    response.clone();
+
+
+                                caches.open(
+                                    CACHE_NAME
+                                )
+                                .then(
+                                    function (cache) {
+
+                                        cache.put(
+                                            request,
+                                            copy
+                                        );
+
+                                    }
+                                );
+
+                            }
+
+
+                            return response;
+
+                        }
+                    );
+
+                }
+            )
+
+        );
+
+    }
+);
