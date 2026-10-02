@@ -24,12 +24,12 @@
 
     <link
         rel="manifest"
-        href="./manifest.json?v=19.0.0"
+        href="./manifest.json?v=19.2.0"
     >
 
     <link
         rel="stylesheet"
-        href="./style.css?v=19.0.0"
+        href="./style.css?v=19.2.0"
     >
 
 </head>
@@ -37,19 +37,12 @@
 
 <body>
 
-    <!-- ================================================
-         APP
-    ================================================= -->
-
     <div
         id="app"
         class="app"
     >
 
-
-        <!-- ============================================
-             HEADER
-        ============================================= -->
+        <!-- HEADER -->
 
         <header class="topbar">
 
@@ -86,9 +79,7 @@
         </header>
 
 
-        <!-- ============================================
-             CHAT
-        ============================================= -->
+        <!-- CHAT -->
 
         <main
             id="chatMessages"
@@ -121,9 +112,7 @@
         </main>
 
 
-        <!-- ============================================
-             MENU OVERLAY
-        ============================================= -->
+        <!-- MENU OVERLAY -->
 
         <div
             id="menuOverlay"
@@ -132,9 +121,7 @@
         ></div>
 
 
-        <!-- ============================================
-             SIDE MENU
-        ============================================= -->
+        <!-- SIDE MENU -->
 
         <aside
             id="atharvMenu"
@@ -216,10 +203,8 @@
         </aside>
 
 
-        <!-- ============================================
-             COMPOSER
-             KEEP THIS AREA UNCHANGED
-        ============================================= -->
+        <!-- COMPOSER
+             DO NOT CHANGE -->
 
         <form
             id="composer"
@@ -285,19 +270,15 @@
     </div>
 
 
-    <!-- ================================================
-         ONLY ONE FRONTEND SCRIPT
-    ================================================= -->
+    <!-- ONLY ONE APP SCRIPT -->
 
     <script
-        src="./app.js?v=19.0.0"
+        src="./app.js?v=19.2.0"
         defer
     ></script>
 
 
-    <!-- ================================================
-         SERVICE WORKER
-    ================================================= -->
+    <!-- SERVICE WORKER -->
 
     <script>
 
@@ -308,19 +289,23 @@
                 function () {
 
                     navigator.serviceWorker
-                        .register(
-                            "./sw.js?v=19.0.0"
-                        )
-                        .catch(
-                            function (error) {
+                        .register("./sw.js?v=19.2.0")
+                        .then(function (registration) {
 
-                                console.warn(
-                                    "Atharv AI Service Worker:",
-                                    error
-                                );
+                            console.log(
+                                "ATHARV AI: Service Worker registered",
+                                registration.scope
+                            );
 
-                            }
-                        );
+                        })
+                        .catch(function (error) {
+
+                            console.warn(
+                                "ATHARV AI Service Worker:",
+                                error
+                            );
+
+                        });
 
                 }
             );
