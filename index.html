@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Atharv AI - Your AI. Every Language. Every Question.">
+  <link rel="manifest" href="/manifest.json?v=19.0.0">
+  <link rel="stylesheet" href="/style.css?v=19.0.0">
+  <title>Atharv AI</title>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <button id="menuButton" class="icon-btn" type="button" aria-label="Open menu">☰</button>
+      <div class="brand">
+        <div class="brand-mark">A</div>
+        <div>
+          <div class="brand-name">Atharv AI</div>
+          <div class="brand-subtitle">Your AI. Every Language. Every Question.</div>
+        </div>
+      </div>
+      <button id="newChatButton" class="icon-btn" type="button" aria-label="New chat">＋</button>
+    </header>
+
+    <main id="chatArea" class="chat-area">
+      <section id="welcome" class="welcome">
+        <div class="welcome-logo">A</div>
+        <h1>How can I help you?</h1>
+        <p>Ask anything in English, Hindi, Hinglish, or your preferred language.</p>
+        <div class="quick-grid">
+          <button class="quick-card" data-prompt="Explain this in simple language">💡 Explain something</button>
+          <button class="quick-card" data-prompt="Help me write a professional message">✍️ Help me write</button>
+          <button class="quick-card" data-prompt="Teach me this step by step">📚 Teach me</button>
+          <button class="quick-card" data-prompt="Search the latest information about ">🔎 Latest information</button>
+        </div>
+      </section>
+      <div id="messages" class="messages" aria-live="polite"></div>
+    </main>
+
+    <div id="typingIndicator" class="typing-indicator hidden">
+      <span></span><span></span><span></span> Atharv is thinking…
+    </div>
+
+    <section class="composer-wrap">
+      <div id="attachmentPreview" class="attachment-preview hidden"></div>
+      <form id="composer" class="composer" autocomplete="off">
+        <button id="plusButton" class="composer-btn" type="button" aria-label="More options">＋</button>
+        <label class="composer-btn file-btn" for="fileInput" aria-label="Attach file">📎</label>
+        <input id="fileInput" type="file" hidden multiple>
+        <textarea id="messageInput" rows="1" maxlength="12000" placeholder="Message Atharv…" aria-label="Message Atharv"></textarea>
+        <button id="voiceButton" class="composer-btn" type="button" aria-label="Voice input">🎙️</button>
+        <button id="sendButton" class="send-btn" type="submit" aria-label="Send message">➤</button>
+      </form>
+      <div class="composer-note">Atharv AI can make mistakes. Check important information.</div>
+    </section>
+  </div>
+
+  <div id="menuOverlay" class="overlay hidden"></div>
+  <aside id="atharvMenu" class="side-menu" aria-hidden="true">
+    <div class="menu-head">
+      <strong>Atharv AI</strong>
+      <button id="menuClose" class="icon-btn" type="button">×</button>
+    </div>
+    <button class="menu-item" id="menuNewChat" type="button">🆕 New chat</button>
+    <button class="menu-item" id="liveSearchToggle" type="button">🌐 Live Search <span id="liveState">OFF</span></button>
+    <button class="menu-item" id="memoryButton" type="button">🧠 Memory</button>
+    <button class="menu-item" id="historyButton" type="button">🕘 Chat history</button>
+    <button class="menu-item" id="installButton" type="button">📱 Install app</button>
+    <button class="menu-item" id="clearButton" type="button">🗑️ Clear current chat</button>
+    <div class="menu-footer">Atharv AI v19.0.0</div>
+  </aside>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script type="module" src="/app.js?v=19.0.0"></script>
+</body>
+</html>
