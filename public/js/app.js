@@ -244,10 +244,12 @@
 
 
             /* ==========================================
-               SEND
-            ========================================== */
+   SEND
+========================================== */
 
-            async function submitMessage() {
+let sending = false;
+
+async function submitMessage() {
 
     if (sending) {
         return;
