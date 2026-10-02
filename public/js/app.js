@@ -3,10 +3,11 @@
 /*
 =========================================================
  ATHARV AI - FRONTEND CONTROLLER
- Version 22.0.0
+ Version 22.0.1
  --------------------------------------------------------
  - Composer
  - Send button
+ - Enter to send
  - Menu
  - Voice
  - Attachments
@@ -15,32 +16,39 @@
  - PWA install
  - Memory
  - History
+ - Live Search
 =========================================================
 */
 
 (() => {
 
-    const VERSION = "22.0.0";
+    const VERSION = "22.0.1";
 
     document.addEventListener(
         "DOMContentLoaded",
         () => {
 
-            const chat =
-                window.AtharvChat;
+            /* ==========================================
+               CHAT CONTROLLER
+            ========================================== */
 
+            const chat = window.AtharvChat;
 
             if (!chat) {
-
                 console.error(
                     "AtharvChat is not available."
                 );
-
                 return;
             }
 
-
-            chat.init();
+            try {
+                chat.init();
+            } catch (error) {
+                console.error(
+                    "AtharvChat init failed:",
+                    error
+                );
+            }
 
 
             /* ==========================================
@@ -48,104 +56,71 @@
             ========================================== */
 
             const messageInput =
-                document.getElementById(
-                    "messageInput"
-                );
+                document.getElementById("messageInput");
 
             const composer =
-                document.getElementById(
-                    "composer"
-                );
+                document.getElementById("composer");
 
             const sendButton =
-                document.getElementById(
-                    "sendButton"
-                );
+                document.getElementById("sendButton");
 
             const menuButton =
-                document.getElementById(
-                    "menuButton"
-                );
+                document.getElementById("menuButton");
 
             const menuClose =
-                document.getElementById(
-                    "menuClose"
-                );
+                document.getElementById("menuClose");
 
             const atharvMenu =
-                document.getElementById(
-                    "atharvMenu"
-                );
+                document.getElementById("atharvMenu");
 
             const menuOverlay =
-                document.getElementById(
-                    "menuOverlay"
-                );
+                document.getElementById("menuOverlay");
 
             const plusButton =
-                document.getElementById(
-                    "plusButton"
-                );
+                document.getElementById("plusButton");
 
             const liveSearchToggle =
-                document.getElementById(
-                    "liveSearchToggle"
-                );
+                document.getElementById("liveSearchToggle");
 
             const liveState =
-                document.getElementById(
-                    "liveState"
-                );
+                document.getElementById("liveState");
 
             const liveSwitch =
-                document.getElementById(
-                    "liveSwitch"
-                );
+                document.getElementById("liveSwitch");
 
             const fileInput =
-                document.getElementById(
-                    "fileInput"
-                );
+                document.getElementById("fileInput");
 
             const attachmentPreview =
-                document.getElementById(
-                    "attachmentPreview"
-                );
+                document.getElementById("attachmentPreview");
 
             const voiceButton =
-                document.getElementById(
-                    "voiceButton"
-                );
+                document.getElementById("voiceButton");
 
             const newChatButton =
-                document.getElementById(
-                    "newChatButton"
-                );
+                document.getElementById("newChatButton");
 
             const menuNewChat =
-                document.getElementById(
-                    "menuNewChat"
-                );
+                document.getElementById("menuNewChat");
 
             const clearButton =
-                document.getElementById(
-                    "clearButton"
-                );
+                document.getElementById("clearButton");
 
             const memoryButton =
-                document.getElementById(
-                    "memoryButton"
-                );
+                document.getElementById("memoryButton");
 
             const historyButton =
-                document.getElementById(
-                    "historyButton"
-                );
+                document.getElementById("historyButton");
 
             const installButton =
-                document.getElementById(
-                    "installButton"
-                );
+                document.getElementById("installButton");
+
+
+            /* ==========================================
+               SEND STATE
+            ========================================== */
+
+            let sending = false;
 
 
             /* ==========================================
@@ -159,21 +134,26 @@
             try {
 
                 const draft =
-                    localStorage.getItem(
-                        DRAFT_KEY
-                    );
+                    localStorage.getItem(DRAFT_KEY);
 
                 if (
                     draft &&
                     messageInput
                 ) {
+
                     messageInput.value =
                         draft;
 
                     resizeTextarea();
                 }
 
-            } catch {}
+            } catch (error) {
+
+                console.warn(
+                    "Draft restore failed:",
+                    error
+                );
+            }
 
 
             function saveDraft() {
@@ -189,7 +169,13 @@
                         messageInput.value
                     );
 
-                } catch {}
+                } catch (error) {
+
+                    console.warn(
+                        "Draft save failed:",
+                        error
+                    );
+                }
             }
 
 
@@ -201,12 +187,18 @@
                         DRAFT_KEY
                     );
 
-                } catch {}
+                } catch (error) {
+
+                    console.warn(
+                        "Draft clear failed:",
+                        error
+                    );
+                }
             }
 
 
             /* ==========================================
-               TEXTAREA
+               TEXTAREA RESIZE
             ========================================== */
 
             function resizeTextarea() {
@@ -232,6 +224,10 @@
             }
 
 
+            /* ==========================================
+               TEXTAREA INPUT
+            ========================================== */
+
             messageInput?.addEventListener(
                 "input",
                 () => {
@@ -244,93 +240,197 @@
 
 
             /* ==========================================
-   SEND
-========================================== */
+               SEND MESSAGE
+            ========================================== */
 
-let sending = false;
+            async function submitMessage() {
 
-async function submitMessage() {
+                if (sending) {
+                    return;
+                }
 
-    if (sending) {
-        return;
-    }
+                if (!messageInput) {
+                    return;
+                }
 
-    if (!messageInput) {
-        return;
-    }
+                const value =
+                    messageInput.value.trim();
 
-    const value = messageInput.value.trim();
 
-    if (!value) {
-        messageInput.focus();
-        return;
-    }
+                if (!value) {
 
-    sending = true;
+                    messageInput.focus();
 
-    if (sendButton) {
-        sendButton.disabled = true;
-    }
+                    return;
+                }
 
-    /*
-     * IMPORTANT:
-     * Message ko request successful hone se pehle
-     * textarea se remove nahi karna.
-     */
-    try {
 
-        const success = await chat.send(value);
+                sending = true;
 
-        if (success) {
 
-            messageInput.value = "";
+                if (sendButton) {
+                    sendButton.disabled = true;
+                    sendButton.setAttribute(
+                        "aria-disabled",
+                        "true"
+                    );
+                }
 
-            resizeTextarea();
 
-            clearDraft();
+                /*
+                 * IMPORTANT:
+                 *
+                 * Message ko API successful hone se
+                 * pehle textarea se remove nahi karna.
+                 */
 
-        } else {
+                try {
 
-            /*
-             * Request fail hone par message
-             * textbox mein wapas rahega.
-             */
-            messageInput.value = value;
+                    const success =
+                        await chat.send(value);
 
-            resizeTextarea();
 
-            saveDraft();
-        }
+                    if (success) {
 
-    } catch (error) {
+                        /*
+                         * Sirf successful request ke baad
+                         * input clear hoga.
+                         */
 
-        console.error(
-            "SEND ERROR:",
-            error
-        );
+                        messageInput.value = "";
 
-        messageInput.value = value;
+                        resizeTextarea();
 
-        resizeTextarea();
+                        clearDraft();
 
-        saveDraft();
+                    } else {
 
-        chat.showToast(
-            error?.message ||
-            "Message send nahi hua."
-        );
+                        /*
+                         * Request fail hone par message
+                         * textbox mein bana rahega.
+                         */
 
-    } finally {
+                        messageInput.value =
+                            value;
 
-        sending = false;
+                        resizeTextarea();
 
-        if (sendButton) {
-            sendButton.disabled = false;
-        }
+                        saveDraft();
 
-        messageInput.focus();
-    }
-}
+                    }
+
+                } catch (error) {
+
+                    console.error(
+                        "SEND ERROR:",
+                        error
+                    );
+
+
+                    /*
+                     * Failed request par message
+                     * kabhi lose nahi hoga.
+                     */
+
+                    messageInput.value =
+                        value;
+
+                    resizeTextarea();
+
+                    saveDraft();
+
+
+                    if (
+                        typeof chat.showToast ===
+                        "function"
+                    ) {
+
+                        chat.showToast(
+                            error?.message ||
+                            "Message send nahi hua."
+                        );
+                    }
+
+                } finally {
+
+                    sending = false;
+
+
+                    if (sendButton) {
+
+                        sendButton.disabled =
+                            false;
+
+                        sendButton.removeAttribute(
+                            "aria-disabled"
+                        );
+                    }
+
+
+                    /*
+                     * Mobile keyboard ko open rakho.
+                     */
+
+                    messageInput.focus();
+                }
+            }
+
+
+            /* ==========================================
+               SEND BUTTON
+            ========================================== */
+
+            if (sendButton) {
+
+                sendButton.addEventListener(
+                    "click",
+                    event => {
+
+                        event.preventDefault();
+
+                        submitMessage();
+                    }
+                );
+            }
+
+
+            /* ==========================================
+               ENTER TO SEND
+               Shift + Enter = New Line
+            ========================================== */
+
+            messageInput?.addEventListener(
+                "keydown",
+                event => {
+
+                    if (
+                        event.key === "Enter" &&
+                        !event.shiftKey &&
+                        !event.isComposing
+                    ) {
+
+                        event.preventDefault();
+
+                        submitMessage();
+                    }
+                }
+            );
+
+
+            /* ==========================================
+               COMPOSER SUBMIT
+            ========================================== */
+
+            composer?.addEventListener(
+                "submit",
+                event => {
+
+                    event.preventDefault();
+
+                    submitMessage();
+                }
+            );
+
 
             /* ==========================================
                MENU
@@ -372,13 +472,23 @@ async function submitMessage() {
 
             menuButton?.addEventListener(
                 "click",
-                openMenu
+                event => {
+
+                    event.preventDefault();
+
+                    openMenu();
+                }
             );
 
 
             menuClose?.addEventListener(
                 "click",
-                closeMenu
+                event => {
+
+                    event.preventDefault();
+
+                    closeMenu();
+                }
             );
 
 
@@ -394,7 +504,21 @@ async function submitMessage() {
 
             function newChat() {
 
-                chat.clearChat();
+                try {
+                    chat.clearChat();
+                } catch (error) {
+                    console.error(
+                        "New chat failed:",
+                        error
+                    );
+                }
+
+                clearDraft();
+
+                if (messageInput) {
+                    messageInput.value = "";
+                    resizeTextarea();
+                }
 
                 closeMenu();
 
@@ -422,7 +546,21 @@ async function submitMessage() {
                 "click",
                 () => {
 
-                    chat.clearChat();
+                    try {
+                        chat.clearChat();
+                    } catch (error) {
+                        console.error(
+                            "Clear chat failed:",
+                            error
+                        );
+                    }
+
+                    clearDraft();
+
+                    if (messageInput) {
+                        messageInput.value = "";
+                        resizeTextarea();
+                    }
 
                     closeMenu();
                 }
@@ -435,8 +573,19 @@ async function submitMessage() {
 
             function updateLiveUI() {
 
-                const enabled =
-                    chat.getLive();
+                let enabled = false;
+
+                try {
+                    enabled =
+                        Boolean(
+                            chat.getLive()
+                        );
+                } catch (error) {
+                    console.warn(
+                        "Live state read failed:",
+                        error
+                    );
+                }
 
 
                 if (liveState) {
@@ -462,31 +611,47 @@ async function submitMessage() {
                 "click",
                 () => {
 
-                    const next =
-                        !chat.getLive();
+                    try {
 
-                    chat.setLive(
-                        next
-                    );
+                        const next =
+                            !chat.getLive();
 
-                    updateLiveUI();
+                        chat.setLive(
+                            next
+                        );
 
-                    chat.showToast(
-                        next
-                            ? "Live Search on"
-                            : "Live Search off"
-                    );
+                        updateLiveUI();
+
+                        chat.showToast(
+                            next
+                                ? "Live Search on"
+                                : "Live Search off"
+                        );
+
+                    } catch (error) {
+
+                        console.error(
+                            "Live Search error:",
+                            error
+                        );
+
+                        chat.showToast(
+                            "Live Search could not be changed."
+                        );
+                    }
                 }
             );
 
 
             /* ==========================================
-               PLUS
+               PLUS BUTTON
             ========================================== */
 
             plusButton?.addEventListener(
                 "click",
-                () => {
+                event => {
+
+                    event.preventDefault();
 
                     openMenu();
                 }
@@ -494,7 +659,7 @@ async function submitMessage() {
 
 
             /* ==========================================
-               FILES
+               FILE ATTACHMENTS
             ========================================== */
 
             fileInput?.addEventListener(
@@ -527,11 +692,14 @@ async function submitMessage() {
                                         "div"
                                     );
 
+
                                 item.className =
                                     "attachment-item";
 
+
                                 item.textContent =
                                     `📎 ${file.name}`;
+
 
                                 attachmentPreview.appendChild(
                                     item
@@ -554,7 +722,7 @@ async function submitMessage() {
 
 
             /* ==========================================
-               VOICE
+               VOICE INPUT
             ========================================== */
 
             let recognition = null;
@@ -570,105 +738,134 @@ async function submitMessage() {
                 voiceButton
             ) {
 
-                recognition =
-                    new SpeechRecognition();
+                try {
 
-                recognition.lang =
-                    navigator.language ||
-                    "en-IN";
-
-                recognition.continuous =
-                    false;
-
-                recognition.interimResults =
-                    false;
+                    recognition =
+                        new SpeechRecognition();
 
 
-                recognition.onstart =
-                    () => {
-
-                        voiceButton.classList.add(
-                            "recording"
-                        );
-
-                        chat.showToast(
-                            "Listening..."
-                        );
-                    };
+                    recognition.lang =
+                        navigator.language ||
+                        "en-IN";
 
 
-                recognition.onend =
-                    () => {
-
-                        voiceButton.classList.remove(
-                            "recording"
-                        );
-                    };
+                    recognition.continuous =
+                        false;
 
 
-                recognition.onerror =
-                    () => {
-
-                        voiceButton.classList.remove(
-                            "recording"
-                        );
-
-                        chat.showToast(
-                            "Voice input failed."
-                        );
-                    };
+                    recognition.interimResults =
+                        false;
 
 
-                recognition.onresult =
-                    event => {
+                    recognition.onstart =
+                        () => {
 
-                        const transcript =
-                            Array.from(
-                                event.results
-                            )
-                                .map(
-                                    result =>
-                                        result[0].transcript
+                            voiceButton.classList.add(
+                                "recording"
+                            );
+
+                            chat.showToast(
+                                "Listening..."
+                            );
+                        };
+
+
+                    recognition.onend =
+                        () => {
+
+                            voiceButton.classList.remove(
+                                "recording"
+                            );
+                        };
+
+
+                    recognition.onerror =
+                        error => {
+
+                            console.warn(
+                                "Voice error:",
+                                error
+                            );
+
+                            voiceButton.classList.remove(
+                                "recording"
+                            );
+
+                            chat.showToast(
+                                "Voice input failed."
+                            );
+                        };
+
+
+                    recognition.onresult =
+                        event => {
+
+                            const transcript =
+                                Array.from(
+                                    event.results
                                 )
-                                .join(" ");
+                                    .map(
+                                        result =>
+                                            result[0]
+                                                .transcript
+                                    )
+                                    .join(" ");
 
 
-                        if (
-                            messageInput
-                        ) {
+                            if (
+                                messageInput &&
+                                transcript
+                            ) {
 
-                            messageInput.value =
-                                (
-                                    messageInput.value
-                                    ? messageInput.value +
-                                      " "
-                                    : ""
-                                ) +
-                                transcript;
+                                messageInput.value =
+                                    (
+                                        messageInput.value
+                                            ? messageInput.value + " "
+                                            : ""
+                                    ) +
+                                    transcript;
 
-                            resizeTextarea();
 
-                            saveDraft();
+                                resizeTextarea();
 
-                            messageInput.focus();
+                                saveDraft();
+
+                                messageInput.focus();
+                            }
+                        };
+
+
+                    voiceButton.addEventListener(
+                        "click",
+                        event => {
+
+                            event.preventDefault();
+
+                            try {
+
+                                recognition.start();
+
+                            } catch (error) {
+
+                                /*
+                                 * Recognition already running.
+                                 */
+
+                                console.warn(
+                                    "Voice start:",
+                                    error
+                                );
+                            }
                         }
-                    };
+                    );
 
+                } catch (error) {
 
-                voiceButton.addEventListener(
-                    "click",
-                    () => {
-
-                        try {
-
-                            recognition.start();
-
-                        } catch {
-
-                            // Already running.
-                        }
-                    }
-                );
+                    console.error(
+                        "SpeechRecognition setup failed:",
+                        error
+                    );
+                }
 
             } else {
 
@@ -685,13 +882,11 @@ async function submitMessage() {
 
 
             /* ==========================================
-               QUICK CARDS
+               QUICK PROMPTS
             ========================================== */
 
             document
-                .querySelectorAll(
-                    ".quick-card"
-                )
+                .querySelectorAll(".quick-card")
                 .forEach(
                     button => {
 
@@ -703,12 +898,15 @@ async function submitMessage() {
                                     button.dataset.prompt ||
                                     "";
 
+
                                 if (
-                                    messageInput
+                                    messageInput &&
+                                    prompt
                                 ) {
 
                                     messageInput.value =
                                         prompt;
+
 
                                     resizeTextarea();
 
@@ -730,25 +928,40 @@ async function submitMessage() {
                 "click",
                 () => {
 
-                    const history =
-                        chat.getHistory();
+                    try {
+
+                        const history =
+                            chat.getHistory();
 
 
-                    if (!history.length) {
+                        if (!history.length) {
+
+                            chat.showToast(
+                                "No chat history yet."
+                            );
+
+                            return;
+                        }
+
 
                         chat.showToast(
-                            "No chat history yet."
+                            `${history.length} messages saved on this device.`
                         );
 
-                        return;
+
+                        closeMenu();
+
+                    } catch (error) {
+
+                        console.error(
+                            "History error:",
+                            error
+                        );
+
+                        chat.showToast(
+                            "Unable to load chat history."
+                        );
                     }
-
-
-                    chat.showToast(
-                        `${history.length} messages saved on this device.`
-                    );
-
-                    closeMenu();
                 }
             );
 
@@ -776,6 +989,7 @@ async function submitMessage() {
                                     userId
                                 )}`,
                                 {
+                                    method: "GET",
                                     headers: {
                                         Accept:
                                             "application/json"
@@ -784,18 +998,28 @@ async function submitMessage() {
                             );
 
 
-                        const data =
-                            await response.json();
+                        let data = null;
+
+
+                        try {
+
+                            data =
+                                await response.json();
+
+                        } catch {
+
+                            data = null;
+                        }
 
 
                         if (
                             !response.ok ||
-                            !data.ok
+                            !data?.ok
                         ) {
 
                             throw new Error(
-                                data.error ||
-                                "Unable to load memory."
+                                data?.error ||
+                                `Memory request failed (${response.status})`
                             );
                         }
 
@@ -835,8 +1059,13 @@ async function submitMessage() {
 
                     } catch (error) {
 
+                        console.error(
+                            "Memory error:",
+                            error
+                        );
+
                         chat.showToast(
-                            error.message ||
+                            error?.message ||
                             "Memory could not be loaded."
                         );
                     }
@@ -861,6 +1090,7 @@ async function submitMessage() {
                     deferredPrompt =
                         event;
 
+
                     installButton?.classList.remove(
                         "hidden"
                     );
@@ -882,16 +1112,29 @@ async function submitMessage() {
                     }
 
 
-                    deferredPrompt.prompt();
+                    try {
 
-                    await deferredPrompt.userChoice;
+                        deferredPrompt.prompt();
 
-                    deferredPrompt =
-                        null;
+                        await deferredPrompt.userChoice;
 
-                    installButton.classList.add(
-                        "hidden"
-                    );
+                    } catch (error) {
+
+                        console.warn(
+                            "PWA install failed:",
+                            error
+                        );
+
+                    } finally {
+
+                        deferredPrompt =
+                            null;
+
+
+                        installButton?.classList.add(
+                            "hidden"
+                        );
+                    }
                 }
             );
 
@@ -901,8 +1144,7 @@ async function submitMessage() {
             ========================================== */
 
             if (
-                "serviceWorker" in
-                navigator
+                "serviceWorker" in navigator
             ) {
 
                 window.addEventListener(
@@ -913,12 +1155,23 @@ async function submitMessage() {
                             .register(
                                 `/sw.js?v=${VERSION}`
                             )
+                            .then(
+                                registration => {
+
+                                    console.log(
+                                        "Atharv AI service worker registered:",
+                                        registration.scope
+                                    );
+                                }
+                            )
                             .catch(
-                                error =>
+                                error => {
+
                                     console.warn(
                                         "Service worker registration failed:",
                                         error
-                                    )
+                                    );
+                                }
                             );
                     }
                 );
@@ -926,7 +1179,7 @@ async function submitMessage() {
 
 
             /* ==========================================
-               ESCAPE
+               ESCAPE KEY
             ========================================== */
 
             document.addEventListener(
@@ -934,9 +1187,9 @@ async function submitMessage() {
                 event => {
 
                     if (
-                        event.key ===
-                        "Escape"
+                        event.key === "Escape"
                     ) {
+
                         closeMenu();
                     }
                 }
@@ -944,12 +1197,30 @@ async function submitMessage() {
 
 
             /* ==========================================
-               START
+               MOBILE KEYBOARD / VISIBILITY
+            ========================================== */
+
+            window.addEventListener(
+                "resize",
+                () => {
+
+                    resizeTextarea();
+                }
+            );
+
+
+            /* ==========================================
+               STARTUP
             ========================================== */
 
             resizeTextarea();
 
             messageInput?.focus();
+
+
+            console.log(
+                `Atharv AI frontend ${VERSION} loaded successfully.`
+            );
 
         }
     );
