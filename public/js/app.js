@@ -3,974 +3,972 @@
 /*
 =========================================================
  ATHARV AI - FRONTEND CONTROLLER
- Version 20.0.0
-
- No ES-module imports.
- This prevents one broken module from disabling
- the complete interface.
+ Version 22.0.0
+ --------------------------------------------------------
+ - Composer
+ - Send button
+ - Menu
+ - Voice
+ - Attachments
+ - Draft
+ - Quick prompts
+ - PWA install
+ - Memory
+ - History
 =========================================================
 */
 
+(() => {
 
-document.addEventListener(
-  "DOMContentLoaded",
-  () => {
+    const VERSION = "22.0.0";
 
-    const $ =
-      id => document.getElementById(id);
-
-
-    const input =
-      $("messageInput");
-
-    const form =
-      $("composer");
-
-    const sendButton =
-      $("sendButton");
-
-    const menuButton =
-      $("menuButton");
-
-    const menuClose =
-      $("menuClose");
-
-    const menu =
-      $("atharvMenu");
-
-    const overlay =
-      $("menuOverlay");
-
-    const plusButton =
-      $("plusButton");
-
-    const liveToggle =
-      $("liveSearchToggle");
-
-    const liveState =
-      $("liveState");
-
-    const fileInput =
-      $("fileInput");
-
-    const preview =
-      $("attachmentPreview");
-
-
-    const chat =
-      window.AtharvChat;
-
-
-    /* =================================================
-       SAFETY CHECK
-    ================================================= */
-
-    if(!chat){
-
-      console.error(
-        "AtharvChat engine was not loaded."
-      );
-
-      return;
-    }
-
-
-    chat.init();
-
-
-    /* =================================================
-       DRAFT
-    ================================================= */
-
-    const DRAFT_KEY =
-      "atharv_draft_v20";
-
-
-    function getDraft(){
-
-      try{
-
-        return (
-          localStorage.getItem(DRAFT_KEY) ||
-          ""
-        );
-
-      }catch{
-
-        return "";
-      }
-    }
-
-
-    function saveDraft(value){
-
-      try{
-
-        localStorage.setItem(
-          DRAFT_KEY,
-          value
-        );
-
-      }catch{}
-    }
-
-
-    function clearDraft(){
-
-      try{
-
-        localStorage.removeItem(
-          DRAFT_KEY
-        );
-
-      }catch{}
-    }
-
-
-    if(input){
-
-      input.value =
-        getDraft();
-
-
-      autoResize();
-
-
-      input.addEventListener(
-        "input",
+    document.addEventListener(
+        "DOMContentLoaded",
         () => {
 
-          saveDraft(
-            input.value
-          );
+            const chat =
+                window.AtharvChat;
 
-          autoResize();
-        }
-      );
 
+            if (!chat) {
 
-      input.addEventListener(
-        "keydown",
-        event => {
+                console.error(
+                    "AtharvChat is not available."
+                );
 
-          if(
-            event.key === "Enter" &&
-            !event.shiftKey
-          ){
-
-            event.preventDefault();
-
-            submitMessage();
-          }
-
-        }
-      );
-    }
-
-
-    /* =================================================
-       AUTO RESIZE
-    ================================================= */
-
-    function autoResize(){
-
-      if(!input) return;
-
-
-      input.style.height =
-        "auto";
-
-
-      const height =
-        Math.min(
-          input.scrollHeight,
-          140
-        );
-
-
-      input.style.height =
-        `${height}px`;
-    }
-
-
-    /* =================================================
-       SEND
-    ================================================= */
-
-    async function submitMessage(){
-
-      if(!input) return;
-
-
-      const value =
-        input.value.trim();
-
-
-      if(!value){
-
-        input.focus();
-
-        return;
-      }
-
-
-      /*
-       * Prevent double click / duplicate requests.
-       */
-
-      if(
-        sendButton?.disabled
-      ){
-
-        return;
-      }
-
-
-      if(sendButton){
-
-        sendButton.disabled =
-          true;
-      }
-
-
-      input.value =
-        "";
-
-      clearDraft();
-
-      autoResize();
-
-
-      try{
-
-        await chat.send(value);
-
-      }catch(error){
-
-        console.error(
-          "Submit error:",
-          error
-        );
-
-      }finally{
-
-        /*
-         * Button NEVER stays disabled.
-         */
-
-        if(sendButton){
-
-          sendButton.disabled =
-            false;
-        }
-
-
-        input.focus();
-      }
-    }
-
-
-    /* =================================================
-       FORM
-    ================================================= */
-
-    if(form){
-
-      form.addEventListener(
-        "submit",
-        event => {
-
-          event.preventDefault();
-
-          submitMessage();
-        }
-      );
-    }
-
-
-    /* =================================================
-       MENU
-    ================================================= */
-
-    function openMenu(){
-
-      if(menu){
-
-        menu.classList.add("open");
-
-        menu.setAttribute(
-          "aria-hidden",
-          "false"
-        );
-      }
-
-
-      if(overlay){
-
-        overlay.classList.remove(
-          "hidden"
-        );
-      }
-
-    }
-
-
-    function closeMenu(){
-
-      if(menu){
-
-        menu.classList.remove(
-          "open"
-        );
-
-        menu.setAttribute(
-          "aria-hidden",
-          "true"
-        );
-      }
-
-
-      if(overlay){
-
-        overlay.classList.add(
-          "hidden"
-        );
-      }
-
-    }
-
-
-    menuButton?.addEventListener(
-      "click",
-      openMenu
-    );
-
-
-    plusButton?.addEventListener(
-      "click",
-      openMenu
-    );
-
-
-    menuClose?.addEventListener(
-      "click",
-      closeMenu
-    );
-
-
-    overlay?.addEventListener(
-      "click",
-      closeMenu
-    );
-
-
-    /* =================================================
-       NEW CHAT
-    ================================================= */
-
-    function newChat(){
-
-      chat.clearChat();
-
-      closeMenu();
-
-      if(input){
-
-        input.value =
-          "";
-
-        clearDraft();
-
-        autoResize();
-
-        input.focus();
-      }
-
-    }
-
-
-    $("newChatButton")
-      ?.addEventListener(
-        "click",
-        newChat
-      );
-
-
-    $("menuNewChat")
-      ?.addEventListener(
-        "click",
-        newChat
-      );
-
-
-    /* =================================================
-       CLEAR CHAT
-    ================================================= */
-
-    $("clearButton")
-      ?.addEventListener(
-        "click",
-        () => {
-
-          chat.clearChat();
-
-          closeMenu();
-
-          showToast(
-            "Chat cleared"
-          );
-
-          input?.focus();
-        }
-      );
-
-
-    /* =================================================
-       LIVE SEARCH
-    ================================================= */
-
-    function updateLive(){
-
-      const enabled =
-        chat.getLive();
-
-
-      if(liveState){
-
-        liveState.textContent =
-          enabled
-            ? "ON"
-            : "OFF";
-      }
-
-
-      if(liveToggle){
-
-        liveToggle.setAttribute(
-          "aria-pressed",
-          String(enabled)
-        );
-      }
-    }
-
-
-    updateLive();
-
-
-    liveToggle?.addEventListener(
-      "click",
-      () => {
-
-        const newValue =
-          !chat.getLive();
-
-
-        chat.setLive(
-          newValue
-        );
-
-
-        updateLive();
-
-
-        showToast(
-          newValue
-            ? "Live Search ON"
-            : "Live Search OFF"
-        );
-      }
-    );
-
-
-    /* =================================================
-       HISTORY
-    ================================================= */
-
-    $("historyButton")
-      ?.addEventListener(
-        "click",
-        () => {
-
-          const history =
-            chat.getHistory();
-
-
-          closeMenu();
-
-
-          showToast(
-            history.length
-              ? `${history.length} messages in current chat`
-              : "No messages yet"
-          );
-        }
-      );
-
-
-    /* =================================================
-       MEMORY
-    ================================================= */
-
-    $("memoryButton")
-      ?.addEventListener(
-        "click",
-        async () => {
-
-          closeMenu();
-
-
-          try{
-
-            const userId =
-              getUserId();
-
-
-            const response =
-              await fetch(
-                `/api/memory?userId=${encodeURIComponent(userId)}`,
-                {
-                  method:"GET",
-
-                  headers:{
-                    "Accept":
-                      "application/json"
-                  },
-
-                  cache:"no-store"
-                }
-              );
-
-
-            if(!response.ok){
-
-              throw new Error(
-                "Memory service unavailable"
-              );
+                return;
             }
 
 
-            const data =
-              await response.json();
+            chat.init();
 
 
-            const memories =
-              Array.isArray(data)
-                ? data
-                : (
-                  Array.isArray(data.memories)
-                    ? data.memories
-                    : []
+            /* ==========================================
+               DOM
+            ========================================== */
+
+            const messageInput =
+                document.getElementById(
+                    "messageInput"
+                );
+
+            const composer =
+                document.getElementById(
+                    "composer"
+                );
+
+            const sendButton =
+                document.getElementById(
+                    "sendButton"
+                );
+
+            const menuButton =
+                document.getElementById(
+                    "menuButton"
+                );
+
+            const menuClose =
+                document.getElementById(
+                    "menuClose"
+                );
+
+            const atharvMenu =
+                document.getElementById(
+                    "atharvMenu"
+                );
+
+            const menuOverlay =
+                document.getElementById(
+                    "menuOverlay"
+                );
+
+            const plusButton =
+                document.getElementById(
+                    "plusButton"
+                );
+
+            const liveSearchToggle =
+                document.getElementById(
+                    "liveSearchToggle"
+                );
+
+            const liveState =
+                document.getElementById(
+                    "liveState"
+                );
+
+            const liveSwitch =
+                document.getElementById(
+                    "liveSwitch"
+                );
+
+            const fileInput =
+                document.getElementById(
+                    "fileInput"
+                );
+
+            const attachmentPreview =
+                document.getElementById(
+                    "attachmentPreview"
+                );
+
+            const voiceButton =
+                document.getElementById(
+                    "voiceButton"
+                );
+
+            const newChatButton =
+                document.getElementById(
+                    "newChatButton"
+                );
+
+            const menuNewChat =
+                document.getElementById(
+                    "menuNewChat"
+                );
+
+            const clearButton =
+                document.getElementById(
+                    "clearButton"
+                );
+
+            const memoryButton =
+                document.getElementById(
+                    "memoryButton"
+                );
+
+            const historyButton =
+                document.getElementById(
+                    "historyButton"
+                );
+
+            const installButton =
+                document.getElementById(
+                    "installButton"
                 );
 
 
-            if(!memories.length){
+            /* ==========================================
+               DRAFT
+            ========================================== */
 
-              showToast(
-                "No saved memories"
-              );
+            const DRAFT_KEY =
+                "atharv_draft_v22";
 
-              return;
+
+            try {
+
+                const draft =
+                    localStorage.getItem(
+                        DRAFT_KEY
+                    );
+
+                if (
+                    draft &&
+                    messageInput
+                ) {
+                    messageInput.value =
+                        draft;
+
+                    resizeTextarea();
+                }
+
+            } catch {}
+
+
+            function saveDraft() {
+
+                if (!messageInput) {
+                    return;
+                }
+
+                try {
+
+                    localStorage.setItem(
+                        DRAFT_KEY,
+                        messageInput.value
+                    );
+
+                } catch {}
             }
 
 
-            alert(
-              memories
-                .map(
-                  item =>
-                    typeof item === "string"
-                      ? item
-                      : (
-                        item.memory ||
-                        item.content ||
-                        item.text ||
-                        JSON.stringify(item)
-                      )
-                )
-                .join("\n\n")
-            );
+            function clearDraft() {
 
+                try {
 
-          }catch(error){
+                    localStorage.removeItem(
+                        DRAFT_KEY
+                    );
 
-            console.error(
-              "Memory error:",
-              error
-            );
-
-
-            showToast(
-              "Memory could not be loaded"
-            );
-          }
-
-        }
-      );
-
-
-    /* =================================================
-       FILE ATTACHMENT
-    ================================================= */
-
-    fileInput?.addEventListener(
-      "change",
-      () => {
-
-        if(!preview) return;
-
-
-        preview.innerHTML =
-          "";
-
-
-        const files =
-          [...(fileInput.files || [])];
-
-
-        if(!files.length){
-
-          preview.classList.add(
-            "hidden"
-          );
-
-          return;
-        }
-
-
-        preview.classList.remove(
-          "hidden"
-        );
-
-
-        files.forEach(
-          file => {
-
-            const item =
-              document.createElement(
-                "div"
-              );
-
-
-            item.className =
-              "attachment";
-
-
-            item.textContent =
-              file.name;
-
-
-            preview.appendChild(
-              item
-            );
-          }
-        );
-
-
-        showToast(
-          `${files.length} attachment selected`
-        );
-
-      }
-    );
-
-
-    /* =================================================
-       VOICE
-    ================================================= */
-
-    $("voiceButton")
-      ?.addEventListener(
-        "click",
-        () => {
-
-          const SpeechRecognition =
-            window.SpeechRecognition ||
-            window.webkitSpeechRecognition;
-
-
-          if(!SpeechRecognition){
-
-            showToast(
-              "Voice input is not supported in this browser."
-            );
-
-            return;
-          }
-
-
-          const recognition =
-            new SpeechRecognition();
-
-
-          recognition.lang =
-            navigator.language ||
-            "en-IN";
-
-
-          recognition.interimResults =
-            false;
-
-
-          recognition.maxAlternatives =
-            1;
-
-
-          recognition.onstart =
-            () => {
-
-              showToast(
-                "Listening…"
-              );
-            };
-
-
-          recognition.onresult =
-            event => {
-
-              const transcript =
-                event
-                  .results[0][0]
-                  .transcript;
-
-
-              if(!input) return;
-
-
-              input.value =
-                (
-                  input.value +
-                  " " +
-                  transcript
-                ).trim();
-
-
-              saveDraft(
-                input.value
-              );
-
-
-              autoResize();
-
-              input.focus();
-            };
-
-
-          recognition.onerror =
-            event => {
-
-              console.warn(
-                "Voice error:",
-                event
-              );
-
-              showToast(
-                "Voice input stopped."
-              );
-            };
-
-
-          recognition.onend =
-            () => {};
-
-
-          try{
-
-            recognition.start();
-
-          }catch(error){
-
-            console.warn(
-              "Voice start error:",
-              error
-            );
-          }
-
-        }
-      );
-
-
-    /* =================================================
-       QUICK PROMPTS
-    ================================================= */
-
-    document
-      .querySelectorAll(
-        ".quick-card"
-      )
-      .forEach(
-        button => {
-
-          button.addEventListener(
-            "click",
-            () => {
-
-              if(!input) return;
-
-
-              input.value =
-                button.dataset.prompt ||
-                "";
-
-
-              saveDraft(
-                input.value
-              );
-
-
-              autoResize();
-
-              input.focus();
+                } catch {}
             }
-          );
+
+
+            /* ==========================================
+               TEXTAREA
+            ========================================== */
+
+            function resizeTextarea() {
+
+                if (!messageInput) {
+                    return;
+                }
+
+                messageInput.style.height =
+                    "auto";
+
+                const height =
+                    Math.min(
+                        Math.max(
+                            messageInput.scrollHeight,
+                            24
+                        ),
+                        140
+                    );
+
+                messageInput.style.height =
+                    `${height}px`;
+            }
+
+
+            messageInput?.addEventListener(
+                "input",
+                () => {
+
+                    resizeTextarea();
+
+                    saveDraft();
+                }
+            );
+
+
+            /* ==========================================
+               SEND
+            ========================================== */
+
+            let sending = false;
+
+
+            async function submitMessage() {
+
+                if (sending) {
+                    return;
+                }
+
+                if (!messageInput) {
+                    return;
+                }
+
+
+                const value =
+                    messageInput.value.trim();
+
+
+                if (!value) {
+
+                    messageInput.focus();
+
+                    return;
+                }
+
+
+                sending = true;
+
+
+                if (sendButton) {
+                    sendButton.disabled =
+                        true;
+                }
+
+
+                messageInput.value = "";
+
+                resizeTextarea();
+
+                clearDraft();
+
+
+                try {
+
+                    await chat.send(
+                        value
+                    );
+
+                } finally {
+
+                    sending = false;
+
+                    if (sendButton) {
+                        sendButton.disabled =
+                            false;
+                    }
+
+                    messageInput.focus();
+                }
+            }
+
+
+            composer?.addEventListener(
+                "submit",
+                event => {
+
+                    event.preventDefault();
+
+                    submitMessage();
+                }
+            );
+
+
+            sendButton?.addEventListener(
+                "click",
+                event => {
+
+                    event.preventDefault();
+
+                    submitMessage();
+                }
+            );
+
+
+            messageInput?.addEventListener(
+                "keydown",
+                event => {
+
+                    if (
+                        event.key ===
+                        "Enter" &&
+                        !event.shiftKey
+                    ) {
+
+                        event.preventDefault();
+
+                        submitMessage();
+                    }
+                }
+            );
+
+
+            /* ==========================================
+               MENU
+            ========================================== */
+
+            function openMenu() {
+
+                atharvMenu?.classList.add(
+                    "open"
+                );
+
+                menuOverlay?.classList.add(
+                    "show"
+                );
+
+                atharvMenu?.setAttribute(
+                    "aria-hidden",
+                    "false"
+                );
+            }
+
+
+            function closeMenu() {
+
+                atharvMenu?.classList.remove(
+                    "open"
+                );
+
+                menuOverlay?.classList.remove(
+                    "show"
+                );
+
+                atharvMenu?.setAttribute(
+                    "aria-hidden",
+                    "true"
+                );
+            }
+
+
+            menuButton?.addEventListener(
+                "click",
+                openMenu
+            );
+
+
+            menuClose?.addEventListener(
+                "click",
+                closeMenu
+            );
+
+
+            menuOverlay?.addEventListener(
+                "click",
+                closeMenu
+            );
+
+
+            /* ==========================================
+               NEW CHAT
+            ========================================== */
+
+            function newChat() {
+
+                chat.clearChat();
+
+                closeMenu();
+
+                messageInput?.focus();
+            }
+
+
+            newChatButton?.addEventListener(
+                "click",
+                newChat
+            );
+
+
+            menuNewChat?.addEventListener(
+                "click",
+                newChat
+            );
+
+
+            /* ==========================================
+               CLEAR CHAT
+            ========================================== */
+
+            clearButton?.addEventListener(
+                "click",
+                () => {
+
+                    chat.clearChat();
+
+                    closeMenu();
+                }
+            );
+
+
+            /* ==========================================
+               LIVE SEARCH
+            ========================================== */
+
+            function updateLiveUI() {
+
+                const enabled =
+                    chat.getLive();
+
+
+                if (liveState) {
+
+                    liveState.textContent =
+                        enabled
+                            ? "On"
+                            : "Off";
+                }
+
+
+                liveSwitch?.classList.toggle(
+                    "active",
+                    enabled
+                );
+            }
+
+
+            updateLiveUI();
+
+
+            liveSearchToggle?.addEventListener(
+                "click",
+                () => {
+
+                    const next =
+                        !chat.getLive();
+
+                    chat.setLive(
+                        next
+                    );
+
+                    updateLiveUI();
+
+                    chat.showToast(
+                        next
+                            ? "Live Search on"
+                            : "Live Search off"
+                    );
+                }
+            );
+
+
+            /* ==========================================
+               PLUS
+            ========================================== */
+
+            plusButton?.addEventListener(
+                "click",
+                () => {
+
+                    openMenu();
+                }
+            );
+
+
+            /* ==========================================
+               FILES
+            ========================================== */
+
+            fileInput?.addEventListener(
+                "change",
+                () => {
+
+                    if (
+                        !fileInput.files ||
+                        !fileInput.files.length
+                    ) {
+                        return;
+                    }
+
+
+                    if (
+                        attachmentPreview
+                    ) {
+
+                        attachmentPreview.innerHTML =
+                            "";
+
+
+                        Array.from(
+                            fileInput.files
+                        ).forEach(
+                            file => {
+
+                                const item =
+                                    document.createElement(
+                                        "div"
+                                    );
+
+                                item.className =
+                                    "attachment-item";
+
+                                item.textContent =
+                                    `📎 ${file.name}`;
+
+                                attachmentPreview.appendChild(
+                                    item
+                                );
+                            }
+                        );
+
+
+                        attachmentPreview.classList.add(
+                            "show"
+                        );
+                    }
+
+
+                    chat.showToast(
+                        `${fileInput.files.length} file(s) attached`
+                    );
+                }
+            );
+
+
+            /* ==========================================
+               VOICE
+            ========================================== */
+
+            let recognition = null;
+
+
+            const SpeechRecognition =
+                window.SpeechRecognition ||
+                window.webkitSpeechRecognition;
+
+
+            if (
+                SpeechRecognition &&
+                voiceButton
+            ) {
+
+                recognition =
+                    new SpeechRecognition();
+
+                recognition.lang =
+                    navigator.language ||
+                    "en-IN";
+
+                recognition.continuous =
+                    false;
+
+                recognition.interimResults =
+                    false;
+
+
+                recognition.onstart =
+                    () => {
+
+                        voiceButton.classList.add(
+                            "recording"
+                        );
+
+                        chat.showToast(
+                            "Listening..."
+                        );
+                    };
+
+
+                recognition.onend =
+                    () => {
+
+                        voiceButton.classList.remove(
+                            "recording"
+                        );
+                    };
+
+
+                recognition.onerror =
+                    () => {
+
+                        voiceButton.classList.remove(
+                            "recording"
+                        );
+
+                        chat.showToast(
+                            "Voice input failed."
+                        );
+                    };
+
+
+                recognition.onresult =
+                    event => {
+
+                        const transcript =
+                            Array.from(
+                                event.results
+                            )
+                                .map(
+                                    result =>
+                                        result[0].transcript
+                                )
+                                .join(" ");
+
+
+                        if (
+                            messageInput
+                        ) {
+
+                            messageInput.value =
+                                (
+                                    messageInput.value
+                                    ? messageInput.value +
+                                      " "
+                                    : ""
+                                ) +
+                                transcript;
+
+                            resizeTextarea();
+
+                            saveDraft();
+
+                            messageInput.focus();
+                        }
+                    };
+
+
+                voiceButton.addEventListener(
+                    "click",
+                    () => {
+
+                        try {
+
+                            recognition.start();
+
+                        } catch {
+
+                            // Already running.
+                        }
+                    }
+                );
+
+            } else {
+
+                voiceButton?.addEventListener(
+                    "click",
+                    () => {
+
+                        chat.showToast(
+                            "Voice input is not supported in this browser."
+                        );
+                    }
+                );
+            }
+
+
+            /* ==========================================
+               QUICK CARDS
+            ========================================== */
+
+            document
+                .querySelectorAll(
+                    ".quick-card"
+                )
+                .forEach(
+                    button => {
+
+                        button.addEventListener(
+                            "click",
+                            () => {
+
+                                const prompt =
+                                    button.dataset.prompt ||
+                                    "";
+
+                                if (
+                                    messageInput
+                                ) {
+
+                                    messageInput.value =
+                                        prompt;
+
+                                    resizeTextarea();
+
+                                    saveDraft();
+
+                                    messageInput.focus();
+                                }
+                            }
+                        );
+                    }
+                );
+
+
+            /* ==========================================
+               HISTORY
+            ========================================== */
+
+            historyButton?.addEventListener(
+                "click",
+                () => {
+
+                    const history =
+                        chat.getHistory();
+
+
+                    if (!history.length) {
+
+                        chat.showToast(
+                            "No chat history yet."
+                        );
+
+                        return;
+                    }
+
+
+                    chat.showToast(
+                        `${history.length} messages saved on this device.`
+                    );
+
+                    closeMenu();
+                }
+            );
+
+
+            /* ==========================================
+               MEMORY
+            ========================================== */
+
+            memoryButton?.addEventListener(
+                "click",
+                async () => {
+
+                    closeMenu();
+
+
+                    try {
+
+                        const userId =
+                            chat.getUserId();
+
+
+                        const response =
+                            await fetch(
+                                `/api/memory?userId=${encodeURIComponent(
+                                    userId
+                                )}`,
+                                {
+                                    headers: {
+                                        Accept:
+                                            "application/json"
+                                    }
+                                }
+                            );
+
+
+                        const data =
+                            await response.json();
+
+
+                        if (
+                            !response.ok ||
+                            !data.ok
+                        ) {
+
+                            throw new Error(
+                                data.error ||
+                                "Unable to load memory."
+                            );
+                        }
+
+
+                        const memories =
+                            Array.isArray(
+                                data.memories
+                            )
+                                ? data.memories
+                                : [];
+
+
+                        if (!memories.length) {
+
+                            chat.showToast(
+                                "No saved memories."
+                            );
+
+                            return;
+                        }
+
+
+                        const text =
+                            memories
+                                .map(
+                                    item =>
+                                        `${item.memory_key}: ${item.memory_value}`
+                                )
+                                .join(
+                                    " • "
+                                );
+
+
+                        chat.showToast(
+                            text
+                        );
+
+                    } catch (error) {
+
+                        chat.showToast(
+                            error.message ||
+                            "Memory could not be loaded."
+                        );
+                    }
+                }
+            );
+
+
+            /* ==========================================
+               PWA INSTALL
+            ========================================== */
+
+            let deferredPrompt =
+                null;
+
+
+            window.addEventListener(
+                "beforeinstallprompt",
+                event => {
+
+                    event.preventDefault();
+
+                    deferredPrompt =
+                        event;
+
+                    installButton?.classList.remove(
+                        "hidden"
+                    );
+                }
+            );
+
+
+            installButton?.addEventListener(
+                "click",
+                async () => {
+
+                    if (!deferredPrompt) {
+
+                        chat.showToast(
+                            "Use your browser menu and choose Add to Home screen."
+                        );
+
+                        return;
+                    }
+
+
+                    deferredPrompt.prompt();
+
+                    await deferredPrompt.userChoice;
+
+                    deferredPrompt =
+                        null;
+
+                    installButton.classList.add(
+                        "hidden"
+                    );
+                }
+            );
+
+
+            /* ==========================================
+               SERVICE WORKER
+            ========================================== */
+
+            if (
+                "serviceWorker" in
+                navigator
+            ) {
+
+                window.addEventListener(
+                    "load",
+                    () => {
+
+                        navigator.serviceWorker
+                            .register(
+                                `/sw.js?v=${VERSION}`
+                            )
+                            .catch(
+                                error =>
+                                    console.warn(
+                                        "Service worker registration failed:",
+                                        error
+                                    )
+                            );
+                    }
+                );
+            }
+
+
+            /* ==========================================
+               ESCAPE
+            ========================================== */
+
+            document.addEventListener(
+                "keydown",
+                event => {
+
+                    if (
+                        event.key ===
+                        "Escape"
+                    ) {
+                        closeMenu();
+                    }
+                }
+            );
+
+
+            /* ==========================================
+               START
+            ========================================== */
+
+            resizeTextarea();
+
+            messageInput?.focus();
 
         }
-      );
-
-
-    /* =================================================
-       INSTALL
-    ================================================= */
-
-    let deferredInstallPrompt =
-      null;
-
-
-    window.addEventListener(
-      "beforeinstallprompt",
-      event => {
-
-        event.preventDefault();
-
-        deferredInstallPrompt =
-          event;
-      }
     );
 
-
-    $("installButton")
-      ?.addEventListener(
-        "click",
-        async () => {
-
-          closeMenu();
-
-
-          if(!deferredInstallPrompt){
-
-            showToast(
-              "Install option is not available right now."
-            );
-
-            return;
-          }
-
-
-          deferredInstallPrompt.prompt();
-
-
-          try{
-
-            await deferredInstallPrompt.userChoice;
-
-          }catch{}
-
-
-          deferredInstallPrompt =
-            null;
-        }
-      );
-
-
-    /* =================================================
-       PWA SERVICE WORKER
-    ================================================= */
-
-    if(
-      "serviceWorker" in navigator
-    ){
-
-      window.addEventListener(
-        "load",
-        () => {
-
-          navigator.serviceWorker
-            .register(
-              "/sw.js?v=20.0.0"
-            )
-            .catch(
-              error =>
-                console.warn(
-                  "Service worker:",
-                  error
-                )
-            );
-
-        }
-      );
-    }
-
-
-    /* =================================================
-       TOAST
-    ================================================= */
-
-    function showToast(message){
-
-      if(
-        typeof chat.showToast ===
-        "function"
-      ){
-
-        chat.showToast(
-          message
-        );
-      }
-    }
-
-
-    /* =================================================
-       USER ID
-    ================================================= */
-
-    function getUserId(){
-
-      const key =
-        "atharv_user_id_v20";
-
-
-      try{
-
-        let id =
-          localStorage.getItem(
-            key
-          );
-
-
-        if(id) return id;
-
-
-        id =
-          "atharv_" +
-          Date.now().toString(36) +
-          "_" +
-          Math.random()
-            .toString(36)
-            .slice(2,10);
-
-
-        localStorage.setItem(
-          key,
-          id
-        );
-
-
-        return id;
-
-      }catch{
-
-        return "guest";
-      }
-    }
-
-
-  }
-);
+})();
