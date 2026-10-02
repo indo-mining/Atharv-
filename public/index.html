@@ -8,10 +8,7 @@
         content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     >
 
-    <meta
-        name="theme-color"
-        content="#ffffff"
-    >
+    <meta name="theme-color" content="#ffffff">
 
     <meta
         name="description"
@@ -20,592 +17,20 @@
 
     <title>Atharv AI</title>
 
-    <!-- PWA -->
-    <link
-        rel="manifest"
-        href="manifest.json"
-    >
-
-    <!-- Main stylesheet -->
-    <link
-        rel="stylesheet"
-        href="style.css"
-    >
-
-    <style>
-        /* =================================================
-           ATHARV AI - SAFE BASE UI
-        ================================================= */
-
-        * {
-            box-sizing: border-box;
-        }
-
-        html,
-        body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
-        body {
-            font-family:
-                system-ui,
-                -apple-system,
-                BlinkMacSystemFont,
-                "Segoe UI",
-                Roboto,
-                Arial,
-                sans-serif;
-
-            background: #ffffff;
-            color: #111827;
-
-            overflow: hidden;
-        }
-
-        button,
-        textarea,
-        input {
-            font: inherit;
-        }
-
-        button {
-            cursor: pointer;
-        }
-
-        /* =================================================
-           APP
-        ================================================= */
-
-        #app {
-            width: 100%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            background: #ffffff;
-        }
-
-        /* =================================================
-           HEADER
-        ================================================= */
-
-        .topbar {
-            height: 64px;
-            min-height: 64px;
-
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            padding:
-                0 14px;
-
-            border-bottom: 1px solid #eeeeee;
-
-            background: #ffffff;
-
-            position: relative;
-            z-index: 10;
-        }
-
-        .brand {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            min-width: 0;
-        }
-
-        .brand-logo {
-            width: 38px;
-            height: 38px;
-
-            border-radius: 12px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            background: #111827;
-            color: #ffffff;
-
-            font-weight: 800;
-            font-size: 17px;
-        }
-
-        .brand-text {
-            min-width: 0;
-        }
-
-        .brand-title {
-            font-size: 17px;
-            font-weight: 750;
-            line-height: 1.1;
-        }
-
-        .brand-subtitle {
-            margin-top: 3px;
-            color: #777777;
-            font-size: 11px;
-            white-space: nowrap;
-        }
-
-        .menu-button {
-            width: 42px;
-            height: 42px;
-
-            border: 0;
-            border-radius: 12px;
-
-            background: #f5f5f5;
-            color: #111827;
-
-            font-size: 23px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .menu-button:active {
-            transform: scale(.96);
-        }
-
-        /* =================================================
-           CHAT AREA
-        ================================================= */
-
-        #chatMessages {
-            flex: 1;
-
-            width: 100%;
-
-            overflow-y: auto;
-            overflow-x: hidden;
-
-            padding:
-                22px 14px 120px;
-
-            scroll-behavior: smooth;
-        }
-
-        #chatMessages::-webkit-scrollbar {
-            width: 5px;
-        }
-
-        #chatMessages::-webkit-scrollbar-thumb {
-            background: #d6d6d6;
-            border-radius: 20px;
-        }
-
-        /* =================================================
-           WELCOME
-        ================================================= */
-
-        .welcome {
-            min-height: 55vh;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            text-align: center;
-
-            padding: 30px 18px;
-        }
-
-        .welcome-inner {
-            width: 100%;
-            max-width: 620px;
-        }
-
-        .welcome-logo {
-            width: 70px;
-            height: 70px;
-
-            margin: 0 auto 18px;
-
-            border-radius: 22px;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            background: #111827;
-            color: #ffffff;
-
-            font-size: 27px;
-            font-weight: 800;
-
-            box-shadow:
-                0 12px 35px rgba(0, 0, 0, .10);
-        }
-
-        .welcome h1 {
-            margin: 0;
-
-            font-size: clamp(25px, 7vw, 38px);
-
-            line-height: 1.15;
-
-            letter-spacing: -.7px;
-        }
-
-        .welcome p {
-            margin:
-                12px auto 0;
-
-            max-width: 500px;
-
-            color: #777777;
-
-            font-size: 14px;
-
-            line-height: 1.55;
-        }
-
-        /* =================================================
-           COMPOSER
-        ================================================= */
-
-        .composer-area {
-            position: fixed;
-
-            left: 0;
-            right: 0;
-            bottom: 0;
-
-            z-index: 20;
-
-            padding:
-                8px 10px
-                calc(8px + env(safe-area-inset-bottom));
-
-            background:
-                linear-gradient(
-                    to top,
-                    #ffffff 75%,
-                    rgba(255,255,255,0)
-                );
-        }
-
-        .composer {
-            width: 100%;
-            max-width: 900px;
-
-            margin: 0 auto;
-
-            min-height: 54px;
-
-            display: flex;
-            align-items: flex-end;
-
-            gap: 6px;
-
-            padding: 7px;
-
-            background: #ffffff;
-
-            border:
-                1px solid #dedede;
-
-            border-radius: 18px;
-
-            box-shadow:
-                0 5px 25px rgba(0,0,0,.08);
-        }
-
-        .composer-icon {
-            width: 40px;
-            min-width: 40px;
-            height: 40px;
-
-            border: 0;
-
-            border-radius: 12px;
-
-            background: #f5f5f5;
-            color: #222222;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-
-            font-size: 19px;
-        }
-
-        .composer-icon:active {
-            transform: scale(.95);
-        }
-
-        #messageInput {
-            flex: 1;
-
-            min-width: 0;
-
-            min-height: 40px;
-            max-height: 140px;
-
-            resize: none;
-
-            border: 0;
-            outline: none;
-
-            background: transparent;
-
-            padding:
-                10px 5px;
-
-            color: #111827;
-
-            font-size: 15px;
-
-            line-height: 20px;
-        }
-
-        #messageInput::placeholder {
-            color: #999999;
-        }
-
-        .send-button {
-            width: 42px;
-            min-width: 42px;
-            height: 42px;
-
-            border: 0;
-
-            border-radius: 13px;
-
-            background: #111827;
-            color: #ffffff;
-
-            font-size: 19px;
-            font-weight: 700;
-
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .send-button:disabled {
-            opacity: .55;
-            cursor: default;
-        }
-
-        /* =================================================
-           MENU
-        ================================================= */
-
-        #menuOverlay {
-            position: fixed;
-
-            inset: 0;
-
-            z-index: 50;
-
-            background:
-                rgba(0,0,0,.25);
-
-            opacity: 0;
-            visibility: hidden;
-
-            transition:
-                opacity .2s ease,
-                visibility .2s ease;
-        }
-
-        #menuOverlay.open {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        #atharvMenu {
-            position: fixed;
-
-            top: 0;
-            right: 0;
-
-            z-index: 60;
-
-            width: min(330px, 88vw);
-            height: 100%;
-
-            background: #ffffff;
-
-            box-shadow:
-                -8px 0 35px rgba(0,0,0,.12);
-
-            transform:
-                translateX(100%);
-
-            transition:
-                transform .25s ease;
-
-            display: flex;
-            flex-direction: column;
-        }
-
-        #atharvMenu.open {
-            transform:
-                translateX(0);
-        }
-
-        .menu-header {
-            height: 64px;
-
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-
-            padding: 0 16px;
-
-            border-bottom:
-                1px solid #eeeeee;
-        }
-
-        .menu-title {
-            font-size: 18px;
-            font-weight: 750;
-        }
-
-        #menuClose {
-            width: 40px;
-            height: 40px;
-
-            border: 0;
-            border-radius: 12px;
-
-            background: #f5f5f5;
-
-            font-size: 20px;
-        }
-
-        .menu-content {
-            padding: 14px;
-
-            overflow-y: auto;
-        }
-
-        .menu-item {
-            width: 100%;
-
-            min-height: 50px;
-
-            display: flex;
-            align-items: center;
-
-            gap: 12px;
-
-            padding: 10px 12px;
-
-            margin-bottom: 7px;
-
-            border: 0;
-
-            border-radius: 13px;
-
-            background: #f7f7f7;
-
-            color: #111827;
-
-            text-align: left;
-        }
-
-        .menu-item-icon {
-            width: 30px;
-            text-align: center;
-            font-size: 19px;
-        }
-
-        .menu-item-text {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-        }
-
-        .menu-item-title {
-            font-size: 14px;
-            font-weight: 650;
-        }
-
-        .menu-item-subtitle {
-            font-size: 11px;
-            color: #777777;
-        }
-
-        /* =================================================
-           MOBILE
-        ================================================= */
-
-        @media (max-width: 600px) {
-
-            .topbar {
-                height: 58px;
-                min-height: 58px;
-            }
-
-            .brand-logo {
-                width: 35px;
-                height: 35px;
-            }
-
-            .brand-title {
-                font-size: 16px;
-            }
-
-            .brand-subtitle {
-                display: none;
-            }
-
-            #chatMessages {
-                padding:
-                    16px 10px 115px;
-            }
-
-            .composer-area {
-                padding-left: 7px;
-                padding-right: 7px;
-            }
-
-            .composer {
-                border-radius: 17px;
-            }
-
-            .composer-icon {
-                width: 38px;
-                min-width: 38px;
-                height: 38px;
-            }
-
-            .send-button {
-                width: 40px;
-                min-width: 40px;
-                height: 40px;
-            }
-
-            #messageInput {
-                font-size: 16px;
-            }
-        }
-    </style>
+    <link rel="manifest" href="./manifest.json">
+    <link rel="stylesheet" href="./style.css">
 </head>
 
 <body>
 
 <div id="app">
 
-    <!-- =================================================
-         HEADER
-    ================================================= -->
-
+    <!-- HEADER -->
     <header class="topbar">
 
         <div class="brand">
 
-            <div class="brand-logo">
-                A
-            </div>
+            <div class="brand-logo">A</div>
 
             <div class="brand-text">
 
@@ -621,7 +46,6 @@
 
         </div>
 
-
         <button
             id="menuButton"
             class="menu-button"
@@ -636,10 +60,7 @@
     </header>
 
 
-    <!-- =================================================
-         CHAT
-    ================================================= -->
-
+    <!-- CHAT -->
     <main
         id="chatMessages"
         aria-live="polite"
@@ -671,20 +92,14 @@
     </main>
 
 
-    <!-- =================================================
-         MENU OVERLAY
-    ================================================= -->
-
+    <!-- MENU OVERLAY -->
     <div
         id="menuOverlay"
         aria-hidden="true"
     ></div>
 
 
-    <!-- =================================================
-         SIDE MENU
-    ================================================= -->
-
+    <!-- SIDE MENU -->
     <aside
         id="atharvMenu"
         aria-label="Atharv AI menu"
@@ -698,6 +113,7 @@
 
             <button
                 id="menuClose"
+                class="menu-close"
                 type="button"
                 aria-label="Close menu"
             >
@@ -714,23 +130,12 @@
                 class="menu-item"
                 type="button"
             >
-
-                <span class="menu-item-icon">
-                    ＋
-                </span>
+                <span class="menu-item-icon">＋</span>
 
                 <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        New Chat
-                    </span>
-
-                    <span class="menu-item-subtitle">
-                        Start a new conversation
-                    </span>
-
+                    <strong>New Chat</strong>
+                    <small>Start a new conversation</small>
                 </span>
-
             </button>
 
 
@@ -739,23 +144,12 @@
                 class="menu-item"
                 type="button"
             >
-
-                <span class="menu-item-icon">
-                    🔎
-                </span>
+                <span class="menu-item-icon">🔎</span>
 
                 <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Live Search
-                    </span>
-
-                    <span class="menu-item-subtitle">
-                        Search current information
-                    </span>
-
+                    <strong>Live Search</strong>
+                    <small>Search current information</small>
                 </span>
-
             </button>
 
 
@@ -764,23 +158,12 @@
                 class="menu-item"
                 type="button"
             >
-
-                <span class="menu-item-icon">
-                    🧠
-                </span>
+                <span class="menu-item-icon">🧠</span>
 
                 <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Memory
-                    </span>
-
-                    <span class="menu-item-subtitle">
-                        Manage Atharv's memory
-                    </span>
-
+                    <strong>Memory</strong>
+                    <small>Manage Atharv memory</small>
                 </span>
-
             </button>
 
 
@@ -789,48 +172,26 @@
                 class="menu-item"
                 type="button"
             >
-
-                <span class="menu-item-icon">
-                    🕘
-                </span>
+                <span class="menu-item-icon">🕘</span>
 
                 <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Chat History
-                    </span>
-
-                    <span class="menu-item-subtitle">
-                        Your conversations
-                    </span>
-
+                    <strong>Chat History</strong>
+                    <small>Saved conversations</small>
                 </span>
-
             </button>
 
 
             <button
                 id="clearChatButton"
-                class="menu-item"
+                class="menu-item danger"
                 type="button"
             >
-
-                <span class="menu-item-icon">
-                    🗑️
-                </span>
+                <span class="menu-item-icon">🗑️</span>
 
                 <span class="menu-item-text">
-
-                    <span class="menu-item-title">
-                        Clear Chat
-                    </span>
-
-                    <span class="menu-item-subtitle">
-                        Clear current conversation
-                    </span>
-
+                    <strong>Clear Chat</strong>
+                    <small>Clear current conversation</small>
                 </span>
-
             </button>
 
         </div>
@@ -838,16 +199,12 @@
     </aside>
 
 
-    <!-- =================================================
-         COMPOSER
-         EXACT MAIN TYPING AREA
-    ================================================= -->
-
+    <!-- COMPOSER -->
     <div class="composer-area">
 
         <div
-            class="composer"
             id="composer"
+            class="composer"
         >
 
             <button
@@ -910,433 +267,32 @@
 </div>
 
 
-<!-- =====================================================
-     HIDDEN FILE INPUT
-===================================================== -->
-
+<!-- FILE INPUT -->
 <input
     id="fileInput"
     type="file"
     hidden
     multiple
-/>
+>
 
 
-<!-- =====================================================
-     MENU SCRIPT
-===================================================== -->
+<!-- APP LOGIC -->
+<script src="./app.js"></script>
 
+<!-- CHAT/API LOGIC -->
+<script src="./script.js"></script>
+
+
+<!-- SERVICE WORKER -->
 <script>
-
-(function () {
-
-    const menuButton =
-        document.getElementById("menuButton");
-
-    const menuClose =
-        document.getElementById("menuClose");
-
-    const menu =
-        document.getElementById("atharvMenu");
-
-    const overlay =
-        document.getElementById("menuOverlay");
-
-
-    function openMenu() {
-
-        if (!menu || !overlay) return;
-
-        menu.classList.add("open");
-
-        overlay.classList.add("open");
-
-        if (menuButton) {
-            menuButton.setAttribute(
-                "aria-expanded",
-                "true"
-            );
-        }
-
-        overlay.setAttribute(
-            "aria-hidden",
-            "false"
-        );
-    }
-
-
-    function closeMenu() {
-
-        if (!menu || !overlay) return;
-
-        menu.classList.remove("open");
-
-        overlay.classList.remove("open");
-
-        if (menuButton) {
-            menuButton.setAttribute(
-                "aria-expanded",
-                "false"
-            );
-        }
-
-        overlay.setAttribute(
-            "aria-hidden",
-            "true"
-        );
-    }
-
-
-    if (menuButton) {
-        menuButton.addEventListener(
-            "click",
-            openMenu
-        );
-    }
-
-
-    if (menuClose) {
-        menuClose.addEventListener(
-            "click",
-            closeMenu
-        );
-    }
-
-
-    if (overlay) {
-        overlay.addEventListener(
-            "click",
-            closeMenu
-        );
-    }
-
-
-    document.addEventListener(
-        "keydown",
-        function (event) {
-
-            if (event.key === "Escape") {
-                closeMenu();
-            }
-
-        }
-    );
-
-
-    /* New Chat */
-
-    const newChat =
-        document.getElementById(
-            "newChatButton"
-        );
-
-    if (newChat) {
-
-        newChat.addEventListener(
-            "click",
-            function () {
-
-                const messages =
-                    document.getElementById(
-                        "chatMessages"
-                    );
-
-                if (messages) {
-
-                    messages.innerHTML = `
-                        <section
-                            id="welcomeScreen"
-                            class="welcome"
-                        >
-                            <div class="welcome-inner">
-
-                                <div class="welcome-logo">
-                                    A
-                                </div>
-
-                                <h1>
-                                    How can I help you?
-                                </h1>
-
-                                <p>
-                                    Your AI. Every Language. Every Question.
-                                </p>
-
-                            </div>
-                        </section>
-                    `;
-                }
-
-                try {
-                    localStorage.removeItem(
-                        "atharv_chat_history_v18"
-                    );
-                } catch (_) {}
-
-                closeMenu();
-            }
-        );
-    }
-
-
-    /* Clear Chat */
-
-    const clearChat =
-        document.getElementById(
-            "clearChatButton"
-        );
-
-    if (clearChat) {
-
-        clearChat.addEventListener(
-            "click",
-            function () {
-
-                const messages =
-                    document.getElementById(
-                        "chatMessages"
-                    );
-
-                if (messages) {
-
-                    messages.innerHTML = `
-                        <section
-                            id="welcomeScreen"
-                            class="welcome"
-                        >
-                            <div class="welcome-inner">
-
-                                <div class="welcome-logo">
-                                    A
-                                </div>
-
-                                <h1>
-                                    How can I help you?
-                                </h1>
-
-                                <p>
-                                    Your AI. Every Language. Every Question.
-                                </p>
-
-                            </div>
-                        </section>
-                    `;
-                }
-
-                try {
-                    localStorage.removeItem(
-                        "atharv_chat_history_v18"
-                    );
-                } catch (_) {}
-
-                closeMenu();
-            }
-        );
-    }
-
-
-    /* Attachment */
-
-    const attachmentButton =
-        document.getElementById(
-            "attachmentButton"
-        );
-
-    const fileInput =
-        document.getElementById(
-            "fileInput"
-        );
-
-
-    if (
-        attachmentButton &&
-        fileInput
-    ) {
-
-        attachmentButton.addEventListener(
-            "click",
-            function () {
-                fileInput.click();
-            }
-        );
-
-
-        fileInput.addEventListener(
-            "change",
-            function () {
-
-                if (
-                    fileInput.files &&
-                    fileInput.files.length
-                ) {
-
-                    const names =
-                        Array.from(
-                            fileInput.files
-                        )
-                        .map(
-                            file => file.name
-                        )
-                        .join(", ");
-
-
-                    const input =
-                        document.getElementById(
-                            "messageInput"
-                        );
-
-
-                    if (input) {
-
-                        input.value +=
-                            input.value
-                                ? `\n[Attached: ${names}]`
-                                : `[Attached: ${names}]`;
-
-                        input.focus();
-                    }
-                }
-            }
-        );
-    }
-
-
-    /* Voice */
-
-    const voiceButton =
-        document.getElementById(
-            "voiceButton"
-        );
-
-
-    if (voiceButton) {
-
-        voiceButton.addEventListener(
-            "click",
-            function () {
-
-                const SpeechRecognition =
-                    window.SpeechRecognition ||
-                    window.webkitSpeechRecognition;
-
-
-                if (!SpeechRecognition) {
-
-                    alert(
-                        "Voice input is not supported in this browser."
-                    );
-
-                    return;
-                }
-
-
-                const recognition =
-                    new SpeechRecognition();
-
-
-                recognition.lang =
-                    navigator.language ||
-                    "en-IN";
-
-
-                recognition.interimResults =
-                    false;
-
-
-                recognition.maxAlternatives =
-                    1;
-
-
-                recognition.onresult =
-                    function (event) {
-
-                        const text =
-                            event.results[0][0].transcript;
-
-
-                        const input =
-                            document.getElementById(
-                                "messageInput"
-                            );
-
-
-                        if (input) {
-
-                            input.value +=
-                                input.value
-                                    ? " " + text
-                                    : text;
-
-                            input.focus();
-
-                            input.dispatchEvent(
-                                new Event(
-                                    "input",
-                                    {
-                                        bubbles: true
-                                    }
-                                )
-                            );
-                        }
-                    };
-
-
-                recognition.onerror =
-                    function () {
-                        console.log(
-                            "Voice input error"
-                        );
-                    };
-
-
-                recognition.start();
-            }
-        );
-    }
-
-})();
-
-</script>
-
-
-<!-- =====================================================
-     ATHARV MAIN SCRIPT
-===================================================== -->
-
-<script src="script.js"></script>
-
-
-<!-- =====================================================
-     SERVICE WORKER
-===================================================== -->
-
-<script>
-
-if (
-    "serviceWorker" in navigator
-) {
-
-    window.addEventListener(
-        "load",
-        function () {
-
-            navigator.serviceWorker
-                .register(
-                    "./sw.js"
-                )
-                .catch(
-                    function (error) {
-                        console.log(
-                            "Service worker:",
-                            error
-                        );
-                    }
-                );
-
-        }
-    );
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./sw.js")
+            .catch(function (error) {
+                console.log("Service worker:", error);
+            });
+    });
 }
-
 </script>
 
 </body>
