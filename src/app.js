@@ -2424,8 +2424,82 @@ app.get(
     "/api/chat-test",
     async (req, res) => {
 
-        // Groq diagnostic code yahan hoga
+        const startedAt =
+            Date.now();
 
+        try {
+
+            if (!GROQ_API_KEY) {
+
+                return res
+                    .status(500)
+                    .json({
+                        ok: false,
+                        test: "groq",
+                        error:
+                            "GROQ_API_KEY is missing."
+                    });
+            }
+
+            const reply =
+                await callGroq(
+                    [
+                        {
+                            role: "user",
+                            content:
+                                "Reply with exactly: Atharv AI connection successful."
+                        }
+                    ],
+                    GROQ_MODEL
+                );
+
+            return res.json({
+
+                ok: true,
+
+                test: "groq",
+
+                model:
+                    GROQ_MODEL,
+
+                reply,
+
+                responseTimeMs:
+                    Date.now() -
+                    startedAt
+            });
+
+        } catch (error) {
+
+            console.error(
+                "CHAT TEST ERROR:",
+                error
+            );
+
+            return res
+                .status(
+                    Number(
+                        error?.status
+                    ) || 500
+                )
+                .json({
+
+                    ok: false,
+
+                    test: "groq",
+
+                    model:
+                        GROQ_MODEL,
+
+                    error:
+                        error?.message ||
+                        "Groq test failed.",
+
+                    responseTimeMs:
+                        Date.now() -
+                        startedAt
+                });
+        }
     }
 );
 
