@@ -2,60 +2,197 @@
 
 /*
 =========================================================
- ATHARV AI - CHAT ENGINE
- Version 22.0.3
+ ATHARV AI
+ CHAT ENGINE
+ Version 22.0.4 DEBUG
  --------------------------------------------------------
- - Stable /api/chat connection
- - Form + button compatible
- - Multiple response formats
- - Groq response handling
- - Local history
- - User ID / Session ID
- - Live Search
- - Thinking indicator
- - Toast
- - Duplicate-send protection
+ - Console ki zarurat nahi
+ - Screen DEBUG panel
+ - Exact API request/status/response
+ - Backend response extraction
+ - Mobile friendly
+ - Existing composer compatible
+ - /api/chat
+ - /api/chat/research
 =========================================================
 */
 
 (() => {
 
-    const VERSION = "22.0.3";
+    /* ==================================================
+       CONFIG
+    ================================================== */
 
     const API_BASE = window.location.origin;
 
-    const CHAT_ENDPOINT = `${API_BASE}/api/chat`;
-    const RESEARCH_ENDPOINT = `${API_BASE}/api/chat/research`;
+    const CHAT_ENDPOINT =
+        `${API_BASE}/api/chat`;
+
+    const RESEARCH_ENDPOINT =
+        `${API_BASE}/api/chat/research`;
 
     const REQUEST_TIMEOUT = 175000;
 
-    const HISTORY_KEY = "atharv_chat_history_v22";
-    const USER_ID_KEY = "atharv_user_id_v22";
-    const SESSION_ID_KEY = "atharv_session_id_v22";
-    const LIVE_KEY = "atharv_live_mode_v22";
+    const HISTORY_KEY =
+        "atharv_chat_history_v22";
+
+    const USER_ID_KEY =
+        "atharv_user_id_v22";
+
+    const SESSION_ID_KEY =
+        "atharv_session_id_v22";
+
+    const LIVE_KEY =
+        "atharv_live_mode_v22";
+
+
+    /* ==================================================
+       STATE
+    ================================================== */
 
     let history = [];
     let userId = "";
     let sessionId = "";
     let liveMode = false;
+
     let initialized = false;
     let sending = false;
 
 
     /* ==================================================
-       DOM
+       DEBUG PANEL
     ================================================== */
 
-    function getMessagesElement() {
-        return document.getElementById("messages");
+    function ensureDebugPanel() {
+
+        let panel = document.getElementById("atharvDebugPanel");
+
+        if (panel) return panel;
+
+        panel = document.createElement("div");
+
+        panel.id = "atharvDebugPanel";
+
+        panel.innerHTML = `
+            <div class="atharv-debug-head">
+                <strong>Atharv Debug</strong>
+                <button type="button" id="atharvDebugClear">Clear</button>
+                <button type="button" id="atharvDebugClose">×</button>
+            </div>
+
+            <div id="atharvDebugBody" class="atharv-debug-body">
+                Ready...
+            </div>
+        `;
+
+        Object.assign(panel.style, {
+            position: "fixed",
+            left: "10px",
+            right: "10px",
+            bottom: "10px",
+            zIndex: "999999",
+            background: "#ffffff",
+            color: "#111111",
+            border: "1px solid #d9d9d9",
+            borderRadius: "14px",
+            boxShadow: "0 8px 30px rgba(0,0,0,.18)",
+            fontFamily: "system-ui, sans-serif",
+            fontSize: "12px",
+            overflow: "hidden",
+            maxHeight: "45vh"
+        });
+
+        const head = panel.querySelector(".atharv-debug-head");
+
+        Object.assign(head.style, {
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "9px 10px",
+            borderBottom: "1px solid #eeeeee",
+            background: "#f7f7f7"
+        });
+
+        head.querySelector("strong").style.flex = "1";
+
+        panel.querySelectorAll("button").forEach(btn => {
+
+            Object.assign(btn.style, {
+                border: "1px solid #ddd",
+                background: "#fff",
+                borderRadius: "7px",
+                padding: "3px 8px",
+                cursor: "pointer"
+            });
+
+        });
+
+        const body = panel.querySelector(".atharv-debug-body");
+
+        Object.assign(body.style, {
+            padding: "9px",
+            overflowY: "auto",
+            maxHeight: "36vh",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word"
+        });
+
+        document.body.appendChild(panel);
+
+        panel.querySelector("#atharvDebugClear")
+            .addEventListener("click", () => {
+                body.textContent = "";
+            });
+
+        panel.querySelector("#atharvDebugClose")
+            .addEventListener("click", () => {
+                panel.remove();
+            });
+
+        return panel;
     }
 
-    function getTypingElement() {
-        return document.getElementById("typingIndicator");
-    }
 
-    function getInputElement() {
-        return document.getElementById("messageInput");
+    function debug(message, data = null) {
+
+        const panel = ensureDebugPanel();
+
+        const body =
+            panel.querySelector("#atharvDebugBody");
+
+        const time =
+            new Date().toLocaleTimeString();
+
+        let text =
+            `[${time}] ${message}`;
+
+        if (data !== null) {
+
+            try {
+
+                if (typeof data === "string") {
+                    text += `\n${data}`;
+                } else {
+                    text += `\n${JSON.stringify(data, null, 2)}`;
+                }
+
+            } catch {
+                text += `\n${String(data)}`;
+            }
+        }
+
+        const line =
+            document.createElement("div");
+
+        line.textContent = text;
+
+        line.style.padding = "5px 0";
+        line.style.borderBottom =
+            "1px solid #f0f0f0";
+
+        body.appendChild(line);
+
+        body.scrollTop = body.scrollHeight;
     }
 
 
@@ -64,90 +201,62 @@
     ================================================== */
 
     function safeGet(key, fallback = null) {
+
         try {
-            const value = localStorage.getItem(key);
-            return value === null ? fallback : value;
+
+            const value =
+                localStorage.getItem(key);
+
+            return value === null
+                ? fallback
+                : value;
+
         } catch {
+
             return fallback;
         }
     }
 
+
     function safeSet(key, value) {
+
         try {
-            localStorage.setItem(key, value);
-            return true;
-        } catch {
-            return false;
+
+            localStorage.setItem(
+                key,
+                value
+            );
+
+        } catch (error) {
+
+            debug(
+                "Storage write failed",
+                error.message
+            );
         }
     }
 
-    function safeRemove(key) {
-        try {
-            localStorage.removeItem(key);
-        } catch {}
-    }
-
-
-    /* ==================================================
-       ID
-    ================================================== */
-
-    function createId(prefix) {
-
-        return (
-            prefix +
-            "_" +
-            Date.now().toString(36) +
-            "_" +
-            Math.random().toString(36).slice(2, 10)
-        );
-    }
-
-
-    function loadIdentity() {
-
-        userId = safeGet(USER_ID_KEY, "");
-
-        if (!userId) {
-            userId = createId("user");
-            safeSet(USER_ID_KEY, userId);
-        }
-
-        sessionId = safeGet(SESSION_ID_KEY, "");
-
-        if (!sessionId) {
-            sessionId = createId("session");
-            safeSet(SESSION_ID_KEY, sessionId);
-        }
-    }
-
-
-    /* ==================================================
-       HISTORY
-    ================================================== */
 
     function loadHistory() {
 
         try {
 
-            const raw = safeGet(HISTORY_KEY, "[]");
-            const parsed = JSON.parse(raw);
+            const raw =
+                safeGet(HISTORY_KEY, "[]");
 
-            if (!Array.isArray(parsed)) {
-                history = [];
-                return;
+            const parsed =
+                JSON.parse(raw);
+
+            if (Array.isArray(parsed)) {
+
+                history =
+                    parsed.filter(item =>
+                        item &&
+                        typeof item.role === "string" &&
+                        typeof item.content === "string"
+                    );
+
             }
-
-            history = parsed
-                .filter(item =>
-                    item &&
-                    (
-                        item.role === "user" ||
-                        item.role === "assistant"
-                    ) &&
-                    typeof item.content === "string"
-                )
-                .slice(-100);
 
         } catch {
 
@@ -165,15 +274,65 @@
                 JSON.stringify(history.slice(-100))
             );
 
-        } catch {}
+        } catch (error) {
+
+            debug(
+                "History save failed",
+                error.message
+            );
+        }
     }
 
 
     /* ==================================================
-       LIVE SEARCH
+       IDS
     ================================================== */
 
-    function loadLiveMode() {
+    function makeId(prefix) {
+
+        return `${prefix}_${Date.now()}_${Math.random()
+            .toString(36)
+            .slice(2, 10)}`;
+    }
+
+
+    function loadIdentity() {
+
+        userId =
+            safeGet(
+                USER_ID_KEY,
+                ""
+            );
+
+        if (!userId) {
+
+            userId =
+                makeId("user");
+
+            safeSet(
+                USER_ID_KEY,
+                userId
+            );
+        }
+
+
+        sessionId =
+            safeGet(
+                SESSION_ID_KEY,
+                ""
+            );
+
+        if (!sessionId) {
+
+            sessionId =
+                makeId("session");
+
+            safeSet(
+                SESSION_ID_KEY,
+                sessionId
+            );
+        }
+
 
         liveMode =
             safeGet(
@@ -183,29 +342,13 @@
     }
 
 
-    function setLive(enabled) {
-
-        liveMode = Boolean(enabled);
-
-        safeSet(
-            LIVE_KEY,
-            String(liveMode)
-        );
-    }
-
-
-    function getLive() {
-        return liveMode;
-    }
-
-
     /* ==================================================
-       HTML / MARKDOWN
+       MARKDOWN
     ================================================== */
 
     function escapeHtml(value) {
 
-        return String(value || "")
+        return String(value)
             .replace(/&/g, "&amp;")
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
@@ -216,123 +359,118 @@
 
     function renderMarkdown(text) {
 
-        let value = escapeHtml(text);
+        let html =
+            escapeHtml(text);
 
-        const codeBlocks = [];
 
-        value = value.replace(
-            /```([\s\S]*?)```/g,
-            (match, code) => {
+        html =
+            html.replace(
+                /```([\s\S]*?)```/g,
+                "<pre><code>$1</code></pre>"
+            );
 
-                const token =
-                    `___ATHARV_CODE_${codeBlocks.length}___`;
 
-                codeBlocks.push(
-                    `<pre><code>${code.trim()}</code></pre>`
-                );
+        html =
+            html.replace(
+                /`([^`]+)`/g,
+                "<code>$1</code>"
+            );
 
-                return token;
-            }
-        );
 
-        value = value.replace(
-            /\*\*(.*?)\*\*/g,
-            "<strong>$1</strong>"
-        );
+        html =
+            html.replace(
+                /\*\*(.*?)\*\*/g,
+                "<strong>$1</strong>"
+            );
 
-        value = value.replace(
-            /`([^`]+)`/g,
-            "<code>$1</code>"
-        );
 
-        value = value.replace(
-            /^### (.*)$/gm,
-            "<h4>$1</h4>"
-        );
+        html =
+            html.replace(
+                /\*(.*?)\*/g,
+                "<em>$1</em>"
+            );
 
-        value = value.replace(
-            /^## (.*)$/gm,
-            "<h3>$1</h3>"
-        );
 
-        value = value.replace(
-            /^# (.*)$/gm,
-            "<h2>$1</h2>"
-        );
+        html =
+            html.replace(
+                /\n/g,
+                "<br>"
+            );
 
-        value = value.replace(
-            /\n/g,
-            "<br>"
-        );
 
-        codeBlocks.forEach(
-            (block, index) => {
-
-                value = value.replace(
-                    `___ATHARV_CODE_${index}___`,
-                    block
-                );
-            }
-        );
-
-        return value;
+        return html;
     }
 
 
     /* ==================================================
-       RENDER
+       MESSAGE UI
     ================================================== */
+
+    function getMessagesElement() {
+
+        return document.getElementById("messages");
+    }
+
 
     function renderMessage(role, content) {
 
-        const container =
+        const messages =
             getMessagesElement();
 
-        if (!container) {
+        if (!messages) {
+
+            debug(
+                "ERROR: #messages element not found"
+            );
+
             return;
         }
 
-        const wrapper =
+
+        const row =
             document.createElement("div");
 
-        wrapper.className =
+        row.className =
             `message-row ${role}`;
+
 
         const bubble =
             document.createElement("div");
 
         bubble.className =
-            "message-bubble";
+            `message-bubble ${role}`;
 
-        if (role === "assistant") {
 
-            bubble.innerHTML =
-                renderMarkdown(content);
+        bubble.innerHTML =
+            renderMarkdown(content);
 
-        } else {
 
-            bubble.textContent =
-                content;
-        }
+        row.appendChild(bubble);
 
-        wrapper.appendChild(bubble);
-        container.appendChild(wrapper);
+        messages.appendChild(row);
 
-        container.scrollTop =
-            container.scrollHeight;
+        messages.scrollTop =
+            messages.scrollHeight;
     }
 
 
     function renderHistory() {
 
-        const container =
+        const messages =
             getMessagesElement();
 
-        if (!container) {
+        if (!messages) {
+
+            debug(
+                "ERROR: #messages missing"
+            );
+
             return;
         }
 
-        container.innerHTML = "";
+
+        messages.innerHTML = "";
+
 
         history.forEach(item => {
 
@@ -340,6 +478,7 @@
                 item.role,
                 item.content
             );
+
         });
     }
 
@@ -350,29 +489,26 @@
 
     function setThinking(active) {
 
-        const element =
-            getTypingElement();
+        const indicator =
+            document.getElementById(
+                "typingIndicator"
+            );
 
-        if (!element) {
-            return;
-        }
+        if (!indicator) return;
 
-        element.classList.toggle(
-            "show",
-            Boolean(active)
-        );
+        indicator.hidden =
+            !active;
 
-        element.setAttribute(
-            "aria-hidden",
-            active ? "false" : "true"
-        );
+        if (active) {
 
-        const container =
-            getMessagesElement();
+            const messages =
+                getMessagesElement();
 
-        if (active && container) {
-            container.scrollTop =
-                container.scrollHeight;
+            if (messages) {
+
+                messages.scrollTop =
+                    messages.scrollHeight;
+            }
         }
     }
 
@@ -383,39 +519,111 @@
 
     function showToast(message) {
 
-        const text =
-            String(message || "").trim();
-
-        if (!text) {
-            return;
-        }
-
         let toast =
             document.getElementById("toast");
 
         if (!toast) {
 
             toast =
+                document.getElementById(
+                    "atharvToast"
+                );
+        }
+
+        if (!toast) {
+
+            toast =
                 document.createElement("div");
 
-            toast.id = "toast";
-            toast.className = "toast";
+            toast.id =
+                "atharvToast";
+
+            Object.assign(toast.style, {
+                position: "fixed",
+                left: "50%",
+                bottom: "90px",
+                transform: "translateX(-50%)",
+                zIndex: "999998",
+                background: "#111",
+                color: "#fff",
+                padding: "10px 15px",
+                borderRadius: "10px",
+                maxWidth: "90%",
+                textAlign: "center"
+            });
 
             document.body.appendChild(toast);
         }
 
-        toast.textContent = text;
 
-        toast.classList.add("show");
+        toast.textContent =
+            message;
 
-        clearTimeout(toast._timer);
+        toast.hidden = false;
+
+        clearTimeout(
+            toast._timer
+        );
 
         toast._timer =
             setTimeout(() => {
 
-                toast.classList.remove("show");
+                toast.hidden = true;
 
             }, 3500);
+    }
+
+
+    /* ==================================================
+       EXTRACT REPLY
+    ================================================== */
+
+    function extractReply(data) {
+
+        if (!data) return "";
+
+
+        const candidates = [
+
+            data.reply,
+            data.response,
+            data.answer,
+            data.content,
+            data.message,
+            data.text,
+
+            data.result?.reply,
+            data.result?.response,
+            data.result?.answer,
+            data.result?.content,
+            data.result?.message,
+            data.result?.text,
+
+            data.data?.reply,
+            data.data?.response,
+            data.data?.answer,
+            data.data?.content,
+            data.data?.message,
+            data.data?.text,
+
+            data.choices?.[0]?.message?.content,
+            data.choices?.[0]?.text
+        ];
+
+
+        for (const item of candidates) {
+
+            if (
+                typeof item === "string" &&
+                item.trim()
+            ) {
+
+                return item.trim();
+            }
+        }
+
+
+        return "";
     }
 
 
@@ -423,27 +631,28 @@
        REQUEST
     ================================================== */
 
-    async function request(url, payload) {
+    async function request(
+        url,
+        payload
+    ) {
 
-        console.log(
-            "[Atharv AI] POST:",
-            url
+        debug(
+            "POST REQUEST",
+            {
+                url,
+                payload
+            }
         );
 
-        console.log(
-            "[Atharv AI] Payload:",
-            payload
-        );
 
         const controller =
             new AbortController();
 
-        const timeout =
-            setTimeout(() => {
-
-                controller.abort();
-
-            }, REQUEST_TIMEOUT);
+        const timer =
+            setTimeout(
+                () => controller.abort(),
+                REQUEST_TIMEOUT
+            );
 
 
         try {
@@ -471,61 +680,73 @@
                 );
 
 
-            const rawText =
+            debug(
+                "HTTP STATUS",
+                `${response.status} ${response.statusText}`
+            );
+
+
+            const raw =
                 await response.text();
 
 
-            console.log(
-                "[Atharv AI] HTTP:",
-                response.status
-            );
-
-            console.log(
-                "[Atharv AI] RAW RESPONSE:",
-                rawText
+            debug(
+                "RAW RESPONSE",
+                raw || "(EMPTY RESPONSE)"
             );
 
 
-            let data = {};
+            let data = null;
 
-            if (rawText) {
 
-                try {
+            try {
 
-                    data =
-                        JSON.parse(rawText);
+                data =
+                    raw
+                        ? JSON.parse(raw)
+                        : null;
 
-                } catch {
+            } catch (error) {
 
-                    data = {
-                        reply: rawText
-                    };
-                }
+                debug(
+                    "JSON PARSE ERROR",
+                    error.message
+                );
+
+                throw new Error(
+                    `Server ne valid JSON nahi bheja. HTTP ${response.status}`
+                );
             }
 
 
             if (!response.ok) {
 
-                throw new Error(
+                const serverMessage =
+                    extractReply(data) ||
                     data?.error ||
-                    data?.message ||
-                    `Server error (${response.status})`
+                    data?.detail ||
+                    `HTTP ${response.status}`;
+
+                throw new Error(
+                    serverMessage
                 );
             }
 
 
-            if (data?.ok === false) {
+            if (
+                data &&
+                data.ok === false
+            ) {
 
                 throw new Error(
-                    data?.error ||
-                    data?.message ||
-                    "AI request failed."
+                    data.error ||
+                    data.message ||
+                    "Server returned ok:false"
                 );
             }
 
 
             return data;
-
 
         } catch (error) {
 
@@ -534,76 +755,27 @@
                 "AbortError"
             ) {
 
+                debug(
+                    "REQUEST TIMEOUT"
+                );
+
                 throw new Error(
-                    "Request timed out. Please try again."
+                    "Server response mein bahut time lag raha hai."
                 );
             }
 
-            throw error;
 
+            debug(
+                "REQUEST ERROR",
+                error?.message || String(error)
+            );
+
+            throw error;
 
         } finally {
 
-            clearTimeout(timeout);
+            clearTimeout(timer);
         }
-    }
-
-
-    /* ==================================================
-       EXTRACT REPLY
-    ================================================== */
-
-    function extractReply(data) {
-
-        if (typeof data === "string") {
-            return data.trim();
-        }
-
-        const candidates = [
-
-            data?.reply,
-
-            data?.response,
-
-            data?.answer,
-
-            data?.content,
-
-            data?.message,
-
-            data?.text,
-
-            data?.result?.reply,
-
-            data?.result?.response,
-
-            data?.result?.content,
-
-            data?.data?.reply,
-
-            data?.data?.response,
-
-            data?.data?.content,
-
-            data?.choices?.[0]?.message?.content,
-
-            data?.choices?.[0]?.text
-        ];
-
-
-        for (const value of candidates) {
-
-            if (
-                typeof value === "string" &&
-                value.trim()
-            ) {
-
-                return value.trim();
-            }
-        }
-
-
-        return "";
     }
 
 
@@ -619,23 +791,17 @@
         return request(
             CHAT_ENDPOINT,
             {
-                message: message,
-
-                history:
-                    previousHistory,
-
-                userId:
-                    userId,
-
-                sessionId:
-                    sessionId
+                message,
+                history: previousHistory,
+                userId,
+                sessionId
             }
         );
     }
 
 
     /* ==================================================
-       RESEARCH CHAT
+       LIVE RESEARCH
     ================================================== */
 
     async function researchChat(
@@ -646,16 +812,10 @@
         return request(
             RESEARCH_ENDPOINT,
             {
-                message: message,
-
-                history:
-                    previousHistory,
-
-                userId:
-                    userId,
-
-                sessionId:
-                    sessionId
+                message,
+                history: previousHistory,
+                userId,
+                sessionId
             }
         );
     }
@@ -667,21 +827,15 @@
 
     async function send(userMessage) {
 
-        if (sending) {
-            return false;
-        }
-
-
         const message =
-            String(
-                userMessage || ""
-            ).trim();
+            String(userMessage || "")
+                .trim();
 
 
         if (!message) {
 
-            showToast(
-                "Message empty hai."
+            debug(
+                "SEND CANCELLED: empty message"
             );
 
             return false;
@@ -698,7 +852,23 @@
         }
 
 
+        if (sending) {
+
+            debug(
+                "SEND IGNORED: another request already running"
+            );
+
+            return false;
+        }
+
+
         sending = true;
+
+
+        debug(
+            "SEND STARTED",
+            message
+        );
 
 
         const previousHistory =
@@ -712,7 +882,12 @@
 
 
         saveHistory();
-        renderHistory();
+
+        renderMessage(
+            "user",
+            message
+        );
+
         setThinking(true);
 
 
@@ -723,6 +898,11 @@
 
             if (liveMode) {
 
+                debug(
+                    "LIVE MODE ON"
+                );
+
+
                 try {
 
                     data =
@@ -731,16 +911,13 @@
                             previousHistory
                         );
 
-                } catch (error) {
+                } catch (researchError) {
 
-                    console.warn(
-                        "[Atharv AI] Research failed:",
-                        error
+                    debug(
+                        "LIVE SEARCH FAILED - NORMAL CHAT FALLBACK",
+                        researchError.message
                     );
 
-                    showToast(
-                        "Live Search unavailable. Normal AI se answer de raha hoon."
-                    );
 
                     data =
                         await normalChat(
@@ -751,6 +928,11 @@
 
             } else {
 
+                debug(
+                    "NORMAL CHAT MODE"
+                );
+
+
                 data =
                     await normalChat(
                         message,
@@ -759,8 +941,8 @@
             }
 
 
-            console.log(
-                "[Atharv AI] Final data:",
+            debug(
+                "PARSED RESPONSE",
                 data
             );
 
@@ -769,10 +951,16 @@
                 extractReply(data);
 
 
+            debug(
+                "EXTRACTED REPLY",
+                reply || "(EMPTY)"
+            );
+
+
             if (!reply) {
 
                 throw new Error(
-                    "Server se empty AI response mila."
+                    "Backend response mila, lekin reply text nahi mila."
                 );
             }
 
@@ -784,36 +972,45 @@
 
 
             saveHistory();
-            renderHistory();
+
+            renderMessage(
+                "assistant",
+                reply
+            );
+
+
+            debug(
+                "SEND SUCCESS"
+            );
 
 
             return true;
 
-
         } catch (error) {
 
-            console.error(
-                "[Atharv AI] SEND ERROR:",
-                error
+            debug(
+                "SEND FAILED",
+                error?.message || String(error)
             );
 
 
-            const last =
-                history[history.length - 1];
+            const lastUserIndex =
+                history
+                    .map(item => item.role)
+                    .lastIndexOf("user");
 
 
             if (
-                last &&
-                last.role === "user" &&
-                last.content === message
+                lastUserIndex !== -1
             ) {
 
-                history.pop();
+                history.splice(
+                    lastUserIndex,
+                    1
+                );
+
+                saveHistory();
             }
-
-
-            saveHistory();
-            renderHistory();
 
 
             showToast(
@@ -824,19 +1021,22 @@
 
             return false;
 
-
         } finally {
 
             setThinking(false);
 
             sending = false;
+
+
+            debug(
+                "SEND FINISHED"
+            );
         }
     }
 
 
     /* ==================================================
-       FORM CONNECTION
-       Extra safety: chat engine itself can submit form.
+       FORM BINDING
     ================================================== */
 
     function bindForm() {
@@ -846,21 +1046,28 @@
                 "composer"
             );
 
+
         if (!form) {
+
+            debug(
+                "ERROR: #composer not found"
+            );
+
             return;
         }
 
 
         if (
-            form.dataset.atharvBound ===
-            "true"
+            form.dataset
+                .atharvBound === "true"
         ) {
+
             return;
         }
 
 
-        form.dataset.atharvBound =
-            "true";
+        form.dataset
+            .atharvBound = "true";
 
 
         form.addEventListener(
@@ -868,14 +1075,20 @@
             async event => {
 
                 event.preventDefault();
-                event.stopPropagation();
 
 
                 const input =
-                    getInputElement();
+                    document.getElementById(
+                        "messageInput"
+                    );
 
 
                 if (!input) {
+
+                    debug(
+                        "ERROR: #messageInput not found"
+                    );
+
                     return;
                 }
 
@@ -885,9 +1098,19 @@
 
 
                 if (!value) {
-                    input.focus();
+
+                    debug(
+                        "SUBMIT: empty input"
+                    );
+
                     return;
                 }
+
+
+                debug(
+                    "FORM SUBMIT",
+                    value
+                );
 
 
                 const success =
@@ -897,18 +1120,24 @@
                 if (success) {
 
                     input.value = "";
-                    input.style.height = "auto";
 
                     try {
+
                         localStorage.removeItem(
                             "atharv_draft_v22"
                         );
+
                     } catch {}
                 }
 
 
                 input.focus();
             }
+        );
+
+
+        debug(
+            "Composer submit listener attached"
         );
     }
 
@@ -925,7 +1154,37 @@
 
         renderHistory();
 
-        setThinking(false);
+        debug(
+            "CHAT CLEARED"
+        );
+    }
+
+
+    /* ==================================================
+       LIVE MODE
+    ================================================== */
+
+    function getLive() {
+
+        return liveMode;
+    }
+
+
+    function setLive(value) {
+
+        liveMode =
+            Boolean(value);
+
+        safeSet(
+            LIVE_KEY,
+            String(liveMode)
+        );
+
+
+        debug(
+            "LIVE MODE",
+            liveMode
+        );
     }
 
 
@@ -935,15 +1194,8 @@
 
     function init() {
 
-        loadIdentity();
-        loadHistory();
-        loadLiveMode();
-
-        renderHistory();
-
-        bindForm();
-
         if (initialized) {
+
             return;
         }
 
@@ -951,13 +1203,52 @@
         initialized = true;
 
 
-        console.log(
-            `[Atharv AI] Chat engine ${VERSION} initialized`
+        debug(
+            "Atharv Chat v22.0.4 starting..."
         );
 
-        console.log(
-            "[Atharv AI] API:",
+
+        loadIdentity();
+
+        loadHistory();
+
+        bindForm();
+
+        renderHistory();
+
+
+        debug(
+            "API BASE",
+            API_BASE
+        );
+
+
+        debug(
+            "CHAT ENDPOINT",
             CHAT_ENDPOINT
+        );
+
+
+        debug(
+            "USER ID",
+            userId
+        );
+
+
+        debug(
+            "SESSION ID",
+            sessionId
+        );
+
+
+        debug(
+            "HISTORY COUNT",
+            history.length
+        );
+
+
+        debug(
+            "READY - Message bhejo."
         );
     }
 
@@ -969,7 +1260,7 @@
     window.AtharvChat = {
 
         version:
-            VERSION,
+            "22.0.4",
 
         init,
 
@@ -994,8 +1285,32 @@
 
         renderHistory,
 
-        setThinking
+        setThinking,
+
+        debug
     };
 
+
+    /* ==================================================
+       AUTO INIT
+    ================================================== */
+
+    if (
+        document.readyState ===
+        "loading"
+    ) {
+
+        document.addEventListener(
+            "DOMContentLoaded",
+            init,
+            {
+                once: true
+            }
+        );
+
+    } else {
+
+        init();
+    }
 
 })();
