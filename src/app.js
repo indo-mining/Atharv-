@@ -3,7 +3,7 @@
 /*
 =========================================================
  ATHARV AI - BACKEND
- Version 22.0.0
+ Version 22.0.1
  --------------------------------------------------------
  - Express 5
  - Groq AI
@@ -16,6 +16,8 @@
  - Compression
  - Rate limiting
  - Graceful shutdown
+ - Groq diagnostics
+ - Chat test endpoint
 =========================================================
 */
 
@@ -34,8 +36,11 @@ let Pool = null;
 try {
     ({ Pool } = require("pg"));
 } catch {
-    console.warn("pg package not available. Database memory will use fallback.");
+    console.warn(
+        "pg package not available. Database memory will use fallback."
+    );
 }
+
 
 /* ======================================================
    CONFIG
@@ -43,12 +48,25 @@ try {
 
 const app = express();
 
-const PORT = Number(process.env.PORT || 10000);
-const HOST = process.env.HOST || "0.0.0.0";
+const PORT =
+    Number(process.env.PORT || 10000);
 
-const VERSION = "22.0.0";
+const HOST =
+    process.env.HOST || "0.0.0.0";
 
-const GROQ_API_KEY = String(process.env.GROQ_API_KEY || "").trim();
+const VERSION =
+    "22.0.1";
+
+
+/* ======================================================
+   GROQ
+====================================================== */
+
+const GROQ_API_KEY =
+    String(
+        process.env.GROQ_API_KEY || ""
+    ).trim();
+
 
 const GROQ_MODEL =
     String(
@@ -56,49 +74,112 @@ const GROQ_MODEL =
         "openai/gpt-oss-120b"
     ).trim();
 
+
 const GROQ_FALLBACK_MODEL =
     String(
         process.env.GROQ_FALLBACK_MODEL ||
         "openai/gpt-oss-20b"
     ).trim();
 
+
+const GROQ_TIMEOUT_MS =
+    150000;
+
+
+/* ======================================================
+   TAVILY
+====================================================== */
+
 const TAVILY_API_KEY =
-    String(process.env.TAVILY_API_KEY || "").trim();
+    String(
+        process.env.TAVILY_API_KEY || ""
+    ).trim();
+
+
+/* ======================================================
+   DATABASE
+====================================================== */
 
 const DATABASE_URL =
-    String(process.env.DATABASE_URL || "").trim();
+    String(
+        process.env.DATABASE_URL || ""
+    ).trim();
 
-const GROQ_TIMEOUT_MS = 150000;
 
-const MAX_MESSAGE_CHARS = 12000;
-const MAX_HISTORY_ITEMS = 20;
-const MAX_HISTORY_CHARS = 12000;
+/* ======================================================
+   LIMITS
+====================================================== */
 
-const MAX_RESEARCH_CHARS = 7000;
+const MAX_MESSAGE_CHARS =
+    12000;
 
-const ROOT_DIR = path.resolve(__dirname, "..");
-const PUBLIC_DIR = path.join(ROOT_DIR, "public");
-const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
+const MAX_HISTORY_ITEMS =
+    20;
+
+const MAX_HISTORY_CHARS =
+    12000;
+
+const MAX_RESEARCH_CHARS =
+    7000;
+
+
+/* ======================================================
+   PATHS
+====================================================== */
+
+const ROOT_DIR =
+    path.resolve(
+        __dirname,
+        ".."
+    );
+
+
+const PUBLIC_DIR =
+    path.join(
+        ROOT_DIR,
+        "public"
+    );
+
+
+const INDEX_FILE =
+    path.join(
+        PUBLIC_DIR,
+        "index.html"
+    );
+
 
 /* ======================================================
    BASIC CHECK
 ====================================================== */
 
-if (!fs.existsSync(PUBLIC_DIR)) {
-    console.warn("WARNING: public directory not found:", PUBLIC_DIR);
+if (
+    !fs.existsSync(
+        PUBLIC_DIR
+    )
+) {
+
+    console.warn(
+        "WARNING: public directory not found:",
+        PUBLIC_DIR
+    );
 }
+
 
 /* ======================================================
    MIDDLEWARE
 ====================================================== */
 
-app.disable("x-powered-by");
+app.disable(
+    "x-powered-by"
+);
+
 
 app.use(
     helmet({
         contentSecurityPolicy: false
     })
 );
+
 
 app.use(
     cors({
@@ -107,13 +188,18 @@ app.use(
     })
 );
 
-app.use(compression());
+
+app.use(
+    compression()
+);
+
 
 app.use(
     express.json({
         limit: "2mb"
     })
 );
+
 
 app.use(
     express.urlencoded({
@@ -122,102 +208,215 @@ app.use(
     })
 );
 
+
 /* ======================================================
    SIMPLE RATE LIMIT
 ====================================================== */
 
-const rateMap = new Map();
+const rateMap =
+    new Map();
 
-const RATE_WINDOW_MS = 60 * 1000;
-const RATE_LIMIT = 30;
 
-function rateLimit(req, res, next) {
+const RATE_WINDOW_MS =
+    60 * 1000;
+
+
+const RATE_LIMIT =
+    30;
+
+
+function rateLimit(
+    req,
+    res,
+    next
+) {
+
     const ip =
-        req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+        req.headers[
+            "x-forwarded-for"
+        ]
+            ?.split(",")[0]
+            ?.trim() ||
         req.socket.remoteAddress ||
         "unknown";
 
-    const now = Date.now();
 
-    let record = rateMap.get(ip);
+    const now =
+        Date.now();
 
-    if (!record || now - record.start > RATE_WINDOW_MS) {
+
+    let record =
+        rateMap.get(ip);
+
+
+    if (
+        !record ||
+        now - record.start >
+            RATE_WINDOW_MS
+    ) {
+
         record = {
             start: now,
             count: 0
         };
     }
 
+
     record.count += 1;
 
-    rateMap.set(ip, record);
 
-    if (record.count > RATE_LIMIT) {
-        return res.status(429).json({
-            ok: false,
-            error: "Too many requests. Please wait a moment."
-        });
+    rateMap.set(
+        ip,
+        record
+    );
+
+
+    if (
+        record.count >
+        RATE_LIMIT
+    ) {
+
+        return res
+            .status(429)
+            .json({
+                ok: false,
+                error:
+                    "Too many requests. Please wait a moment."
+            });
     }
+
 
     next();
 }
 
-app.use("/api", rateLimit);
+
+app.use(
+    "/api",
+    rateLimit
+);
+
 
 /* ======================================================
    MEMORY
 ====================================================== */
 
-let pool = null;
+let pool =
+    null;
 
-const memoryFallback = new Map();
 
-function normalizeUserId(value) {
-    const raw = String(value || "guest").trim();
+const memoryFallback =
+    new Map();
+
+
+function normalizeUserId(
+    value
+) {
+
+    const raw =
+        String(
+            value || "guest"
+        ).trim();
+
 
     if (!raw) {
         return "guest";
     }
 
-    return raw
-        .replace(/[^a-zA-Z0-9_.-]/g, "_")
-        .slice(0, 120) || "guest";
+
+    return (
+        raw
+            .replace(
+                /[^a-zA-Z0-9_.-]/g,
+                "_"
+            )
+            .slice(
+                0,
+                120
+            ) ||
+        "guest"
+    );
 }
 
-function normalizeMemoryKey(value) {
-    return String(value || "")
+
+function normalizeMemoryKey(
+    value
+) {
+
+    return String(
+        value || ""
+    )
         .trim()
-        .replace(/\s+/g, " ")
-        .slice(0, 100);
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .slice(
+            0,
+            100
+        );
 }
 
-function normalizeMemoryValue(value) {
-    return String(value || "")
+
+function normalizeMemoryValue(
+    value
+) {
+
+    return String(
+        value || ""
+    )
         .trim()
-        .replace(/\s+/g, " ")
-        .slice(0, 1000);
+        .replace(
+            /\s+/g,
+            " "
+        )
+        .slice(
+            0,
+            1000
+        );
 }
+
 
 /* ======================================================
    DATABASE INIT
 ====================================================== */
 
 async function initDatabase() {
-    if (!DATABASE_URL || !Pool) {
-        console.log("Database unavailable. Using memory fallback.");
+
+    if (
+        !DATABASE_URL ||
+        !Pool
+    ) {
+
+        console.log(
+            "Database unavailable. Using memory fallback."
+        );
+
         return;
     }
 
+
     try {
-        pool = new Pool({
-            connectionString: DATABASE_URL,
-            ssl: {
-                rejectUnauthorized: false
-            },
-            max: 5,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 10000
-        });
+
+        pool =
+            new Pool({
+
+                connectionString:
+                    DATABASE_URL,
+
+                ssl: {
+                    rejectUnauthorized:
+                        false
+                },
+
+                max: 5,
+
+                idleTimeoutMillis:
+                    30000,
+
+                connectionTimeoutMillis:
+                    10000
+            });
+
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_memories (
@@ -231,65 +430,144 @@ async function initDatabase() {
             )
         `);
 
-        console.log("PostgreSQL connected.");
+
+        console.log(
+            "PostgreSQL connected."
+        );
+
     } catch (error) {
-        console.error("Database initialization failed:", error.message);
-        pool = null;
+
+        console.error(
+            "Database initialization failed:",
+            error.message
+        );
+
+        pool =
+            null;
     }
 }
 
+
 /* ======================================================
-   MEMORY FUNCTIONS
+   MEMORY GET
 ====================================================== */
 
-async function getMemories(userId, limit = 20) {
-    const uid = normalizeUserId(userId);
+async function getMemories(
+    userId,
+    limit = 20
+) {
+
+    const uid =
+        normalizeUserId(
+            userId
+        );
+
 
     if (pool) {
+
         try {
-            const result = await pool.query(
-                `
-                SELECT memory_key, memory_value
-                FROM user_memories
-                WHERE user_id = $1
-                ORDER BY updated_at DESC
-                LIMIT $2
-                `,
-                [uid, limit]
-            );
+
+            const result =
+                await pool.query(
+                    `
+                    SELECT memory_key, memory_value
+                    FROM user_memories
+                    WHERE user_id = $1
+                    ORDER BY updated_at DESC
+                    LIMIT $2
+                    `,
+                    [
+                        uid,
+                        limit
+                    ]
+                );
+
 
             return result.rows;
+
         } catch (error) {
-            console.error("Memory GET DB error:", error.message);
+
+            console.error(
+                "Memory GET DB error:",
+                error.message
+            );
         }
     }
 
-    const userMemory = memoryFallback.get(uid);
+
+    const userMemory =
+        memoryFallback.get(
+            uid
+        );
+
 
     if (!userMemory) {
         return [];
     }
 
-    return Array.from(userMemory.entries())
-        .slice(-limit)
+
+    return Array.from(
+        userMemory.entries()
+    )
+        .slice(
+            -limit
+        )
         .reverse()
-        .map(([memory_key, memory_value]) => ({
-            memory_key,
-            memory_value
-        }));
+        .map(
+            ([
+                memory_key,
+                memory_value
+            ]) => ({
+                memory_key,
+                memory_value
+            })
+        );
 }
 
-async function saveMemory(userId, key, value) {
-    const uid = normalizeUserId(userId);
-    const memoryKey = normalizeMemoryKey(key);
-    const memoryValue = normalizeMemoryValue(value);
 
-    if (!memoryKey || !memoryValue) {
-        throw new Error("Memory key and value are required.");
+/* ======================================================
+   MEMORY SAVE
+====================================================== */
+
+async function saveMemory(
+    userId,
+    key,
+    value
+) {
+
+    const uid =
+        normalizeUserId(
+            userId
+        );
+
+
+    const memoryKey =
+        normalizeMemoryKey(
+            key
+        );
+
+
+    const memoryValue =
+        normalizeMemoryValue(
+            value
+        );
+
+
+    if (
+        !memoryKey ||
+        !memoryValue
+    ) {
+
+        throw new Error(
+            "Memory key and value are required."
+        );
     }
 
+
     if (pool) {
+
         try {
+
             await pool.query(
                 `
                 INSERT INTO user_memories
@@ -301,39 +579,73 @@ async function saveMemory(userId, key, value) {
                     memory_value = EXCLUDED.memory_value,
                     updated_at = NOW()
                 `,
-                [uid, memoryKey, memoryValue]
+                [
+                    uid,
+                    memoryKey,
+                    memoryValue
+                ]
             );
 
+
             return;
+
         } catch (error) {
-            console.error("Memory SAVE DB error:", error.message);
+
+            console.error(
+                "Memory SAVE DB error:",
+                error.message
+            );
         }
     }
 
-    if (!memoryFallback.has(uid)) {
-        memoryFallback.set(uid, new Map());
+
+    if (
+        !memoryFallback.has(uid)
+    ) {
+
+        memoryFallback.set(
+            uid,
+            new Map()
+        );
     }
+
 
     memoryFallback
         .get(uid)
-        .set(memoryKey, memoryValue);
+        .set(
+            memoryKey,
+            memoryValue
+        );
 }
+
 
 /* ======================================================
    SYSTEM PROMPT
 ====================================================== */
 
-function getSystemPrompt(memories = []) {
-    let memoryText = "";
+function getSystemPrompt(
+    memories = []
+) {
 
-    if (memories.length) {
-        memoryText = memories
-            .map(
-                item =>
-                    `${item.memory_key}: ${item.memory_value}`
-            )
-            .join("\n");
+    let memoryText =
+        "";
+
+
+    if (
+        memories.length
+    ) {
+
+        memoryText =
+            memories
+                .map(
+                    item =>
+                        `${item.memory_key}: ${item.memory_value}`
+                )
+                .join(
+                    "\n"
+                );
     }
+
 
     return `
 You are Atharv AI.
@@ -365,159 +677,380 @@ ${memoryText || "No saved memories."}
 `;
 }
 
+
 /* ======================================================
    MESSAGE NORMALIZATION
 ====================================================== */
 
-function normalizeMessages(history) {
-    if (!Array.isArray(history)) {
+function normalizeMessages(
+    history
+) {
+
+    if (
+        !Array.isArray(
+            history
+        )
+    ) {
+
         return [];
     }
 
-    let totalChars = 0;
 
-    const output = [];
+    let totalChars =
+        0;
+
+
+    const output =
+        [];
+
 
     for (
-        let i = history.length - 1;
-        i >= 0 && output.length < MAX_HISTORY_ITEMS;
+        let i =
+            history.length - 1;
+
+        i >= 0 &&
+        output.length <
+            MAX_HISTORY_ITEMS;
+
         i--
     ) {
-        const item = history[i];
 
-        if (!item || typeof item !== "object") {
+        const item =
+            history[i];
+
+
+        if (
+            !item ||
+            typeof item !==
+                "object"
+        ) {
+
             continue;
         }
 
+
         const role =
-            item.role === "assistant"
+            item.role ===
+                "assistant"
                 ? "assistant"
-                : item.role === "user"
+                : item.role ===
+                    "user"
                     ? "user"
                     : null;
+
 
         if (!role) {
             continue;
         }
 
-        const content = String(
-            item.content ||
-            item.message ||
-            item.text ||
-            ""
-        )
-            .trim()
-            .slice(0, MAX_HISTORY_CHARS);
+
+        const content =
+            String(
+                item.content ||
+                item.message ||
+                item.text ||
+                ""
+            )
+                .trim()
+                .slice(
+                    0,
+                    MAX_HISTORY_CHARS
+                );
+
 
         if (!content) {
             continue;
         }
 
+
         if (
-            totalChars + content.length >
+            totalChars +
+                content.length >
             MAX_HISTORY_CHARS
         ) {
+
             break;
         }
+
 
         output.unshift({
             role,
             content
         });
 
-        totalChars += content.length;
+
+        totalChars +=
+            content.length;
     }
+
 
     return output;
 }
 
+
 /* ======================================================
-   GROQ
+   GROQ ERROR FORMAT
 ====================================================== */
 
-async function callGroq(messages, model) {
-    if (!GROQ_API_KEY) {
+function formatGroqError(
+    status,
+    data
+) {
+
+    const apiError =
+        data?.error;
+
+
+    const message =
+        apiError?.message ||
+        data?.message ||
+        data?.raw ||
+        `Groq HTTP ${status}`;
+
+
+    let result =
+        String(
+            message
+        ).trim();
+
+
+    if (
+        apiError?.type
+    ) {
+
+        result +=
+            ` [${apiError.type}]`;
+    }
+
+
+    return result;
+}
+
+
+/* ======================================================
+   GROQ REQUEST
+====================================================== */
+
+async function callGroq(
+    messages,
+    model
+) {
+
+    if (
+        !GROQ_API_KEY
+    ) {
+
         throw new Error(
             "GROQ_API_KEY is not configured on the server."
         );
     }
 
-    const controller = new AbortController();
 
-    const timeout = setTimeout(() => {
-        controller.abort();
-    }, GROQ_TIMEOUT_MS);
+    if (
+        !model
+    ) {
 
-    try {
-        const response = await fetch(
-            "https://api.groq.com/openai/v1/chat/completions",
-            {
-                method: "POST",
+        throw new Error(
+            "Groq model is not configured."
+        );
+    }
 
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization:
-                        `Bearer ${GROQ_API_KEY}`
-                },
 
-                body: JSON.stringify({
-                    model,
-                    messages,
-                    temperature: 0.2,
-                    max_tokens: 4096
-                }),
+    const controller =
+        new AbortController();
 
-                signal: controller.signal
-            }
+
+    const timeout =
+        setTimeout(
+            () => {
+
+                controller.abort();
+
+            },
+            GROQ_TIMEOUT_MS
         );
 
-        const text = await response.text();
+
+    const startedAt =
+        Date.now();
+
+
+    try {
+
+        console.log(
+            `[GROQ] Request started | model=${model} | messages=${messages.length}`
+        );
+
+
+        const response =
+            await fetch(
+                "https://api.groq.com/openai/v1/chat/completions",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+
+                        Authorization:
+                            `Bearer ${GROQ_API_KEY}`
+                    },
+
+                    body:
+                        JSON.stringify({
+
+                            model,
+
+                            messages,
+
+                            temperature:
+                                0.6,
+
+                            max_completion_tokens:
+                                4096,
+
+                            reasoning_effort:
+                                "medium",
+
+                            stream:
+                                false
+                        }),
+
+                    signal:
+                        controller.signal
+                }
+            );
+
+
+        const text =
+            await response.text();
+
 
         let data;
 
+
         try {
-            data = JSON.parse(text);
+
+            data =
+                text
+                    ? JSON.parse(text)
+                    : {};
+
         } catch {
+
             data = {
                 raw: text
             };
         }
 
-        if (!response.ok) {
-            const errorMessage =
-                data?.error?.message ||
-                data?.message ||
-                data?.raw ||
-                `Groq HTTP ${response.status}`;
 
-            throw new Error(errorMessage);
+        const duration =
+            Date.now() -
+            startedAt;
+
+
+        console.log(
+            `[GROQ] Response | status=${response.status} | ${duration}ms`
+        );
+
+
+        if (
+            !response.ok
+        ) {
+
+            const errorMessage =
+                formatGroqError(
+                    response.status,
+                    data
+                );
+
+
+            console.error(
+                `[GROQ] API ERROR | model=${model} | status=${response.status} | ${errorMessage}`
+            );
+
+
+            const error =
+                new Error(
+                    errorMessage
+                );
+
+
+            error.status =
+                response.status;
+
+
+            error.provider =
+                "groq";
+
+
+            error.model =
+                model;
+
+
+            error.groq =
+                data;
+
+
+            throw error;
         }
+
 
         const content =
             data?.choices?.[0]?.message?.content;
 
-        if (!content) {
+
+        if (
+            typeof content !==
+                "string" ||
+            !content.trim()
+        ) {
+
+            console.error(
+                "[GROQ] Empty response:",
+                JSON.stringify(
+                    data
+                ).slice(
+                    0,
+                    3000
+                )
+            );
+
+
             throw new Error(
                 "Groq returned an empty response."
             );
         }
 
-        return String(content).trim();
+
+        return content.trim();
+
     } catch (error) {
-        if (error.name === "AbortError") {
+
+        if (
+            error?.name ===
+            "AbortError"
+        ) {
+
             throw new Error(
-                "Groq request timed out. Please try again."
+                "Groq request timed out after 150 seconds."
             );
         }
 
+
         throw error;
+
     } finally {
-        clearTimeout(timeout);
+
+        clearTimeout(
+            timeout
+        );
     }
 }
 
+
 /* ======================================================
-   CHAT
+   GENERATE ANSWER
 ====================================================== */
 
 async function generateAnswer({
@@ -525,214 +1058,547 @@ async function generateAnswer({
     history,
     userId
 }) {
-    const memories = await getMemories(
-        userId,
-        20
-    );
+
+    const memories =
+        await getMemories(
+            userId,
+            20
+        );
+
 
     const normalizedHistory =
-        normalizeMessages(history);
+        normalizeMessages(
+            history
+        );
+
 
     const systemPrompt =
-        getSystemPrompt(memories);
+        getSystemPrompt(
+            memories
+        );
+
 
     const messages = [
         {
             role: "system",
-            content: systemPrompt
+            content:
+                systemPrompt
         },
+
         ...normalizedHistory,
+
         {
             role: "user",
-            content: message
+            content:
+                message
         }
     ];
 
+
     try {
+
         return await callGroq(
             messages,
             GROQ_MODEL
         );
-    } catch (primaryError) {
+
+    } catch (
+        primaryError
+    ) {
+
         console.error(
-            "Primary Groq model failed:",
-            primaryError.message
+            `[GROQ] Primary model failed: ${primaryError.message}`
         );
+
 
         if (
             GROQ_FALLBACK_MODEL &&
-            GROQ_FALLBACK_MODEL !== GROQ_MODEL
+            GROQ_FALLBACK_MODEL !==
+                GROQ_MODEL
         ) {
+
             try {
+
+                console.log(
+                    `[GROQ] Trying fallback model: ${GROQ_FALLBACK_MODEL}`
+                );
+
+
                 return await callGroq(
                     messages,
                     GROQ_FALLBACK_MODEL
                 );
-            } catch (fallbackError) {
+
+            } catch (
+                fallbackError
+            ) {
+
                 console.error(
-                    "Fallback Groq model failed:",
-                    fallbackError.message
+                    `[GROQ] Fallback model failed: ${fallbackError.message}`
                 );
 
+
                 throw new Error(
-                    `AI request failed: ${fallbackError.message}`
+                    `AI request failed. Primary: ${primaryError.message} | Fallback: ${fallbackError.message}`
                 );
             }
         }
+
 
         throw primaryError;
     }
 }
 
+
 /* ======================================================
    HEALTH
 ====================================================== */
 
-app.get("/health", async (req, res) => {
-    let database = false;
+app.get(
+    "/health",
+    async (
+        req,
+        res
+    ) => {
 
-    if (pool) {
-        try {
-            await pool.query("SELECT 1");
-            database = true;
-        } catch {
-            database = false;
+        let database =
+            false;
+
+
+        if (pool) {
+
+            try {
+
+                await pool.query(
+                    "SELECT 1"
+                );
+
+                database =
+                    true;
+
+            } catch {
+
+                database =
+                    false;
+            }
         }
-    }
 
-    res.json({
-        ok: true,
-        service: "Atharv AI",
-        version: VERSION,
-        status: "healthy",
-        groq: Boolean(GROQ_API_KEY),
-        tavily: Boolean(TAVILY_API_KEY),
-        database,
-        uptime: Math.round(process.uptime())
-    });
-});
+
+        res.json({
+
+            ok: true,
+
+            service:
+                "Atharv AI",
+
+            version:
+                VERSION,
+
+            status:
+                "healthy",
+
+            groq:
+                Boolean(
+                    GROQ_API_KEY
+                ),
+
+            groqModel:
+                GROQ_MODEL,
+
+            groqFallbackModel:
+                GROQ_FALLBACK_MODEL,
+
+            tavily:
+                Boolean(
+                    TAVILY_API_KEY
+                ),
+
+            database,
+
+            uptime:
+                Math.round(
+                    process.uptime()
+                )
+        });
+    }
+);
+
 
 /* ======================================================
    VERSION
 ====================================================== */
 
-app.get("/api/version", (req, res) => {
-    res.json({
-        ok: true,
-        version: VERSION,
-        service: "Atharv AI",
-        model: GROQ_MODEL
-    });
-});
+app.get(
+    "/api/version",
+    (
+        req,
+        res
+    ) => {
+
+        res.json({
+
+            ok: true,
+
+            version:
+                VERSION,
+
+            service:
+                "Atharv AI",
+
+            model:
+                GROQ_MODEL,
+
+            fallbackModel:
+                GROQ_FALLBACK_MODEL
+        });
+    }
+);
+
+
+/* ======================================================
+   GROQ DIAGNOSTIC TEST
+====================================================== */
+
+app.get(
+    "/api/chat-test",
+    async (
+        req,
+        res
+    ) => {
+
+        const startedAt =
+            Date.now();
+
+
+        try {
+
+            if (
+                !GROQ_API_KEY
+            ) {
+
+                return res
+                    .status(500)
+                    .json({
+
+                        ok: false,
+
+                        test:
+                            "groq",
+
+                        error:
+                            "GROQ_API_KEY is missing."
+                    });
+            }
+
+
+            const reply =
+                await callGroq(
+                    [
+                        {
+                            role:
+                                "user",
+
+                            content:
+                                "Reply with exactly: Atharv AI connection successful."
+                        }
+                    ],
+                    GROQ_MODEL
+                );
+
+
+            return res.json({
+
+                ok: true,
+
+                test:
+                    "groq",
+
+                model:
+                    GROQ_MODEL,
+
+                reply,
+
+                responseTimeMs:
+                    Date.now() -
+                    startedAt
+            });
+
+        } catch (error) {
+
+            console.error(
+                "CHAT TEST ERROR:",
+                error
+            );
+
+
+            return res
+                .status(
+                    Number(
+                        error?.status
+                    ) || 500
+                )
+                .json({
+
+                    ok: false,
+
+                    test:
+                        "groq",
+
+                    model:
+                        GROQ_MODEL,
+
+                    error:
+                        error?.message ||
+                        "Groq test failed.",
+
+                    responseTimeMs:
+                        Date.now() -
+                        startedAt
+                });
+        }
+    }
+);
+
 
 /* ======================================================
    CHAT API
 ====================================================== */
 
-app.post("/api/chat", async (req, res) => {
-    try {
-        const message = String(
-            req.body?.message || ""
-        ).trim();
+app.post(
+    "/api/chat",
+    async (
+        req,
+        res
+    ) => {
 
-        if (!message) {
-            return res.status(400).json({
-                ok: false,
-                error: "Message is required."
+        const requestStarted =
+            Date.now();
+
+
+        try {
+
+            const message =
+                String(
+                    req.body?.message ||
+                    ""
+                ).trim();
+
+
+            if (
+                !message
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+
+                        ok: false,
+
+                        error:
+                            "Message is required."
+                    });
+            }
+
+
+            if (
+                message.length >
+                MAX_MESSAGE_CHARS
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+
+                        ok: false,
+
+                        error:
+                            `Message is too long. Maximum ${MAX_MESSAGE_CHARS} characters.`
+                    });
+            }
+
+
+            const history =
+                Array.isArray(
+                    req.body?.history
+                )
+                    ? req.body.history
+                    : [];
+
+
+            const userId =
+                normalizeUserId(
+                    req.body?.userId
+                );
+
+
+            console.log(
+                `[CHAT] Incoming | user=${userId} | chars=${message.length} | history=${history.length}`
+            );
+
+
+            const reply =
+                await generateAnswer({
+
+                    message,
+
+                    history,
+
+                    userId
+                });
+
+
+            console.log(
+                `[CHAT] Success | ${Date.now() - requestStarted}ms`
+            );
+
+
+            return res.json({
+
+                ok: true,
+
+                reply,
+
+                message:
+                    reply,
+
+                content:
+                    reply
             });
-        }
 
-        if (
-            message.length >
-            MAX_MESSAGE_CHARS
-        ) {
-            return res.status(400).json({
-                ok: false,
-                error:
-                    `Message is too long. Maximum ${MAX_MESSAGE_CHARS} characters.`
-            });
-        }
-
-        const history =
-            Array.isArray(req.body?.history)
-                ? req.body.history
-                : [];
-
-        const userId = normalizeUserId(
-            req.body?.userId
-        );
-
-        const reply = await generateAnswer({
-            message,
-            history,
-            userId
-        });
-
-        return res.json({
-            ok: true,
-            reply,
-            message: reply,
-            content: reply
-        });
-    } catch (error) {
-        console.error(
-            "CHAT ERROR:",
+        } catch (
             error
-        );
+        ) {
 
-        return res.status(500).json({
-            ok: false,
-            error:
-                error?.message ||
-                "Unable to generate a response."
-        });
+            console.error(
+                "[CHAT] ERROR:",
+                error
+            );
+
+
+            const status =
+                Number(
+                    error?.status
+                );
+
+
+            /*
+             * Groq 429/400/401/403 errors ko
+             * frontend tak useful message ke saath bhejo.
+             */
+
+            const responseStatus =
+                status >= 400 &&
+                status < 600
+                    ? status
+                    : 500;
+
+
+            return res
+                .status(
+                    responseStatus
+                )
+                .json({
+
+                    ok: false,
+
+                    error:
+                        error?.message ||
+                        "Unable to generate a response.",
+
+                    provider:
+                        error?.provider ||
+                        "server",
+
+                    model:
+                        error?.model ||
+                        GROQ_MODEL
+                });
+        }
     }
-});
+);
+
 
 /* ======================================================
    TAVILY SEARCH
 ====================================================== */
 
-async function tavilySearch(query) {
-    if (!TAVILY_API_KEY) {
+async function tavilySearch(
+    query
+) {
+
+    if (
+        !TAVILY_API_KEY
+    ) {
+
         throw new Error(
             "TAVILY_API_KEY is not configured."
         );
     }
 
-    const response = await fetch(
-        "https://api.tavily.com/search",
-        {
-            method: "POST",
 
-            headers: {
-                "Content-Type": "application/json"
-            },
+    const response =
+        await fetch(
+            "https://api.tavily.com/search",
+            {
 
-            body: JSON.stringify({
-                api_key: TAVILY_API_KEY,
-                query,
-                search_depth: "advanced",
-                include_answer: true,
-                include_raw_content: false,
-                max_results: 5
-            })
-        }
-    );
+                method:
+                    "POST",
 
-    const text = await response.text();
+                headers: {
+                    "Content-Type":
+                        "application/json"
+                },
+
+                body:
+                    JSON.stringify({
+
+                        api_key:
+                            TAVILY_API_KEY,
+
+                        query,
+
+                        search_depth:
+                            "advanced",
+
+                        include_answer:
+                            true,
+
+                        include_raw_content:
+                            false,
+
+                        max_results:
+                            5
+                    })
+            }
+        );
+
+
+    const text =
+        await response.text();
+
 
     let data;
 
+
     try {
-        data = JSON.parse(text);
+
+        data =
+            JSON.parse(
+                text
+            );
+
     } catch {
+
         throw new Error(
             "Invalid response from search service."
         );
     }
 
-    if (!response.ok) {
+
+    if (
+        !response.ok
+    ) {
+
         throw new Error(
             data?.message ||
             data?.error ||
@@ -740,87 +1606,150 @@ async function tavilySearch(query) {
         );
     }
 
+
     return data;
 }
+
 
 /* ======================================================
    RESEARCH CHAT
 ====================================================== */
 
-app.post("/api/chat/research", async (req, res) => {
-    try {
-        const message = String(
-            req.body?.message || ""
-        ).trim();
+app.post(
+    "/api/chat/research",
+    async (
+        req,
+        res
+    ) => {
 
-        if (!message) {
-            return res.status(400).json({
-                ok: false,
-                error: "Message is required."
-            });
-        }
+        try {
 
-        if (!TAVILY_API_KEY) {
-            return res.status(503).json({
-                ok: false,
-                error:
-                    "Live Search is not configured. Add TAVILY_API_KEY in Render environment variables."
-            });
-        }
+            const message =
+                String(
+                    req.body?.message ||
+                    ""
+                ).trim();
 
-        const searchData =
-            await tavilySearch(message);
 
-        const sources =
-            Array.isArray(searchData?.results)
-                ? searchData.results
-                : [];
+            if (
+                !message
+            ) {
 
-        const researchText = sources
-            .map((item, index) => {
-                const title =
-                    String(item?.title || "")
-                        .slice(0, 300);
+                return res
+                    .status(400)
+                    .json({
 
-                const content =
-                    String(
-                        item?.content ||
-                        item?.snippet ||
-                        ""
-                    ).slice(
-                        0,
-                        MAX_RESEARCH_CHARS
-                    );
+                        ok: false,
 
-                const url =
-                    String(item?.url || "");
+                        error:
+                            "Message is required."
+                    });
+            }
 
-                return `
+
+            if (
+                !TAVILY_API_KEY
+            ) {
+
+                return res
+                    .status(503)
+                    .json({
+
+                        ok: false,
+
+                        error:
+                            "Live Search is not configured. Add TAVILY_API_KEY in Render environment variables."
+                    });
+            }
+
+
+            const searchData =
+                await tavilySearch(
+                    message
+                );
+
+
+            const sources =
+                Array.isArray(
+                    searchData?.results
+                )
+                    ? searchData.results
+                    : [];
+
+
+            const researchText =
+                sources
+                    .map(
+                        (
+                            item,
+                            index
+                        ) => {
+
+                            const title =
+                                String(
+                                    item?.title ||
+                                    ""
+                                ).slice(
+                                    0,
+                                    300
+                                );
+
+
+                            const content =
+                                String(
+                                    item?.content ||
+                                    item?.snippet ||
+                                    ""
+                                ).slice(
+                                    0,
+                                    MAX_RESEARCH_CHARS
+                                );
+
+
+                            const url =
+                                String(
+                                    item?.url ||
+                                    ""
+                                );
+
+
+                            return `
 Source ${index + 1}
 Title: ${title}
 URL: ${url}
 Content: ${content}
 `;
-            })
-            .join("\n");
+                        }
+                    )
+                    .join(
+                        "\n"
+                    );
 
-        const userId = normalizeUserId(
-            req.body?.userId
-        );
 
-        const memories = await getMemories(
-            userId,
-            20
-        );
+            const userId =
+                normalizeUserId(
+                    req.body?.userId
+                );
 
-        const history =
-            normalizeMessages(
-                req.body?.history
-            );
 
-        const system =
-            getSystemPrompt(memories) +
-            `
+            const memories =
+                await getMemories(
+                    userId,
+                    20
+                );
+
+
+            const history =
+                normalizeMessages(
+                    req.body?.history
+                );
+
+
+            const system =
+                getSystemPrompt(
+                    memories
+                ) +
+                `
 
 Live research instructions:
 - Use the supplied search results as evidence.
@@ -830,350 +1759,644 @@ Live research instructions:
 - Answer in the user's language.
 
 SEARCH RESULTS:
-${researchText || "No search results available."}
+${
+    researchText ||
+    "No search results available."
+}
 `;
 
-        const answer = await callGroq(
-            [
-                {
-                    role: "system",
-                    content: system
-                },
-                ...history,
-                {
-                    role: "user",
-                    content: message
-                }
-            ],
-            GROQ_MODEL
-        );
 
-        return res.json({
-            ok: true,
-            reply: answer,
-            message: answer,
-            content: answer,
-            sources: sources.map(item => ({
-                title: item?.title || "",
-                url: item?.url || ""
-            }))
-        });
-    } catch (error) {
-        console.error(
-            "RESEARCH ERROR:",
+            const answer =
+                await callGroq(
+                    [
+                        {
+                            role:
+                                "system",
+
+                            content:
+                                system
+                        },
+
+                        ...history,
+
+                        {
+                            role:
+                                "user",
+
+                            content:
+                                message
+                        }
+                    ],
+
+                    GROQ_MODEL
+                );
+
+
+            return res.json({
+
+                ok: true,
+
+                reply:
+                    answer,
+
+                message:
+                    answer,
+
+                content:
+                    answer,
+
+                sources:
+                    sources.map(
+                        item => ({
+                            title:
+                                item?.title ||
+                                "",
+
+                            url:
+                                item?.url ||
+                                ""
+                        })
+                    )
+            });
+
+        } catch (
             error
-        );
+        ) {
 
-        return res.status(500).json({
-            ok: false,
-            error:
-                error?.message ||
-                "Live research failed."
-        });
+            console.error(
+                "RESEARCH ERROR:",
+                error
+            );
+
+
+            return res
+                .status(
+                    Number(
+                        error?.status
+                    ) || 500
+                )
+                .json({
+
+                    ok: false,
+
+                    error:
+                        error?.message ||
+                        "Live research failed."
+                });
+        }
     }
-});
+);
+
 
 /* ======================================================
    MEMORY GET
 ====================================================== */
 
-app.get("/api/memory", async (req, res) => {
-    try {
-        const userId = normalizeUserId(
-            req.query?.userId
-        );
+app.get(
+    "/api/memory",
+    async (
+        req,
+        res
+    ) => {
 
-        const memories =
-            await getMemories(
-                userId,
-                50
+        try {
+
+            const userId =
+                normalizeUserId(
+                    req.query?.userId
+                );
+
+
+            const memories =
+                await getMemories(
+                    userId,
+                    50
+                );
+
+
+            return res.json({
+
+                ok: true,
+
+                memories
+            });
+
+        } catch (
+            error
+        ) {
+
+            console.error(
+                "MEMORY GET ERROR:",
+                error
             );
 
-        return res.json({
-            ok: true,
-            memories
-        });
-    } catch (error) {
-        console.error(
-            "MEMORY GET ERROR:",
-            error
-        );
 
-        return res.status(500).json({
-            ok: false,
-            error: "Unable to load memories."
-        });
+            return res
+                .status(500)
+                .json({
+
+                    ok: false,
+
+                    error:
+                        "Unable to load memories."
+                });
+        }
     }
-});
+);
+
 
 /* ======================================================
    MEMORY POST
 ====================================================== */
 
-app.post("/api/memory", async (req, res) => {
-    try {
-        const userId = normalizeUserId(
-            req.body?.userId
-        );
+app.post(
+    "/api/memory",
+    async (
+        req,
+        res
+    ) => {
 
-        const key = normalizeMemoryKey(
-            req.body?.key ||
-            req.body?.memory_key
-        );
+        try {
 
-        const value = normalizeMemoryValue(
-            req.body?.value ||
-            req.body?.memory_value
-        );
+            const userId =
+                normalizeUserId(
+                    req.body?.userId
+                );
 
-        if (!key || !value) {
-            return res.status(400).json({
-                ok: false,
-                error:
-                    "Memory key and value are required."
-            });
-        }
 
-        await saveMemory(
-            userId,
-            key,
-            value
-        );
+            const key =
+                normalizeMemoryKey(
+                    req.body?.key ||
+                    req.body?.memory_key
+                );
 
-        return res.json({
-            ok: true,
-            message: "Memory saved.",
-            memory: {
-                memory_key: key,
-                memory_value: value
+
+            const value =
+                normalizeMemoryValue(
+                    req.body?.value ||
+                    req.body?.memory_value
+                );
+
+
+            if (
+                !key ||
+                !value
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+
+                        ok: false,
+
+                        error:
+                            "Memory key and value are required."
+                    });
             }
-        });
-    } catch (error) {
-        console.error(
-            "MEMORY POST ERROR:",
-            error
-        );
 
-        return res.status(500).json({
-            ok: false,
-            error:
-                error?.message ||
-                "Unable to save memory."
-        });
+
+            await saveMemory(
+                userId,
+                key,
+                value
+            );
+
+
+            return res.json({
+
+                ok: true,
+
+                message:
+                    "Memory saved.",
+
+                memory: {
+
+                    memory_key:
+                        key,
+
+                    memory_value:
+                        value
+                }
+            });
+
+        } catch (
+            error
+        ) {
+
+            console.error(
+                "MEMORY POST ERROR:",
+                error
+            );
+
+
+            return res
+                .status(500)
+                .json({
+
+                    ok: false,
+
+                    error:
+                        error?.message ||
+                        "Unable to save memory."
+                });
+        }
     }
-});
+);
+
 
 /* ======================================================
    WEATHER
 ====================================================== */
 
-app.get("/api/weather", async (req, res) => {
-    try {
-        const latitude = Number(
-            req.query?.lat
-        );
+app.get(
+    "/api/weather",
+    async (
+        req,
+        res
+    ) => {
 
-        const longitude = Number(
-            req.query?.lon
-        );
+        try {
 
-        if (
-            !Number.isFinite(latitude) ||
-            !Number.isFinite(longitude)
-        ) {
-            return res.status(400).json({
-                ok: false,
-                error:
-                    "Valid latitude and longitude are required."
+            const latitude =
+                Number(
+                    req.query?.lat
+                );
+
+
+            const longitude =
+                Number(
+                    req.query?.lon
+                );
+
+
+            if (
+                !Number.isFinite(
+                    latitude
+                ) ||
+                !Number.isFinite(
+                    longitude
+                )
+            ) {
+
+                return res
+                    .status(400)
+                    .json({
+
+                        ok: false,
+
+                        error:
+                            "Valid latitude and longitude are required."
+                    });
+            }
+
+
+            const url =
+                "https://api.open-meteo.com/v1/forecast" +
+                `?latitude=${encodeURIComponent(
+                    latitude
+                )}` +
+                `&longitude=${encodeURIComponent(
+                    longitude
+                )}` +
+                "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m" +
+                "&timezone=auto";
+
+
+            const response =
+                await fetch(
+                    url
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (
+                !response.ok
+            ) {
+
+                throw new Error(
+                    "Weather service failed."
+                );
+            }
+
+
+            return res.json({
+
+                ok: true,
+
+                data
             });
+
+        } catch (
+            error
+        ) {
+
+            return res
+                .status(500)
+                .json({
+
+                    ok: false,
+
+                    error:
+                        error?.message ||
+                        "Unable to fetch weather."
+                });
         }
-
-        const url =
-            "https://api.open-meteo.com/v1/forecast" +
-            `?latitude=${encodeURIComponent(latitude)}` +
-            `&longitude=${encodeURIComponent(longitude)}` +
-            "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m" +
-            "&timezone=auto";
-
-        const response =
-            await fetch(url);
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-            throw new Error(
-                "Weather service failed."
-            );
-        }
-
-        return res.json({
-            ok: true,
-            data
-        });
-    } catch (error) {
-        return res.status(500).json({
-            ok: false,
-            error:
-                error?.message ||
-                "Unable to fetch weather."
-        });
     }
-});
+);
+
 
 /* ======================================================
    STATIC FRONTEND
 ====================================================== */
 
 app.use(
-    express.static(PUBLIC_DIR, {
-        extensions: ["html"],
-        maxAge: "1h"
-    })
+    express.static(
+        PUBLIC_DIR,
+        {
+            extensions:
+                ["html"],
+
+            maxAge:
+                "1h"
+        }
+    )
 );
+
 
 /* ======================================================
    FRONTEND FALLBACK
 ====================================================== */
 
-app.use((req, res, next) => {
-    if (
-        req.method === "GET" &&
-        !req.path.startsWith("/api/")
-    ) {
-        if (fs.existsSync(INDEX_FILE)) {
-            return res.sendFile(INDEX_FILE);
-        }
-    }
+app.use(
+    (
+        req,
+        res,
+        next
+    ) => {
 
-    next();
-});
+        if (
+            req.method ===
+                "GET" &&
+            !req.path.startsWith(
+                "/api/"
+            )
+        ) {
+
+            if (
+                fs.existsSync(
+                    INDEX_FILE
+                )
+            ) {
+
+                return res.sendFile(
+                    INDEX_FILE
+                );
+            }
+        }
+
+
+        next();
+    }
+);
+
 
 /* ======================================================
    API 404
 ====================================================== */
 
-app.use("/api", (req, res) => {
-    res.status(404).json({
-        ok: false,
-        error: "API endpoint not found."
-    });
-});
+app.use(
+    "/api",
+    (
+        req,
+        res
+    ) => {
 
-/* ======================================================
-   ERROR HANDLER
-====================================================== */
+        res
+            .status(404)
+            .json({
 
-app.use((error, req, res, next) => {
-    console.error(
-        "GLOBAL ERROR:",
-        error
-    );
+                ok: false,
 
-    if (res.headersSent) {
-        return next(error);
+                error:
+                    "API endpoint not found."
+            });
     }
+);
 
-    res.status(
-        Number(error?.status) || 500
-    ).json({
-        ok: false,
-        error:
-            error?.message ||
-            "Internal server error."
-    });
-});
 
 /* ======================================================
-   START
+   GLOBAL ERROR
 ====================================================== */
 
-let server = null;
+app.use(
+    (
+        error,
+        req,
+        res,
+        next
+    ) => {
+
+        console.error(
+            "GLOBAL ERROR:",
+            error
+        );
+
+
+        if (
+            res.headersSent
+        ) {
+
+            return next(
+                error
+            );
+        }
+
+
+        res
+            .status(
+                Number(
+                    error?.status
+                ) || 500
+            )
+            .json({
+
+                ok: false,
+
+                error:
+                    error?.message ||
+                    "Internal server error."
+            });
+    }
+);
+
+
+/* ======================================================
+   START SERVER
+====================================================== */
+
+let server =
+    null;
+
 
 async function startServer() {
+
     await initDatabase();
 
-    server = app.listen(
-        PORT,
-        HOST,
-        () => {
-            console.log("");
-            console.log(
-                "=========================================="
-            );
-            console.log(
-                " ATHARV AI SERVER"
-            );
-            console.log(
-                ` VERSION: ${VERSION}`
-            );
-            console.log(
-                ` PORT: ${PORT}`
-            );
-            console.log(
-                ` HOST: ${HOST}`
-            );
-            console.log(
-                ` GROQ: ${GROQ_API_KEY ? "configured" : "missing"}`
-            );
-            console.log(
-                ` TAVILY: ${TAVILY_API_KEY ? "configured" : "missing"}`
-            );
-            console.log(
-                ` DATABASE: ${pool ? "connected" : "fallback"}`
-            );
-            console.log(
-                "=========================================="
-            );
-            console.log("");
-        }
-    );
+
+    server =
+        app.listen(
+            PORT,
+            HOST,
+            () => {
+
+                console.log("");
+
+                console.log(
+                    "=========================================="
+                );
+
+                console.log(
+                    " ATHARV AI SERVER"
+                );
+
+                console.log(
+                    ` VERSION: ${VERSION}`
+                );
+
+                console.log(
+                    ` PORT: ${PORT}`
+                );
+
+                console.log(
+                    ` HOST: ${HOST}`
+                );
+
+                console.log(
+                    ` GROQ: ${
+                        GROQ_API_KEY
+                            ? "configured"
+                            : "missing"
+                    }`
+                );
+
+                console.log(
+                    ` GROQ MODEL: ${GROQ_MODEL}`
+                );
+
+                console.log(
+                    ` GROQ FALLBACK: ${GROQ_FALLBACK_MODEL}`
+                );
+
+                console.log(
+                    ` TAVILY: ${
+                        TAVILY_API_KEY
+                            ? "configured"
+                            : "missing"
+                    }`
+                );
+
+                console.log(
+                    ` DATABASE: ${
+                        pool
+                            ? "connected"
+                            : "fallback"
+                    }`
+                );
+
+                console.log(
+                    "=========================================="
+                );
+
+                console.log("");
+            }
+        );
 }
+
 
 /* ======================================================
    GRACEFUL SHUTDOWN
 ====================================================== */
 
-async function shutdown(signal) {
+async function shutdown(
+    signal
+) {
+
     console.log(
         `${signal} received. Shutting down...`
     );
 
+
     try {
+
         if (server) {
-            await new Promise(resolve => {
-                server.close(resolve);
-            });
+
+            await new Promise(
+                resolve => {
+
+                    server.close(
+                        resolve
+                    );
+                }
+            );
         }
 
+
         if (pool) {
+
             await pool.end();
         }
 
-        process.exit(0);
-    } catch (error) {
+
+        process.exit(
+            0
+        );
+
+    } catch (
+        error
+    ) {
+
         console.error(
             "Shutdown error:",
             error
         );
 
-        process.exit(1);
+
+        process.exit(
+            1
+        );
     }
 }
 
+
 process.on(
     "SIGTERM",
-    () => shutdown("SIGTERM")
+    () =>
+        shutdown(
+            "SIGTERM"
+        )
 );
+
 
 process.on(
     "SIGINT",
-    () => shutdown("SIGINT")
+    () =>
+        shutdown(
+            "SIGINT"
+        )
 );
+
+
+/* ======================================================
+   PROCESS ERRORS
+====================================================== */
 
 process.on(
     "unhandledRejection",
     error => {
+
         console.error(
             "UNHANDLED REJECTION:",
             error
@@ -1181,9 +2404,11 @@ process.on(
     }
 );
 
+
 process.on(
     "uncaughtException",
     error => {
+
         console.error(
             "UNCAUGHT EXCEPTION:",
             error
@@ -1191,6 +2416,13 @@ process.on(
     }
 );
 
+
+/* ======================================================
+   START
+====================================================== */
+
 startServer();
 
-module.exports = app;
+
+module.exports =
+    app;
