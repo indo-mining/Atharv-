@@ -1,42 +1,9 @@
-"use strict";
-
-export function registerPWA() {
-
-  if (
-    !("serviceWorker" in navigator)
-  ) {
-    return;
-  }
-
-  window.addEventListener(
-    "load",
-    async () => {
-
-      try {
-
-        const registration =
-          await navigator.serviceWorker.register(
-            "/service-worker.js?v=17.0.2",
-            {
-              updateViaCache:
-                "none"
-            }
-          );
-
-        console.log(
-          "Atharv Service Worker registered:",
-          registration.scope
-        );
-
-        await registration.update();
-
-      } catch (error) {
-
-        console.warn(
-          "Service Worker registration failed:",
-          error
-        );
-      }
-    }
-  );
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e});
+export async function installApp(){
+  if(!deferredPrompt){alert("If install is available, use your browser menu → Add to Home screen.");return}
+  deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;
+}
+export function registerPWA(){
+  if("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js?v=19.0.0").catch(()=>{});
 }
