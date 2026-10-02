@@ -3,26 +3,25 @@
 /*
 =========================================================
  ATHARV AI - CHAT ENGINE
- Version 22.0.1
+ Version 22.0.2
  --------------------------------------------------------
- - API communication
- - Chat history
- - Persistent user ID
+ - /api/chat
+ - /api/chat/research
+ - Groq response handling
+ - Send protection
+ - Failed request protection
+ - Local history
+ - User ID
  - Session ID
  - Live Search
- - Request timeout
- - Error handling
- - Safe failed-message handling
+ - Thinking indicator
+ - Toast
 =========================================================
 */
 
 (() => {
 
-    const VERSION = "22.0.1";
-
-    /* ==========================================
-       CONFIG
-    ========================================== */
+    const VERSION = "22.0.2";
 
     const API_BASE =
         window.location.origin;
@@ -49,9 +48,9 @@
         "atharv_live_mode_v22";
 
 
-    /* ==========================================
+    /* ==================================================
        STATE
-    ========================================== */
+    ================================================== */
 
     let history = [];
 
@@ -64,126 +63,54 @@
     let initialized = false;
 
 
-    /* ==========================================
-       SAFE RANDOM ID
-    ========================================== */
+    /* ==================================================
+       DOM HELPERS
+    ================================================== */
 
-    function randomId(prefix) {
+    function getMessagesElement() {
 
-        try {
-
-            if (
-                window.crypto &&
-                typeof window.crypto.randomUUID ===
-                    "function"
-            ) {
-
-                return `${prefix}_${window.crypto.randomUUID()}`;
-            }
-
-        } catch (error) {
-
-            console.warn(
-                "crypto.randomUUID unavailable:",
-                error
-            );
-        }
-
-
-        return (
-            `${prefix}_` +
-            Date.now().toString(36) +
-            "_" +
-            Math.random()
-                .toString(36)
-                .slice(2, 12)
+        return document.getElementById(
+            "messages"
         );
     }
 
 
-    /* ==========================================
-       STORAGE READ
-    ========================================== */
+    function getTypingElement() {
 
-    function readStorage(
+        return document.getElementById(
+            "typingIndicator"
+        );
+    }
+
+
+    /* ==================================================
+       STORAGE
+    ================================================== */
+
+    function safeGet(
         key,
-        fallback
+        fallback = null
     ) {
 
         try {
 
             const value =
-                localStorage.getItem(key);
+                localStorage.getItem(
+                    key
+                );
 
+            return value === null
+                ? fallback
+                : value;
 
-            if (
-                value === null ||
-                value === undefined
-            ) {
-
-                return fallback;
-            }
-
-
-            return value;
-
-        } catch (error) {
-
-            console.warn(
-                "Storage read failed:",
-                key,
-                error
-            );
+        } catch {
 
             return fallback;
         }
     }
 
 
-    /* ==========================================
-       STORAGE JSON READ
-    ========================================== */
-
-    function readJSON(
-        key,
-        fallback
-    ) {
-
-        try {
-
-            const raw =
-                localStorage.getItem(key);
-
-
-            if (!raw) {
-                return fallback;
-            }
-
-
-            const parsed =
-                JSON.parse(raw);
-
-
-            return parsed;
-
-        } catch (error) {
-
-            console.warn(
-                "JSON storage read failed:",
-                key,
-                error
-            );
-
-            return fallback;
-        }
-    }
-
-
-    /* ==========================================
-       STORAGE WRITE
-    ========================================== */
-
-    function writeStorage(
+    function safeSet(
         key,
         value
     ) {
@@ -197,265 +124,215 @@
 
             return true;
 
-        } catch (error) {
-
-            console.warn(
-                "Storage write failed:",
-                key,
-                error
-            );
+        } catch {
 
             return false;
         }
     }
 
 
-    /* ==========================================
-       SAVE HISTORY
-    ========================================== */
+    function safeRemove(
+        key
+    ) {
+
+        try {
+
+            localStorage.removeItem(
+                key
+            );
+
+        } catch {}
+    }
+
+
+    /* ==================================================
+       ID
+    ================================================== */
+
+    function createId(
+        prefix
+    ) {
+
+        return (
+            prefix +
+            "_" +
+            Date.now().toString(36) +
+            "_" +
+            Math.random()
+                .toString(36)
+                .slice(2, 10)
+        );
+    }
+
+
+    function loadIdentity() {
+
+        userId =
+            safeGet(
+                USER_ID_KEY,
+                ""
+            );
+
+
+        if (!userId) {
+
+            userId =
+                createId(
+                    "user"
+                );
+
+            safeSet(
+                USER_ID_KEY,
+                userId
+            );
+        }
+
+
+        sessionId =
+            safeGet(
+                SESSION_ID_KEY,
+                ""
+            );
+
+
+        if (!sessionId) {
+
+            sessionId =
+                createId(
+                    "session"
+                );
+
+            safeSet(
+                SESSION_ID_KEY,
+                sessionId
+            );
+        }
+    }
+
+
+    /* ==================================================
+       HISTORY
+    ================================================== */
+
+    function loadHistory() {
+
+        try {
+
+            const raw =
+                safeGet(
+                    HISTORY_KEY,
+                    "[]"
+                );
+
+
+            const parsed =
+                JSON.parse(
+                    raw
+                );
+
+
+            if (
+                Array.isArray(
+                    parsed
+                )
+            ) {
+
+                history =
+                    parsed
+                        .filter(
+                            item =>
+                                item &&
+                                (
+                                    item.role ===
+                                        "user" ||
+                                    item.role ===
+                                        "assistant"
+                                ) &&
+                                typeof item.content ===
+                                    "string"
+                        )
+                        .slice(
+                            -100
+                        );
+
+            } else {
+
+                history = [];
+
+            }
+
+        } catch {
+
+            history = [];
+        }
+    }
+
 
     function saveHistory() {
 
         try {
 
-            /*
-             * Keep browser storage under control.
-             */
-
-            const limited =
-                history.slice(-100);
-
-
-            writeStorage(
+            safeSet(
                 HISTORY_KEY,
-                JSON.stringify(limited)
-            );
-
-        } catch (error) {
-
-            console.warn(
-                "History save failed:",
-                error
-            );
-        }
-    }
-
-
-    /* ==========================================
-       LOAD HISTORY
-    ========================================== */
-
-    function loadHistory() {
-
-        const stored =
-            readJSON(
-                HISTORY_KEY,
-                []
-            );
-
-
-        if (
-            !Array.isArray(stored)
-        ) {
-
-            history = [];
-
-            return;
-        }
-
-
-        history =
-            stored
-                .filter(
-                    item =>
-                        item &&
-                        typeof item ===
-                            "object"
+                JSON.stringify(
+                    history.slice(
+                        -100
+                    )
                 )
-                .map(
-                    item => {
+            );
 
-                        return {
-                            role:
-                                item.role ===
-                                    "assistant"
-                                    ? "assistant"
-                                    : "user",
-
-                            content:
-                                String(
-                                    item.content ||
-                                    ""
-                                ),
-
-                            timestamp:
-                                item.timestamp ||
-                                Date.now()
-                        };
-
-                    }
-                )
-                .filter(
-                    item =>
-                        item.content.trim()
-                )
-                .slice(-100);
+        } catch {}
     }
 
 
-    /* ==========================================
-       USER ID
-    ========================================== */
-
-    function getOrCreateUserId() {
-
-        let id =
-            readStorage(
-                USER_ID_KEY,
-                ""
-            );
-
-
-        if (
-            !id ||
-            id === "null" ||
-            id === "undefined"
-        ) {
-
-            id =
-                randomId(
-                    "user"
-                );
-
-
-            writeStorage(
-                USER_ID_KEY,
-                id
-            );
-        }
-
-
-        return id;
-    }
-
-
-    /* ==========================================
-       SESSION ID
-    ========================================== */
-
-    function getOrCreateSessionId() {
-
-        let id =
-            readStorage(
-                SESSION_ID_KEY,
-                ""
-            );
-
-
-        if (
-            !id ||
-            id === "null" ||
-            id === "undefined"
-        ) {
-
-            id =
-                randomId(
-                    "session"
-                );
-
-
-            writeStorage(
-                SESSION_ID_KEY,
-                id
-            );
-        }
-
-
-        return id;
-    }
-
-
-    /* ==========================================
+    /* ==================================================
        LIVE MODE
-    ========================================== */
+    ================================================== */
 
     function loadLiveMode() {
 
-        const value =
-            readStorage(
+        liveMode =
+            safeGet(
                 LIVE_KEY,
                 "false"
-            );
-
-
-        liveMode =
-            value === "true";
+            ) === "true";
     }
 
 
-    function saveLiveMode() {
+    function setLive(
+        enabled
+    ) {
 
-        writeStorage(
+        liveMode =
+            Boolean(
+                enabled
+            );
+
+        safeSet(
             LIVE_KEY,
-            liveMode
-                ? "true"
-                : "false"
+            String(
+                liveMode
+            )
         );
     }
 
 
-    /* ==========================================
-       UI HELPERS
-    ========================================== */
+    function getLive() {
 
-    function getElement(id) {
-
-        return document.getElementById(id);
+        return liveMode;
     }
 
 
-    function showWelcome() {
+    /* ==================================================
+       MARKDOWN
+    ================================================== */
 
-        const welcome =
-            getElement(
-                "welcome"
-            );
-
-        if (welcome) {
-
-            welcome.classList.remove(
-                "hidden"
-            );
-        }
-    }
-
-
-    function hideWelcome() {
-
-        const welcome =
-            getElement(
-                "welcome"
-            );
-
-        if (welcome) {
-
-            welcome.classList.add(
-                "hidden"
-            );
-        }
-    }
-
-
-    /* ==========================================
-       ESCAPE HTML
-    ========================================== */
-
-    function escapeHTML(
+    function escapeHtml(
         value
     ) {
 
         return String(
-            value ?? ""
+            value || ""
         )
             .replace(
                 /&/g,
@@ -480,161 +357,114 @@
     }
 
 
-    /* ==========================================
-       BASIC MARKDOWN
-    ========================================== */
-
     function renderMarkdown(
-        value
+        text
     ) {
 
-        let text =
-            escapeHTML(
-                value
+        let value =
+            escapeHtml(
+                text
             );
 
 
-        /*
-         * Code blocks
-         */
+        const codeBlocks = [];
 
-        text =
-            text.replace(
+
+        value =
+            value.replace(
                 /```([\s\S]*?)```/g,
                 (
                     match,
                     code
                 ) => {
 
-                    return `
-                        <pre class="code-block"><code>${code.trim()}</code></pre>
-                    `;
+                    const token =
+                        `___ATHARV_CODE_${codeBlocks.length}___`;
+
+                    codeBlocks.push(
+                        `<pre><code>${code.trim()}</code></pre>`
+                    );
+
+                    return token;
                 }
             );
 
 
-        /*
-         * Inline code
-         */
-
-        text =
-            text.replace(
-                /`([^`]+)`/g,
-                "<code>$1</code>"
-            );
-
-
-        /*
-         * Bold
-         */
-
-        text =
-            text.replace(
+        value =
+            value.replace(
                 /\*\*(.*?)\*\*/g,
                 "<strong>$1</strong>"
             );
 
 
-        /*
-         * Italic
-         */
-
-        text =
-            text.replace(
-                /(^|[^\*])\*([^*]+)\*/g,
-                "$1<em>$2</em>"
+        value =
+            value.replace(
+                /`([^`]+)`/g,
+                "<code>$1</code>"
             );
 
 
-        /*
-         * Links
-         */
-
-        text =
-            text.replace(
-                /(https?:\/\/[^\s<]+)/g,
-                '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+        value =
+            value.replace(
+                /^### (.*)$/gm,
+                "<h4>$1</h4>"
             );
 
 
-        /*
-         * Line breaks
-         */
+        value =
+            value.replace(
+                /^## (.*)$/gm,
+                "<h3>$1</h3>"
+            );
 
-        text =
-            text.replace(
+
+        value =
+            value.replace(
+                /^# (.*)$/gm,
+                "<h2>$1</h2>"
+            );
+
+
+        value =
+            value.replace(
                 /\n/g,
                 "<br>"
             );
 
 
-        return text;
-    }
+        codeBlocks.forEach(
+            (
+                block,
+                index
+            ) => {
 
-
-    /* ==========================================
-       RENDER HISTORY
-    ========================================== */
-
-    function renderHistory() {
-
-        const messages =
-            getElement(
-                "messages"
-            );
-
-
-        if (!messages) {
-            return;
-        }
-
-
-        messages.innerHTML =
-            "";
-
-
-        if (!history.length) {
-
-            showWelcome();
-
-            return;
-        }
-
-
-        hideWelcome();
-
-
-        history.forEach(
-            message => {
-
-                renderMessage(
-                    message.role,
-                    message.content
-                );
+                value =
+                    value.replace(
+                        `___ATHARV_CODE_${index}___`,
+                        block
+                    );
             }
         );
 
 
-        scrollToBottom();
+        return value;
     }
 
 
-    /* ==========================================
-       RENDER MESSAGE
-    ========================================== */
+    /* ==================================================
+       RENDER
+    ================================================== */
 
     function renderMessage(
         role,
         content
     ) {
 
-        const messages =
-            getElement(
-                "messages"
-            );
+        const container =
+            getMessagesElement();
 
 
-        if (!messages) {
+        if (!container) {
             return;
         }
 
@@ -680,640 +510,94 @@
         );
 
 
-        messages.appendChild(
+        container.appendChild(
             wrapper
         );
+
+
+        container.scrollTop =
+            container.scrollHeight;
     }
 
 
-    /* ==========================================
-       SCROLL
-    ========================================== */
+    function renderHistory() {
 
-    function scrollToBottom() {
-
-        const messages =
-            getElement(
-                "messages"
-            );
+        const container =
+            getMessagesElement();
 
 
-        if (!messages) {
+        if (!container) {
             return;
         }
 
 
-        requestAnimationFrame(
-            () => {
+        container.innerHTML =
+            "";
 
-                messages.scrollTop =
-                    messages.scrollHeight;
+
+        history.forEach(
+            item => {
+
+                renderMessage(
+                    item.role,
+                    item.content
+                );
             }
         );
     }
 
 
-    /* ==========================================
-       THINKING INDICATOR
-    ========================================== */
+    /* ==================================================
+       THINKING
+    ================================================== */
 
     function setThinking(
-        visible
+        active
     ) {
 
-        const indicator =
-            getElement(
-                "typingIndicator"
-            );
+        const element =
+            getTypingElement();
 
 
-        if (!indicator) {
+        if (!element) {
             return;
         }
 
 
-        if (visible) {
-
-            indicator.classList.add(
-                "show"
-            );
-
-        } else {
-
-            indicator.classList.remove(
-                "show"
-            );
-        }
-
-
-        if (visible) {
-            scrollToBottom();
-        }
-    }
-
-
-    /* ==========================================
-       REQUEST
-    ========================================== */
-
-    async function request(
-        endpoint,
-        payload
-    ) {
-
-        const controller =
-            new AbortController();
-
-
-        const timeout =
-            setTimeout(
-                () => {
-
-                    controller.abort();
-
-                },
-                REQUEST_TIMEOUT
-            );
-
-
-        try {
-
-            const response =
-                await fetch(
-                    endpoint,
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json",
-
-                            "Accept":
-                                "application/json"
-                        },
-
-                        body:
-                            JSON.stringify(
-                                payload
-                            ),
-
-                        signal:
-                            controller.signal
-                    }
-                );
-
-
-            let data = null;
-
-            const contentType =
-                response.headers.get(
-                    "content-type"
-                ) || "";
-
-
-            if (
-                contentType.includes(
-                    "application/json"
-                )
-            ) {
-
-                try {
-
-                    data =
-                        await response.json();
-
-                } catch (error) {
-
-                    throw new Error(
-                        "Server returned invalid JSON."
-                    );
-                }
-
-            } else {
-
-                const text =
-                    await response.text();
-
-
-                data = {
-                    error:
-                        text ||
-                        "Server returned an unexpected response."
-                };
-            }
-
-
-            if (!response.ok) {
-
-                const errorMessage =
-                    data?.error ||
-                    data?.message ||
-                    `Request failed with status ${response.status}.`;
-
-
-                throw new Error(
-                    errorMessage
-                );
-            }
-
-
-            return data;
-
-        } catch (error) {
-
-            if (
-                error?.name ===
-                "AbortError"
-            ) {
-
-                throw new Error(
-                    "Request timeout. AI server took too long to respond."
-                );
-            }
-
-
-            if (
-                error instanceof TypeError
-            ) {
-
-                throw new Error(
-                    "Network error. Atharv AI server se connection nahi ho pa raha."
-                );
-            }
-
-
-            throw error;
-
-        } finally {
-
-            clearTimeout(
-                timeout
-            );
-        }
-    }
-
-
-    /* ==========================================
-       EXTRACT REPLY
-    ========================================== */
-
-    function extractReply(
-        data
-    ) {
-
-        if (!data) {
-            return "";
-        }
-
-
-        const possible =
-            [
-                data.reply,
-                data.message,
-                data.content,
-                data.answer,
-                data.response
-            ];
-
-
-        for (
-            const value of possible
-        ) {
-
-            if (
-                typeof value ===
-                    "string" &&
-                value.trim()
-            ) {
-
-                return value.trim();
-            }
-        }
-
-
-        /*
-         * Some APIs return:
-         * { choices: [{ message: { content } }] }
-         */
-
-        const choiceContent =
-            data?.choices?.[0]?.message?.content;
-
-
-        if (
-            typeof choiceContent ===
-                "string" &&
-            choiceContent.trim()
-        ) {
-
-            return choiceContent.trim();
-        }
-
-
-        return "";
-    }
-
-
-    /* ==========================================
-       ADD HISTORY
-    ========================================== */
-
-    function addHistory(
-        role,
-        content
-    ) {
-
-        if (
-            !content ||
-            !String(content).trim()
-        ) {
-
-            return;
-        }
-
-
-        history.push({
-
-            role:
-                role === "assistant"
-                    ? "assistant"
-                    : "user",
-
-            content:
-                String(
-                    content
-                ),
-
-            timestamp:
-                Date.now()
-        });
-
-
-        /*
-         * Keep maximum 100 messages.
-         */
-
-        history =
-            history.slice(-100);
-
-
-        saveHistory();
-    }
-
-
-    /* ==========================================
-       SEND CHAT
-    ========================================== */
-
-    async function send(
-        userMessage
-    ) {
-
-        const message =
-            String(
-                userMessage ?? ""
-            ).trim();
-
-
-        if (!message) {
-
-            showToast(
-                "Message empty hai."
-            );
-
-            return false;
-        }
-
-
-        /*
-         * Frontend safety limit.
-         */
-
-        if (
-            message.length >
-            12000
-        ) {
-
-            showToast(
-                "Message bahut long hai. Please thoda short karo."
-            );
-
-            return false;
-        }
-
-
-        /*
-         * IMPORTANT:
-         *
-         * User message ko history mein request
-         * se pehle add kar rahe hain, lekin agar
-         * API fail hoti hai to catch mein us
-         * failed message ko remove kar diya jayega.
-         */
-
-        const historyBeforeSend =
-            history.slice();
-
-
-        addHistory(
-            "user",
-            message
-        );
-
-
-        renderHistory();
-
-        setThinking(
-            true
-        );
-
-
-        /*
-         * Backend ko current user message se pehle
-         * wali conversation bhejni hai.
-         */
-
-        const previousHistory =
-            historyBeforeSend
-                .slice(-20)
-                .map(
-                    item => ({
-                        role:
-                            item.role,
-                        content:
-                            item.content
-                    })
-                );
-
-
-        const payload = {
-
-            message,
-
-            history:
-                previousHistory,
-
-            userId,
-
-            sessionId
-        };
-
-
-        try {
-
-            let data;
-
-
-            /* ======================================
-               LIVE SEARCH
-            ====================================== */
-
-            if (liveMode) {
-
-                try {
-
-                    data =
-                        await request(
-                            RESEARCH_ENDPOINT,
-                            payload
-                        );
-
-                } catch (researchError) {
-
-                    console.warn(
-                        "Live research failed. Falling back to normal chat:",
-                        researchError
-                    );
-
-
-                    /*
-                     * Research fail hone par normal
-                     * chat try hoga.
-                     */
-
-                    data =
-                        await request(
-                            CHAT_ENDPOINT,
-                            payload
-                        );
-                }
-
-            } else {
-
-                /* ==================================
-                   NORMAL CHAT
-                ================================== */
-
-                data =
-                    await request(
-                        CHAT_ENDPOINT,
-                        payload
-                    );
-            }
-
-
-            const reply =
-                extractReply(
-                    data
-                );
-
-
-            if (!reply) {
-
-                throw new Error(
-                    "Atharv ne empty response diya."
-                );
-            }
-
-
-            /* ======================================
-               SUCCESS
-            ====================================== */
-
-            addHistory(
-                "assistant",
-                reply
-            );
-
-
-            renderHistory();
-
-
-            return true;
-
-
-        } catch (error) {
-
-            /*
-             * =================================================
-             * IMPORTANT CORRECTION
-             * =================================================
-             *
-             * Failure par error ko assistant message ke
-             * roop mein history mein ADD NAHI karna.
-             *
-             * Isse actual API/network problem hide nahi hogi.
-             *
-             * User ka original message bhi failed history se
-             * remove kar diya jayega.
-             * app.js original message ko textbox mein rakhega.
-             * =================================================
-             */
-
-
-            history =
-                historyBeforeSend.slice();
-
-
-            saveHistory();
-
-            renderHistory();
-
-
-            console.error(
-                "Atharv chat request failed:",
-                error
-            );
-
-
-            const message =
-                error?.message ||
-                "Message send nahi hua.";
-
-
-            showToast(
-                message
-            );
-
-
-            return false;
-
-
-        } finally {
-
-            setThinking(
-                false
-            );
-        }
-    }
-
-
-    /* ==========================================
-       CLEAR CHAT
-    ========================================== */
-
-    function clearChat() {
-
-        history = [];
-
-        saveHistory();
-
-        renderHistory();
-
-        showWelcome();
-    }
-
-
-    /* ==========================================
-       GET HISTORY
-    ========================================== */
-
-    function getHistory() {
-
-        return history.slice();
-    }
-
-
-    /* ==========================================
-       GET USER ID
-    ========================================== */
-
-    function getUserId() {
-
-        return userId;
-    }
-
-
-    /* ==========================================
-       GET SESSION ID
-    ========================================== */
-
-    function getSessionId() {
-
-        return sessionId;
-    }
-
-
-    /* ==========================================
-       LIVE GET
-    ========================================== */
-
-    function getLive() {
-
-        return liveMode;
-    }
-
-
-    /* ==========================================
-       LIVE SET
-    ========================================== */
-
-    function setLive(
-        enabled
-    ) {
-
-        liveMode =
+        element.classList.toggle(
+            "show",
             Boolean(
-                enabled
-            );
+                active
+            )
+        );
 
-        saveLiveMode();
+
+        element.setAttribute(
+            "aria-hidden",
+            active
+                ? "false"
+                : "true"
+        );
+
+
+        const container =
+            getMessagesElement();
+
+
+        if (
+            active &&
+            container
+        ) {
+
+            container.scrollTop =
+                container.scrollHeight;
+        }
     }
 
 
-    /* ==========================================
+    /* ==================================================
        TOAST
-    ========================================== */
+    ================================================== */
 
     function showToast(
         message
@@ -1321,7 +605,8 @@
 
         const text =
             String(
-                message || ""
+                message ||
+                ""
             ).trim();
 
 
@@ -1343,14 +628,11 @@
                     "div"
                 );
 
-
             toast.id =
                 "atharvToast";
 
-
             toast.className =
                 "atharv-toast";
-
 
             document.body.appendChild(
                 toast
@@ -1381,43 +663,480 @@
                     );
 
                 },
-                4000
+                3500
             );
     }
 
 
-    /* ==========================================
+    /* ==================================================
+       REQUEST
+    ================================================== */
+
+    async function request(
+        url,
+        payload
+    ) {
+
+        console.log(
+            "[Atharv AI] Request:",
+            url
+        );
+
+
+        const controller =
+            new AbortController();
+
+
+        const timeout =
+            setTimeout(
+                () => {
+
+                    controller.abort();
+
+                },
+                REQUEST_TIMEOUT
+            );
+
+
+        try {
+
+            const response =
+                await fetch(
+                    url,
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            "Content-Type":
+                                "application/json",
+
+                            Accept:
+                                "application/json"
+                        },
+
+                        body:
+                            JSON.stringify(
+                                payload
+                            ),
+
+                        signal:
+                            controller.signal
+                    }
+                );
+
+
+            const text =
+                await response.text();
+
+
+            let data = null;
+
+
+            try {
+
+                data =
+                    text
+                        ? JSON.parse(
+                            text
+                        )
+                        : {};
+
+            } catch {
+
+                data = {
+                    raw: text
+                };
+            }
+
+
+            console.log(
+                "[Atharv AI] Response:",
+                response.status,
+                data
+            );
+
+
+            if (
+                !response.ok
+            ) {
+
+                throw new Error(
+                    data?.error ||
+                    data?.message ||
+                    `Server error (${response.status})`
+                );
+            }
+
+
+            if (
+                data?.ok === false
+            ) {
+
+                throw new Error(
+                    data?.error ||
+                    "AI request failed."
+                );
+            }
+
+
+            return data;
+
+        } catch (
+            error
+        ) {
+
+            if (
+                error?.name ===
+                "AbortError"
+            ) {
+
+                throw new Error(
+                    "Request timed out. Please try again."
+                );
+            }
+
+
+            throw error;
+
+        } finally {
+
+            clearTimeout(
+                timeout
+            );
+        }
+    }
+
+
+    /* ==================================================
+       EXTRACT REPLY
+    ================================================== */
+
+    function extractReply(
+        data
+    ) {
+
+        const reply =
+            data?.reply ??
+            data?.message ??
+            data?.content ??
+            data?.answer ??
+            "";
+
+
+        if (
+            typeof reply !==
+                "string"
+        ) {
+
+            return "";
+        }
+
+
+        return reply.trim();
+    }
+
+
+    /* ==================================================
+       NORMAL CHAT
+    ================================================== */
+
+    async function normalChat(
+        message,
+        previousHistory
+    ) {
+
+        return request(
+            CHAT_ENDPOINT,
+            {
+                message,
+
+                history:
+                    previousHistory,
+
+                userId,
+
+                sessionId
+            }
+        );
+    }
+
+
+    /* ==================================================
+       RESEARCH CHAT
+    ================================================== */
+
+    async function researchChat(
+        message,
+        previousHistory
+    ) {
+
+        return request(
+            RESEARCH_ENDPOINT,
+            {
+                message,
+
+                history:
+                    previousHistory,
+
+                userId,
+
+                sessionId
+            }
+        );
+    }
+
+
+    /* ==================================================
+       SEND
+    ================================================== */
+
+    async function send(
+        userMessage
+    ) {
+
+        const message =
+            String(
+                userMessage ||
+                ""
+            ).trim();
+
+
+        if (!message) {
+
+            showToast(
+                "Message empty hai."
+            );
+
+            return false;
+        }
+
+
+        if (
+            message.length >
+            12000
+        ) {
+
+            showToast(
+                "Message bahut lamba hai."
+            );
+
+            return false;
+        }
+
+
+        /*
+         * User message ko local history mein
+         * request se pehle save karte hain.
+         */
+        const previousHistory =
+            history.slice(
+                -20
+            );
+
+
+        history.push({
+            role:
+                "user",
+
+            content:
+                message
+        });
+
+
+        saveHistory();
+
+        renderHistory();
+
+        setThinking(
+            true
+        );
+
+
+        try {
+
+            let data;
+
+
+            if (
+                liveMode
+            ) {
+
+                try {
+
+                    data =
+                        await researchChat(
+                            message,
+                            previousHistory
+                        );
+
+                } catch (
+                    researchError
+                ) {
+
+                    console.warn(
+                        "Live Search failed, using normal AI:",
+                        researchError
+                    );
+
+
+                    showToast(
+                        "Live Search unavailable. Normal AI se answer de raha hoon."
+                    );
+
+
+                    data =
+                        await normalChat(
+                            message,
+                            previousHistory
+                        );
+                }
+
+            } else {
+
+                data =
+                    await normalChat(
+                        message,
+                        previousHistory
+                    );
+            }
+
+
+            const reply =
+                extractReply(
+                    data
+                );
+
+
+            if (!reply) {
+
+                throw new Error(
+                    "Atharv ne empty response diya."
+                );
+            }
+
+
+            history.push({
+                role:
+                    "assistant",
+
+                content:
+                    reply
+            });
+
+
+            saveHistory();
+
+            renderHistory();
+
+
+            return true;
+
+        } catch (
+            error
+        ) {
+
+            console.error(
+                "[Atharv AI] CHAT SEND ERROR:",
+                error
+            );
+
+
+            /*
+             * Failed request ko assistant
+             * history mein add nahi karna.
+             *
+             * User ka typed message composer
+             * mein bana rahega.
+             */
+            history =
+                history.filter(
+                    (
+                        item,
+                        index
+                    ) =>
+                        !(
+                            index ===
+                                history.length - 1 &&
+                            item.role ===
+                                "user" &&
+                            item.content ===
+                                message
+                        )
+                );
+
+
+            saveHistory();
+
+            renderHistory();
+
+
+            showToast(
+                error?.message ||
+                "Message send nahi hua."
+            );
+
+
+            return false;
+
+        } finally {
+
+            setThinking(
+                false
+            );
+        }
+    }
+
+
+    /* ==================================================
+       CLEAR CHAT
+    ================================================== */
+
+    function clearChat() {
+
+        history = [];
+
+        saveHistory();
+
+        renderHistory();
+
+        setThinking(
+            false
+        );
+    }
+
+
+    /* ==================================================
        INIT
-    ========================================== */
+    ================================================== */
 
     function init() {
 
-        if (initialized) {
+        if (
+            initialized
+        ) {
+            renderHistory();
             return;
         }
 
 
-        initialized = true;
+        initialized =
+            true;
 
 
-        userId =
-            getOrCreateUserId();
-
-
-        sessionId =
-            getOrCreateSessionId();
-
-
-        loadLiveMode();
+        loadIdentity();
 
         loadHistory();
+
+        loadLiveMode();
 
         renderHistory();
 
 
         console.log(
-            `Atharv Chat ${VERSION} initialized`,
+            `[Atharv AI] Chat engine ${VERSION} initialized`,
             {
+                API_BASE,
                 userId,
                 sessionId,
                 liveMode
@@ -1426,13 +1145,14 @@
     }
 
 
-    /* ==========================================
+    /* ==================================================
        PUBLIC API
-    ========================================== */
+    ================================================== */
 
     window.AtharvChat = {
 
-        VERSION,
+        version:
+            VERSION,
 
         init,
 
@@ -1440,18 +1160,24 @@
 
         clearChat,
 
-        getHistory,
+        getHistory: () =>
+            [...history],
 
-        getUserId,
+        getUserId: () =>
+            userId,
 
-        getSessionId,
+        getSessionId: () =>
+            sessionId,
 
         getLive,
 
         setLive,
 
-        showToast
+        showToast,
 
+        renderHistory,
+
+        setThinking
     };
 
 })();
