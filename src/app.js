@@ -2,20 +2,20 @@
 
 /*
 =========================================================
- ATHARV AI - BACKEND SERVER
- Version 21.1.0
+ ATHARV AI - BACKEND
+ Version 22.0.0
  --------------------------------------------------------
- - Express 5 compatible
+ - Express 5
  - Groq AI
- - Tavily Live Research
- - PostgreSQL / Neon Memory
- - Weather
+ - Optional Tavily live research
+ - PostgreSQL persistent memory
+ - In-memory memory fallback
+ - Weather API
  - CORS
  - Helmet
  - Compression
  - Rate limiting
- - Static frontend
- - Health / Version APIs
+ - Graceful shutdown
 =========================================================
 */
 
@@ -24,6 +24,7 @@ require("dotenv").config();
 const express = require("express");
 const path = require("path");
 const fs = require("fs");
+
 const cors = require("cors");
 const helmet = require("helmet");
 const compression = require("compression");
@@ -33,7 +34,7 @@ let Pool = null;
 try {
     ({ Pool } = require("pg"));
 } catch {
-    console.warn("⚠️ pg package not installed. Database memory disabled.");
+    console.warn("pg package not available. Database memory will use fallback.");
 }
 
 /* ======================================================
@@ -45,59 +46,47 @@ const app = express();
 const PORT = Number(process.env.PORT || 10000);
 const HOST = process.env.HOST || "0.0.0.0";
 
-const GROQ_API_KEY = process.env.GROQ_API_KEY || "";
+const VERSION = "22.0.0";
+
+const GROQ_API_KEY = String(process.env.GROQ_API_KEY || "").trim();
 
 const GROQ_MODEL =
-    process.env.GROQ_MODEL ||
-    "openai/gpt-oss-120b";
+    String(
+        process.env.GROQ_MODEL ||
+        "openai/gpt-oss-120b"
+    ).trim();
 
 const GROQ_FALLBACK_MODEL =
-    process.env.GROQ_FALLBACK_MODEL ||
-    "openai/gpt-oss-20b";
+    String(
+        process.env.GROQ_FALLBACK_MODEL ||
+        "openai/gpt-oss-20b"
+    ).trim();
 
 const TAVILY_API_KEY =
-    process.env.TAVILY_API_KEY || "";
+    String(process.env.TAVILY_API_KEY || "").trim();
 
 const DATABASE_URL =
-    process.env.DATABASE_URL || "";
-
-const VERSION = "21.1.0";
+    String(process.env.DATABASE_URL || "").trim();
 
 const GROQ_TIMEOUT_MS = 150000;
+
 const MAX_MESSAGE_CHARS = 12000;
 const MAX_HISTORY_ITEMS = 20;
 const MAX_HISTORY_CHARS = 12000;
 
-/* ======================================================
-   PATHS
-====================================================== */
+const MAX_RESEARCH_CHARS = 7000;
 
 const ROOT_DIR = path.resolve(__dirname, "..");
-
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
-
-const INDEX_FILE = path.join(
-    PUBLIC_DIR,
-    "index.html"
-);
+const INDEX_FILE = path.join(PUBLIC_DIR, "index.html");
 
 /* ======================================================
    BASIC CHECK
 ====================================================== */
 
-console.log("");
-console.log("==========================================");
-console.log("        ATHARV AI BACKEND");
-console.log("==========================================");
-console.log("Version:", VERSION);
-console.log("Node:", process.version);
-console.log("Port:", PORT);
-console.log("Groq:", GROQ_API_KEY ? "Configured" : "Missing");
-console.log("Tavily:", TAVILY_API_KEY ? "Configured" : "Missing");
-console.log("Database:", DATABASE_URL ? "Configured" : "Missing");
-console.log("Public:", PUBLIC_DIR);
-console.log("==========================================");
-console.log("");
+if (!fs.existsSync(PUBLIC_DIR)) {
+    console.warn("WARNING: public directory not found:", PUBLIC_DIR);
+}
 
 /* ======================================================
    MIDDLEWARE
@@ -118,9 +107,7 @@ app.use(
     })
 );
 
-app.use(
-    compression()
-);
+app.use(compression());
 
 app.use(
     express.json({
@@ -139,37 +126,36 @@ app.use(
    SIMPLE RATE LIMIT
 ====================================================== */
 
-const rateStore = new Map();
+const rateMap = new Map();
 
-const RATE_WINDOW = 60 * 1000;
+const RATE_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT = 30;
 
 function rateLimit(req, res, next) {
-
     const ip =
-        req.headers["x-forwarded-for"] ||
+        req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
         req.socket.remoteAddress ||
         "unknown";
 
     const now = Date.now();
 
-    let data = rateStore.get(ip);
+    let record = rateMap.get(ip);
 
-    if (!data || now - data.time > RATE_WINDOW) {
-        data = {
-            time: now,
+    if (!record || now - record.start > RATE_WINDOW_MS) {
+        record = {
+            start: now,
             count: 0
         };
     }
 
-    data.count++;
+    record.count += 1;
 
-    rateStore.set(ip, data);
+    rateMap.set(ip, record);
 
-    if (data.count > RATE_LIMIT) {
+    if (record.count > RATE_LIMIT) {
         return res.status(429).json({
             ok: false,
-            error: "Too many requests. Please try again shortly."
+            error: "Too many requests. Please wait a moment."
         });
     }
 
@@ -179,15 +165,50 @@ function rateLimit(req, res, next) {
 app.use("/api", rateLimit);
 
 /* ======================================================
-   DATABASE
+   MEMORY
 ====================================================== */
 
 let pool = null;
 
-if (Pool && DATABASE_URL) {
+const memoryFallback = new Map();
+
+function normalizeUserId(value) {
+    const raw = String(value || "guest").trim();
+
+    if (!raw) {
+        return "guest";
+    }
+
+    return raw
+        .replace(/[^a-zA-Z0-9_.-]/g, "_")
+        .slice(0, 120) || "guest";
+}
+
+function normalizeMemoryKey(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 100);
+}
+
+function normalizeMemoryValue(value) {
+    return String(value || "")
+        .trim()
+        .replace(/\s+/g, " ")
+        .slice(0, 1000);
+}
+
+/* ======================================================
+   DATABASE INIT
+====================================================== */
+
+async function initDatabase() {
+    if (!DATABASE_URL || !Pool) {
+        console.log("Database unavailable. Using memory fallback.");
+        return;
+    }
 
     try {
-
         pool = new Pool({
             connectionString: DATABASE_URL,
             ssl: {
@@ -197,41 +218,6 @@ if (Pool && DATABASE_URL) {
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 10000
         });
-
-        pool.on("error", err => {
-            console.error(
-                "DATABASE POOL ERROR:",
-                err.message
-            );
-        });
-
-        console.log("✅ PostgreSQL pool created.");
-
-    } catch (error) {
-
-        console.error(
-            "❌ PostgreSQL initialization failed:",
-            error.message
-        );
-
-        pool = null;
-    }
-}
-
-/* ======================================================
-   DATABASE INITIALIZATION
-====================================================== */
-
-async function initDatabase() {
-
-    if (!pool) {
-        console.log(
-            "ℹ️ Database unavailable. Memory will use fallback mode."
-        );
-        return;
-    }
-
-    try {
 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS user_memories (
@@ -245,241 +231,224 @@ async function initDatabase() {
             )
         `);
 
-        console.log(
-            "✅ user_memories table ready."
-        );
-
+        console.log("PostgreSQL connected.");
     } catch (error) {
-
-        console.error(
-            "❌ Database initialization error:",
-            error.message
-        );
+        console.error("Database initialization failed:", error.message);
+        pool = null;
     }
 }
 
 /* ======================================================
-   FALLBACK MEMORY
+   MEMORY FUNCTIONS
 ====================================================== */
 
-const memoryFallback = new Map();
-
-function normalizeUserId(value) {
-
-    if (
-        typeof value !== "string" ||
-        !value.trim()
-    ) {
-        return "guest";
-    }
-
-    return value
-        .trim()
-        .slice(0, 120);
-}
-
-/* ======================================================
-   MEMORY - GET
-====================================================== */
-
-async function getMemories(
-    userId,
-    limit = 20
-) {
-
-    userId = normalizeUserId(userId);
+async function getMemories(userId, limit = 20) {
+    const uid = normalizeUserId(userId);
 
     if (pool) {
-
         try {
-
             const result = await pool.query(
                 `
-                SELECT
-                    memory_key,
-                    memory_value,
-                    created_at,
-                    updated_at
+                SELECT memory_key, memory_value
                 FROM user_memories
                 WHERE user_id = $1
                 ORDER BY updated_at DESC
                 LIMIT $2
                 `,
-                [userId, limit]
+                [uid, limit]
             );
 
             return result.rows;
-
         } catch (error) {
-
-            console.error(
-                "Memory read error:",
-                error.message
-            );
+            console.error("Memory GET DB error:", error.message);
         }
     }
 
-    const local =
-        memoryFallback.get(userId) || {};
+    const userMemory = memoryFallback.get(uid);
 
-    return Object.entries(local)
+    if (!userMemory) {
+        return [];
+    }
+
+    return Array.from(userMemory.entries())
         .slice(-limit)
+        .reverse()
         .map(([memory_key, memory_value]) => ({
             memory_key,
             memory_value
         }));
 }
 
-/* ======================================================
-   MEMORY - SAVE
-====================================================== */
+async function saveMemory(userId, key, value) {
+    const uid = normalizeUserId(userId);
+    const memoryKey = normalizeMemoryKey(key);
+    const memoryValue = normalizeMemoryValue(value);
 
-async function saveMemory(
-    userId,
-    key,
-    value
-) {
-
-    userId = normalizeUserId(userId);
-
-    key = String(key || "")
-        .trim()
-        .slice(0, 200);
-
-    value = String(value || "")
-        .trim()
-        .slice(0, 2000);
-
-    if (!key || !value) {
-        return false;
+    if (!memoryKey || !memoryValue) {
+        throw new Error("Memory key and value are required.");
     }
 
     if (pool) {
-
         try {
-
             await pool.query(
                 `
                 INSERT INTO user_memories
-                    (
-                        user_id,
-                        memory_key,
-                        memory_value,
-                        created_at,
-                        updated_at
-                    )
+                    (user_id, memory_key, memory_value)
                 VALUES
-                    ($1, $2, $3, NOW(), NOW())
-
-                ON CONFLICT(user_id, memory_key)
+                    ($1, $2, $3)
+                ON CONFLICT (user_id, memory_key)
                 DO UPDATE SET
                     memory_value = EXCLUDED.memory_value,
                     updated_at = NOW()
                 `,
-                [
-                    userId,
-                    key,
-                    value
-                ]
+                [uid, memoryKey, memoryValue]
             );
 
-            return true;
-
+            return;
         } catch (error) {
-
-            console.error(
-                "Memory save error:",
-                error.message
-            );
+            console.error("Memory SAVE DB error:", error.message);
         }
     }
 
-    if (!memoryFallback.has(userId)) {
-        memoryFallback.set(userId, {});
+    if (!memoryFallback.has(uid)) {
+        memoryFallback.set(uid, new Map());
     }
 
     memoryFallback
-        .get(userId)[key] = value;
-
-    return true;
+        .get(uid)
+        .set(memoryKey, memoryValue);
 }
 
 /* ======================================================
-   HEALTH
+   SYSTEM PROMPT
 ====================================================== */
 
-app.get("/health", async (req, res) => {
+function getSystemPrompt(memories = []) {
+    let memoryText = "";
 
-    let database = false;
-
-    if (pool) {
-
-        try {
-
-            await pool.query(
-                "SELECT 1"
-            );
-
-            database = true;
-
-        } catch {
-            database = false;
-        }
+    if (memories.length) {
+        memoryText = memories
+            .map(
+                item =>
+                    `${item.memory_key}: ${item.memory_value}`
+            )
+            .join("\n");
     }
 
-    res.json({
-        ok: true,
-        service: "Atharv AI",
-        version: VERSION,
-        status: "healthy",
-        groq: Boolean(GROQ_API_KEY),
-        tavily: Boolean(TAVILY_API_KEY),
-        database,
-        timestamp: new Date().toISOString()
-    });
-});
+    return `
+You are Atharv AI.
+
+Your identity:
+- Your name is Atharv AI.
+- Be helpful, accurate, clear and practical.
+- Do not unnecessarily repeat the user's name.
+- Do not claim to have performed an action you did not perform.
+- If information may be current or changing, use available research when requested.
+
+Language rules:
+- If the user writes English, answer in English.
+- If the user writes Hindi in Devanagari, answer in Hindi.
+- If the user writes Roman Hindi/Hinglish, answer in Roman Hindi/Hinglish.
+- If the user mixes languages, naturally follow the user's dominant language.
+- Do not unnecessarily convert Roman Hindi into Devanagari.
+- For code, preserve code syntax and explain in the user's language where useful.
+
+Answer style:
+- Directly answer the question.
+- Use headings, bullets and code blocks when useful.
+- Avoid unnecessary filler.
+- For programming, provide complete working code when requested.
+- If something is uncertain, say so clearly.
+
+Persistent user memory:
+${memoryText || "No saved memories."}
+`;
+}
 
 /* ======================================================
-   VERSION
+   MESSAGE NORMALIZATION
 ====================================================== */
 
-app.get("/api/version", (req, res) => {
+function normalizeMessages(history) {
+    if (!Array.isArray(history)) {
+        return [];
+    }
 
-    res.json({
-        ok: true,
-        app: "Atharv AI",
-        version: VERSION,
-        backend: "online"
-    });
-});
+    let totalChars = 0;
+
+    const output = [];
+
+    for (
+        let i = history.length - 1;
+        i >= 0 && output.length < MAX_HISTORY_ITEMS;
+        i--
+    ) {
+        const item = history[i];
+
+        if (!item || typeof item !== "object") {
+            continue;
+        }
+
+        const role =
+            item.role === "assistant"
+                ? "assistant"
+                : item.role === "user"
+                    ? "user"
+                    : null;
+
+        if (!role) {
+            continue;
+        }
+
+        const content = String(
+            item.content ||
+            item.message ||
+            item.text ||
+            ""
+        )
+            .trim()
+            .slice(0, MAX_HISTORY_CHARS);
+
+        if (!content) {
+            continue;
+        }
+
+        if (
+            totalChars + content.length >
+            MAX_HISTORY_CHARS
+        ) {
+            break;
+        }
+
+        output.unshift({
+            role,
+            content
+        });
+
+        totalChars += content.length;
+    }
+
+    return output;
+}
 
 /* ======================================================
-   GROQ REQUEST
+   GROQ
 ====================================================== */
 
-async function callGroq(
-    messages,
-    model
-) {
-
+async function callGroq(messages, model) {
     if (!GROQ_API_KEY) {
-
         throw new Error(
             "GROQ_API_KEY is not configured on the server."
         );
     }
 
-    const controller =
-        new AbortController();
+    const controller = new AbortController();
 
-    const timeout =
-        setTimeout(
-            () => controller.abort(),
-            GROQ_TIMEOUT_MS
-        );
+    const timeout = setTimeout(() => {
+        controller.abort();
+    }, GROQ_TIMEOUT_MS);
 
     try {
-
         const response = await fetch(
             "https://api.groq.com/openai/v1/chat/completions",
             {
@@ -487,7 +456,7 @@ async function callGroq(
 
                 headers: {
                     "Content-Type": "application/json",
-                    "Authorization":
+                    Authorization:
                         `Bearer ${GROQ_API_KEY}`
                 },
 
@@ -502,166 +471,171 @@ async function callGroq(
             }
         );
 
-        const raw =
-            await response.text();
+        const text = await response.text();
 
         let data;
 
         try {
-            data = JSON.parse(raw);
+            data = JSON.parse(text);
         } catch {
             data = {
-                raw
+                raw: text
             };
         }
 
         if (!response.ok) {
-
             const errorMessage =
                 data?.error?.message ||
                 data?.message ||
-                raw ||
+                data?.raw ||
                 `Groq HTTP ${response.status}`;
 
-            const error =
-                new Error(errorMessage);
-
-            error.status =
-                response.status;
-
-            throw error;
+            throw new Error(errorMessage);
         }
 
         const content =
             data?.choices?.[0]?.message?.content;
 
-        if (
-            typeof content !== "string" ||
-            !content.trim()
-        ) {
+        if (!content) {
             throw new Error(
                 "Groq returned an empty response."
             );
         }
 
-        return content.trim();
+        return String(content).trim();
+    } catch (error) {
+        if (error.name === "AbortError") {
+            throw new Error(
+                "Groq request timed out. Please try again."
+            );
+        }
 
+        throw error;
     } finally {
-
         clearTimeout(timeout);
     }
-}
-
-/* ======================================================
-   LANGUAGE / SYSTEM PROMPT
-====================================================== */
-
-const SYSTEM_PROMPT = `
-You are Atharv AI.
-
-Your identity:
-- Name: Atharv AI
-- Purpose: helpful, accurate, practical AI assistant
-
-Language rules:
-1. If the user writes in English, answer in English.
-2. If the user writes Hindi in Devanagari, answer in Hindi.
-3. If the user writes Roman Hindi/Hinglish, answer in Roman Hindi/Hinglish.
-4. If the user uses another language, answer in that language when possible.
-5. Do not unnecessarily change the user's language.
-
-Response rules:
-- Be clear and useful.
-- Do not unnecessarily repeat the user's name.
-- For coding questions, provide working code.
-- For technical questions, explain simply when needed.
-- Do not claim to have live information unless live research data was actually provided.
-- If information may have changed, say so when appropriate.
-- Never invent sources, facts, API results, or actions.
-`;
-
-/* ======================================================
-   NORMALIZE HISTORY
-====================================================== */
-
-function normalizeMessages(
-    history,
-    userMessage
-) {
-
-    const result = [
-        {
-            role: "system",
-            content: SYSTEM_PROMPT
-        }
-    ];
-
-    if (Array.isArray(history)) {
-
-        for (
-            const item of history.slice(-MAX_HISTORY_ITEMS)
-        ) {
-
-            if (!item) continue;
-
-            const role =
-                item.role === "assistant"
-                    ? "assistant"
-                    : item.role === "user"
-                        ? "user"
-                        : null;
-
-            if (!role) continue;
-
-            let content =
-                item.content ??
-                item.message ??
-                item.text ??
-                "";
-
-            if (
-                typeof content !== "string" ||
-                !content.trim()
-            ) {
-                continue;
-            }
-
-            content =
-                content.slice(
-                    0,
-                    MAX_HISTORY_CHARS
-                );
-
-            result.push({
-                role,
-                content
-            });
-        }
-    }
-
-    result.push({
-        role: "user",
-        content: userMessage
-    });
-
-    return result;
 }
 
 /* ======================================================
    CHAT
 ====================================================== */
 
-app.post("/api/chat", async (req, res) => {
+async function generateAnswer({
+    message,
+    history,
+    userId
+}) {
+    const memories = await getMemories(
+        userId,
+        20
+    );
+
+    const normalizedHistory =
+        normalizeMessages(history);
+
+    const systemPrompt =
+        getSystemPrompt(memories);
+
+    const messages = [
+        {
+            role: "system",
+            content: systemPrompt
+        },
+        ...normalizedHistory,
+        {
+            role: "user",
+            content: message
+        }
+    ];
 
     try {
+        return await callGroq(
+            messages,
+            GROQ_MODEL
+        );
+    } catch (primaryError) {
+        console.error(
+            "Primary Groq model failed:",
+            primaryError.message
+        );
 
-        const message =
-            typeof req.body?.message === "string"
-                ? req.body.message.trim()
-                : "";
+        if (
+            GROQ_FALLBACK_MODEL &&
+            GROQ_FALLBACK_MODEL !== GROQ_MODEL
+        ) {
+            try {
+                return await callGroq(
+                    messages,
+                    GROQ_FALLBACK_MODEL
+                );
+            } catch (fallbackError) {
+                console.error(
+                    "Fallback Groq model failed:",
+                    fallbackError.message
+                );
+
+                throw new Error(
+                    `AI request failed: ${fallbackError.message}`
+                );
+            }
+        }
+
+        throw primaryError;
+    }
+}
+
+/* ======================================================
+   HEALTH
+====================================================== */
+
+app.get("/health", async (req, res) => {
+    let database = false;
+
+    if (pool) {
+        try {
+            await pool.query("SELECT 1");
+            database = true;
+        } catch {
+            database = false;
+        }
+    }
+
+    res.json({
+        ok: true,
+        service: "Atharv AI",
+        version: VERSION,
+        status: "healthy",
+        groq: Boolean(GROQ_API_KEY),
+        tavily: Boolean(TAVILY_API_KEY),
+        database,
+        uptime: Math.round(process.uptime())
+    });
+});
+
+/* ======================================================
+   VERSION
+====================================================== */
+
+app.get("/api/version", (req, res) => {
+    res.json({
+        ok: true,
+        version: VERSION,
+        service: "Atharv AI",
+        model: GROQ_MODEL
+    });
+});
+
+/* ======================================================
+   CHAT API
+====================================================== */
+
+app.post("/api/chat", async (req, res) => {
+    try {
+        const message = String(
+            req.body?.message || ""
+        ).trim();
 
         if (!message) {
-
             return res.status(400).json({
                 ok: false,
                 error: "Message is required."
@@ -672,7 +646,6 @@ app.post("/api/chat", async (req, res) => {
             message.length >
             MAX_MESSAGE_CHARS
         ) {
-
             return res.status(400).json({
                 ok: false,
                 error:
@@ -680,86 +653,20 @@ app.post("/api/chat", async (req, res) => {
             });
         }
 
-        const userId =
-            normalizeUserId(
-                req.body?.userId
-            );
-
         const history =
             Array.isArray(req.body?.history)
                 ? req.body.history
                 : [];
 
-        const memories =
-            await getMemories(
-                userId,
-                10
-            );
+        const userId = normalizeUserId(
+            req.body?.userId
+        );
 
-        let memoryText = "";
-
-        if (memories.length) {
-
-            memoryText =
-                "\n\nKnown user memories:\n" +
-                memories
-                    .map(
-                        item =>
-                            `- ${item.memory_key}: ${item.memory_value}`
-                    )
-                    .join("\n");
-        }
-
-        const messages =
-            normalizeMessages(
-                history,
-                message
-            );
-
-        if (memoryText) {
-
-            messages[0].content +=
-                memoryText;
-        }
-
-        let reply;
-
-        try {
-
-            reply =
-                await callGroq(
-                    messages,
-                    GROQ_MODEL
-                );
-
-        } catch (primaryError) {
-
-            console.error(
-                "Primary Groq model failed:",
-                primaryError.message
-            );
-
-            if (
-                GROQ_FALLBACK_MODEL &&
-                GROQ_FALLBACK_MODEL !== GROQ_MODEL
-            ) {
-
-                console.log(
-                    "Trying fallback model:",
-                    GROQ_FALLBACK_MODEL
-                );
-
-                reply =
-                    await callGroq(
-                        messages,
-                        GROQ_FALLBACK_MODEL
-                    );
-
-            } else {
-
-                throw primaryError;
-            }
-        }
+        const reply = await generateAnswer({
+            message,
+            history,
+            userId
+        });
 
         return res.json({
             ok: true,
@@ -767,249 +674,214 @@ app.post("/api/chat", async (req, res) => {
             message: reply,
             content: reply
         });
-
     } catch (error) {
-
         console.error(
             "CHAT ERROR:",
             error
         );
 
-        const status =
-            error?.name === "AbortError"
-                ? 504
-                : error?.status >= 400 &&
-                    error?.status < 600
-                    ? error.status
-                    : 500;
-
-        const message =
-            error?.name === "AbortError"
-                ? "AI request timed out. Please try again."
-                : error?.message ||
-                    "AI request failed.";
-
-        return res.status(status).json({
+        return res.status(500).json({
             ok: false,
-            error: message
+            error:
+                error?.message ||
+                "Unable to generate a response."
         });
     }
 });
 
 /* ======================================================
-   TAVILY RESEARCH
+   TAVILY SEARCH
 ====================================================== */
 
 async function tavilySearch(query) {
-
     if (!TAVILY_API_KEY) {
-        return [];
+        throw new Error(
+            "TAVILY_API_KEY is not configured."
+        );
     }
 
-    const controller =
-        new AbortController();
+    const response = await fetch(
+        "https://api.tavily.com/search",
+        {
+            method: "POST",
 
-    const timeout =
-        setTimeout(
-            () => controller.abort(),
-            30000
-        );
+            headers: {
+                "Content-Type": "application/json"
+            },
+
+            body: JSON.stringify({
+                api_key: TAVILY_API_KEY,
+                query,
+                search_depth: "advanced",
+                include_answer: true,
+                include_raw_content: false,
+                max_results: 5
+            })
+        }
+    );
+
+    const text = await response.text();
+
+    let data;
 
     try {
-
-        const response =
-            await fetch(
-                "https://api.tavily.com/search",
-                {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json"
-                    },
-
-                    body: JSON.stringify({
-                        api_key:
-                            TAVILY_API_KEY,
-                        query,
-                        search_depth: "advanced",
-                        max_results: 6,
-                        include_answer: true,
-                        include_raw_content: false
-                    }),
-
-                    signal: controller.signal
-                }
-            );
-
-        const data =
-            await response.json();
-
-        if (!response.ok) {
-
-            throw new Error(
-                data?.message ||
-                "Tavily search failed."
-            );
-        }
-
-        return {
-            answer:
-                data?.answer || "",
-            results:
-                Array.isArray(data?.results)
-                    ? data.results
-                    : []
-        };
-
-    } finally {
-
-        clearTimeout(timeout);
+        data = JSON.parse(text);
+    } catch {
+        throw new Error(
+            "Invalid response from search service."
+        );
     }
+
+    if (!response.ok) {
+        throw new Error(
+            data?.message ||
+            data?.error ||
+            `Search HTTP ${response.status}`
+        );
+    }
+
+    return data;
 }
 
 /* ======================================================
    RESEARCH CHAT
 ====================================================== */
 
-app.post(
-    "/api/chat/research",
-    async (req, res) => {
+app.post("/api/chat/research", async (req, res) => {
+    try {
+        const message = String(
+            req.body?.message || ""
+        ).trim();
 
-        try {
-
-            const query =
-                typeof req.body?.message === "string"
-                    ? req.body.message.trim()
-                    : "";
-
-            if (!query) {
-
-                return res.status(400).json({
-                    ok: false,
-                    error: "Research query is required."
-                });
-            }
-
-            if (!TAVILY_API_KEY) {
-
-                return res.status(503).json({
-                    ok: false,
-                    error:
-                        "Live Search is not configured on the server."
-                });
-            }
-
-            const search =
-                await tavilySearch(query);
-
-            const sources =
-                search.results || [];
-
-            const researchText =
-                sources
-                    .map((item, index) => {
-
-                        return `
-SOURCE ${index + 1}
-Title: ${item.title || ""}
-URL: ${item.url || ""}
-Content: ${(
-                            item.content || ""
-                        ).slice(0, 3500)}
-`;
-                    })
-                    .join("\n");
-
-            const researchPrompt = `
-Answer the user's question using the live research below.
-
-User question:
-${query}
-
-Live research:
-${researchText}
-
-Important:
-- Use only information supported by the research.
-- If sources disagree, mention the disagreement.
-- Do not invent facts.
-- Keep the user's language.
-- Give useful source links when available.
-`;
-
-            const messages = [
-                {
-                    role: "system",
-                    content: SYSTEM_PROMPT
-                },
-                {
-                    role: "user",
-                    content: researchPrompt
-                }
-            ];
-
-            let reply;
-
-            try {
-
-                reply =
-                    await callGroq(
-                        messages,
-                        GROQ_MODEL
-                    );
-
-            } catch {
-
-                reply =
-                    await callGroq(
-                        messages,
-                        GROQ_FALLBACK_MODEL
-                    );
-            }
-
-            return res.json({
-                ok: true,
-                reply,
-                message: reply,
-                content: reply,
-                sources: sources.map(item => ({
-                    title: item.title || "",
-                    url: item.url || "",
-                    content:
-                        item.content || ""
-                }))
-            });
-
-        } catch (error) {
-
-            console.error(
-                "RESEARCH ERROR:",
-                error
-            );
-
-            return res.status(500).json({
+        if (!message) {
+            return res.status(400).json({
                 ok: false,
-                error:
-                    error?.message ||
-                    "Live research failed."
+                error: "Message is required."
             });
         }
+
+        if (!TAVILY_API_KEY) {
+            return res.status(503).json({
+                ok: false,
+                error:
+                    "Live Search is not configured. Add TAVILY_API_KEY in Render environment variables."
+            });
+        }
+
+        const searchData =
+            await tavilySearch(message);
+
+        const sources =
+            Array.isArray(searchData?.results)
+                ? searchData.results
+                : [];
+
+        const researchText = sources
+            .map((item, index) => {
+                const title =
+                    String(item?.title || "")
+                        .slice(0, 300);
+
+                const content =
+                    String(
+                        item?.content ||
+                        item?.snippet ||
+                        ""
+                    ).slice(
+                        0,
+                        MAX_RESEARCH_CHARS
+                    );
+
+                const url =
+                    String(item?.url || "");
+
+                return `
+Source ${index + 1}
+Title: ${title}
+URL: ${url}
+Content: ${content}
+`;
+            })
+            .join("\n");
+
+        const userId = normalizeUserId(
+            req.body?.userId
+        );
+
+        const memories = await getMemories(
+            userId,
+            20
+        );
+
+        const history =
+            normalizeMessages(
+                req.body?.history
+            );
+
+        const system =
+            getSystemPrompt(memories) +
+            `
+
+Live research instructions:
+- Use the supplied search results as evidence.
+- Clearly distinguish facts from uncertainty.
+- Do not invent information.
+- When useful, mention the source website naturally.
+- Answer in the user's language.
+
+SEARCH RESULTS:
+${researchText || "No search results available."}
+`;
+
+        const answer = await callGroq(
+            [
+                {
+                    role: "system",
+                    content: system
+                },
+                ...history,
+                {
+                    role: "user",
+                    content: message
+                }
+            ],
+            GROQ_MODEL
+        );
+
+        return res.json({
+            ok: true,
+            reply: answer,
+            message: answer,
+            content: answer,
+            sources: sources.map(item => ({
+                title: item?.title || "",
+                url: item?.url || ""
+            }))
+        });
+    } catch (error) {
+        console.error(
+            "RESEARCH ERROR:",
+            error
+        );
+
+        return res.status(500).json({
+            ok: false,
+            error:
+                error?.message ||
+                "Live research failed."
+        });
     }
-);
+});
 
 /* ======================================================
    MEMORY GET
 ====================================================== */
 
 app.get("/api/memory", async (req, res) => {
-
     try {
-
-        const userId =
-            normalizeUserId(
-                req.query?.userId
-            );
+        const userId = normalizeUserId(
+            req.query?.userId
+        );
 
         const memories =
             await getMemories(
@@ -1021,12 +893,10 @@ app.get("/api/memory", async (req, res) => {
             ok: true,
             memories
         });
-
     } catch (error) {
-
         console.error(
             "MEMORY GET ERROR:",
-            error.message
+            error
         );
 
         return res.status(500).json({
@@ -1041,26 +911,22 @@ app.get("/api/memory", async (req, res) => {
 ====================================================== */
 
 app.post("/api/memory", async (req, res) => {
-
     try {
+        const userId = normalizeUserId(
+            req.body?.userId
+        );
 
-        const userId =
-            normalizeUserId(
-                req.body?.userId
-            );
-
-        const key =
+        const key = normalizeMemoryKey(
             req.body?.key ||
-            req.body?.memory_key ||
-            req.body?.name;
+            req.body?.memory_key
+        );
 
-        const value =
+        const value = normalizeMemoryValue(
             req.body?.value ||
-            req.body?.memory_value ||
-            req.body?.content;
+            req.body?.memory_value
+        );
 
         if (!key || !value) {
-
             return res.status(400).json({
                 ok: false,
                 error:
@@ -1068,30 +934,31 @@ app.post("/api/memory", async (req, res) => {
             });
         }
 
-        const saved =
-            await saveMemory(
-                userId,
-                key,
-                value
-            );
+        await saveMemory(
+            userId,
+            key,
+            value
+        );
 
         return res.json({
-            ok: saved,
-            message: saved
-                ? "Memory saved."
-                : "Memory was not saved."
+            ok: true,
+            message: "Memory saved.",
+            memory: {
+                memory_key: key,
+                memory_value: value
+            }
         });
-
     } catch (error) {
-
         console.error(
             "MEMORY POST ERROR:",
-            error.message
+            error
         );
 
         return res.status(500).json({
             ok: false,
-            error: "Unable to save memory."
+            error:
+                error?.message ||
+                "Unable to save memory."
         });
     }
 });
@@ -1101,86 +968,55 @@ app.post("/api/memory", async (req, res) => {
 ====================================================== */
 
 app.get("/api/weather", async (req, res) => {
-
     try {
+        const latitude = Number(
+            req.query?.lat
+        );
 
-        const city =
-            String(
-                req.query?.city || ""
-            ).trim();
+        const longitude = Number(
+            req.query?.lon
+        );
 
-        if (!city) {
-
+        if (
+            !Number.isFinite(latitude) ||
+            !Number.isFinite(longitude)
+        ) {
             return res.status(400).json({
                 ok: false,
-                error: "City is required."
+                error:
+                    "Valid latitude and longitude are required."
             });
         }
 
-        /*
-         * Open-Meteo geocoding does not require
-         * an API key.
-         */
-
-        const geoUrl =
-            "https://geocoding-api.open-meteo.com/v1/search" +
-            `?name=${encodeURIComponent(city)}` +
-            "&count=1" +
-            "&language=en" +
-            "&format=json";
-
-        const geoResponse =
-            await fetch(geoUrl);
-
-        const geo =
-            await geoResponse.json();
-
-        const place =
-            geo?.results?.[0];
-
-        if (!place) {
-
-            return res.status(404).json({
-                ok: false,
-                error: "City not found."
-            });
-        }
-
-        const weatherUrl =
+        const url =
             "https://api.open-meteo.com/v1/forecast" +
-            `?latitude=${place.latitude}` +
-            `&longitude=${place.longitude}` +
-            "&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m" +
+            `?latitude=${encodeURIComponent(latitude)}` +
+            `&longitude=${encodeURIComponent(longitude)}` +
+            "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m" +
             "&timezone=auto";
 
-        const weatherResponse =
-            await fetch(weatherUrl);
+        const response =
+            await fetch(url);
 
-        const weather =
-            await weatherResponse.json();
+        const data =
+            await response.json();
+
+        if (!response.ok) {
+            throw new Error(
+                "Weather service failed."
+            );
+        }
 
         return res.json({
             ok: true,
-            location: {
-                name: place.name,
-                country: place.country,
-                latitude: place.latitude,
-                longitude: place.longitude
-            },
-            current:
-                weather.current || null
+            data
         });
-
     } catch (error) {
-
-        console.error(
-            "WEATHER ERROR:",
-            error.message
-        );
-
         return res.status(500).json({
             ok: false,
-            error: "Weather request failed."
+            error:
+                error?.message ||
+                "Unable to fetch weather."
         });
     }
 });
@@ -1189,54 +1025,24 @@ app.get("/api/weather", async (req, res) => {
    STATIC FRONTEND
 ====================================================== */
 
-if (fs.existsSync(PUBLIC_DIR)) {
-
-    app.use(
-        express.static(
-            PUBLIC_DIR,
-            {
-                extensions: ["html"]
-            }
-        )
-    );
-
-} else {
-
-    console.warn(
-        "⚠️ public directory not found:",
-        PUBLIC_DIR
-    );
-}
-
-/* ======================================================
-   API 404
-====================================================== */
-
-app.use("/api", (req, res) => {
-
-    res.status(404).json({
-        ok: false,
-        error: "API endpoint not found."
-    });
-});
+app.use(
+    express.static(PUBLIC_DIR, {
+        extensions: ["html"],
+        maxAge: "1h"
+    })
+);
 
 /* ======================================================
    FRONTEND FALLBACK
-   Express 5 compatible
 ====================================================== */
 
 app.use((req, res, next) => {
-
     if (
         req.method === "GET" &&
         !req.path.startsWith("/api/")
     ) {
-
         if (fs.existsSync(INDEX_FILE)) {
-
-            return res.sendFile(
-                INDEX_FILE
-            );
+            return res.sendFile(INDEX_FILE);
         }
     }
 
@@ -1244,102 +1050,97 @@ app.use((req, res, next) => {
 });
 
 /* ======================================================
-   GLOBAL ERROR HANDLER
+   API 404
 ====================================================== */
 
-app.use(
-    (error, req, res, next) => {
-
-        console.error(
-            "SERVER ERROR:",
-            error
-        );
-
-        if (res.headersSent) {
-            return next(error);
-        }
-
-        res.status(
-            error?.status || 500
-        ).json({
-            ok: false,
-            error:
-                error?.message ||
-                "Internal server error."
-        });
-    }
-);
+app.use("/api", (req, res) => {
+    res.status(404).json({
+        ok: false,
+        error: "API endpoint not found."
+    });
+});
 
 /* ======================================================
-   START SERVER
+   ERROR HANDLER
+====================================================== */
+
+app.use((error, req, res, next) => {
+    console.error(
+        "GLOBAL ERROR:",
+        error
+    );
+
+    if (res.headersSent) {
+        return next(error);
+    }
+
+    res.status(
+        Number(error?.status) || 500
+    ).json({
+        ok: false,
+        error:
+            error?.message ||
+            "Internal server error."
+    });
+});
+
+/* ======================================================
+   START
 ====================================================== */
 
 let server = null;
 
 async function startServer() {
-
     await initDatabase();
 
-    server =
-        app.listen(
-            PORT,
-            HOST,
-            () => {
-
-                console.log("");
-                console.log(
-                    "🚀 Atharv AI server started"
-                );
-
-                console.log(
-                    `🌐 Port: ${PORT}`
-                );
-
-                console.log(
-                    `📁 Public: ${PUBLIC_DIR}`
-                );
-
-                console.log(
-                    `🤖 Groq model: ${GROQ_MODEL}`
-                );
-
-                console.log(
-                    `🔎 Live Search: ${
-                        TAVILY_API_KEY
-                            ? "ON"
-                            : "OFF"
-                    }`
-                );
-
-                console.log(
-                    `🧠 Database Memory: ${
-                        pool
-                            ? "ON"
-                            : "OFF"
-                    }`
-                );
-
-                console.log("");
-            }
-        );
+    server = app.listen(
+        PORT,
+        HOST,
+        () => {
+            console.log("");
+            console.log(
+                "=========================================="
+            );
+            console.log(
+                " ATHARV AI SERVER"
+            );
+            console.log(
+                ` VERSION: ${VERSION}`
+            );
+            console.log(
+                ` PORT: ${PORT}`
+            );
+            console.log(
+                ` HOST: ${HOST}`
+            );
+            console.log(
+                ` GROQ: ${GROQ_API_KEY ? "configured" : "missing"}`
+            );
+            console.log(
+                ` TAVILY: ${TAVILY_API_KEY ? "configured" : "missing"}`
+            );
+            console.log(
+                ` DATABASE: ${pool ? "connected" : "fallback"}`
+            );
+            console.log(
+                "=========================================="
+            );
+            console.log("");
+        }
+    );
 }
 
 /* ======================================================
    GRACEFUL SHUTDOWN
 ====================================================== */
 
-async function shutdown(
-    signal
-) {
-
+async function shutdown(signal) {
     console.log(
-        `\n${signal} received. Shutting down...`
+        `${signal} received. Shutting down...`
     );
 
     try {
-
         if (server) {
-
             await new Promise(resolve => {
                 server.close(resolve);
             });
@@ -1349,16 +1150,14 @@ async function shutdown(
             await pool.end();
         }
 
+        process.exit(0);
     } catch (error) {
-
         console.error(
             "Shutdown error:",
-            error.message
+            error
         );
 
-    } finally {
-
-        process.exit(0);
+        process.exit(1);
     }
 }
 
@@ -1372,16 +1171,26 @@ process.on(
     () => shutdown("SIGINT")
 );
 
-/* ======================================================
-   START
-====================================================== */
+process.on(
+    "unhandledRejection",
+    error => {
+        console.error(
+            "UNHANDLED REJECTION:",
+            error
+        );
+    }
+);
 
-startServer().catch(error => {
+process.on(
+    "uncaughtException",
+    error => {
+        console.error(
+            "UNCAUGHT EXCEPTION:",
+            error
+        );
+    }
+);
 
-    console.error(
-        "❌ FATAL SERVER ERROR:",
-        error
-    );
+startServer();
 
-    process.exit(1);
-});
+module.exports = app;
